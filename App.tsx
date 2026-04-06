@@ -83,29 +83,30 @@ const App: React.FC = () => {
 
   // ─── Auth state change ─────────────────────────────────────────────────────
   const checkBlocked = async (userId: string): Promise<boolean> => {
-    const { data } = await supabase.from('profiles').select('is_blocked').eq('user_id', userId).single();
-    return data?.is_blocked === true;
+    try {
+      const { data } = await supabase.from('profiles').select('is_blocked').eq('user_id', userId).single();
+      return data?.is_blocked === true;
+    } catch { return false; }
   };
 
   useEffect(() => {
-    // Merr session fillestare
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        const blocked = await checkBlocked(data.session.user.id);
-        if (blocked) { await supabase.auth.signOut(); return; }
-        setSession(data.session);
-        loadAllData(data.session.user.id);
-      } else {
-        setSession(null);
-        setDataReady(true);
-      }
+    // Merr session fillestare — pa checkBlocked (për shpejtësi)
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session) loadAllData(data.session.user.id);
+      else setDataReady(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, sess) => {
-      if (sess) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      // INITIAL_SESSION trajtohet nga getSession — shmang dyfishimin
+      if (event === 'INITIAL_SESSION') return;
+
+      // Kur user kyçet, kontrollo nëse është bllokuar
+      if (sess && event === 'SIGNED_IN') {
         const blocked = await checkBlocked(sess.user.id);
         if (blocked) { await supabase.auth.signOut(); return; }
       }
+
       setSession(sess);
       if (sess) {
         setDataReady(false);
