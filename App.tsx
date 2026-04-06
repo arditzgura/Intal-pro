@@ -104,8 +104,15 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Timeout 5s — nëse Supabase nuk përgjigjet, shko te login
+    const timeout = setTimeout(() => {
+      setSession(null);
+      setDataReady(true);
+    }, 5000);
+
     // Merr session fillestare — pa checkBlocked (për shpejtësi)
     supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(timeout);
       setSession(data.session);
       if (data.session) loadAllData(data.session.user.id);
       else setDataReady(true);
