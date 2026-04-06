@@ -149,43 +149,26 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   };
 
   const sendWhatsApp = async () => {
-    const rawPhone = client?.phone || invoice.clientPhone || '';
-    let phone = rawPhone.replace(/[\s\-().+]/g, '');
-    if (phone.startsWith('0')) phone = '355' + phone.slice(1);
-    else if (phone.length === 9) phone = '355' + phone;
-
-    if (!phone) {
-      alert('Ky klient nuk ka numër telefoni të ruajtur në profil.');
-      return;
-    }
-
     setIsWhatsAppSending(true);
     try {
       const blob = await generatePngBlob();
       if (!blob) return;
 
       const fileName = invoice.clientName.trim().replace(/\s+/g, '_') + '_fatura.png';
+      const file = new File([blob], fileName, { type: 'image/png' });
 
-      // Caption default që do të shfaqet poshtë fotos
-      const today = new Date().toLocaleDateString('sq-AL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const caption = `Fatura sot\n📋 Nr. ${invoice.invoiceNumber} — ${invoice.clientName}\n📅 ${today}`;
-
-      // Hap WhatsApp direkt te kontakti me caption të paraplotësuar
-      const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(caption)}`;
-
-      // Shkarko PNG automatikisht
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = url;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-
-      // Hap WhatsApp pas 600ms (pasi shkarkim filloi)
-      setTimeout(() => window.open(waUrl, '_blank'), 600);
-
+      // Hap direkt WhatsApp me imazhin — përdoruesi zgjedh kontaktin dhe shton përshkrimin
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        // Fallback desktop: shkarko PNG
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.download = fileName; a.href = url; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
     } catch (e: any) {
-      console.error(e);
+      if (e?.name !== 'AbortError') console.error(e);
     } finally {
       setIsWhatsAppSending(false);
     }
