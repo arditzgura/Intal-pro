@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   LayoutDashboard, FileText, Users, Package, PlusCircle,
-  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2
+  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS } from './utils/storage';
@@ -23,6 +23,7 @@ import ClientProfile   from './components/ClientProfile';
 import ItemProfile     from './components/ItemProfile';
 import StockEntryPreview from './components/StockEntryPreview';
 import AuthScreen      from './components/AuthScreen';
+import AdminPanel      from './components/AdminPanel';
 
 const DEFAULT_CONFIG: BusinessConfig = {
   name: 'INTAL ALBANIA', nipt: 'L12345678X',
@@ -81,15 +82,30 @@ const App: React.FC = () => {
   }, []);
 
   // ─── Auth state change ─────────────────────────────────────────────────────
+  const checkBlocked = async (userId: string): Promise<boolean> => {
+    const { data } = await supabase.from('profiles').select('is_blocked').eq('user_id', userId).single();
+    return data?.is_blocked === true;
+  };
+
   useEffect(() => {
     // Merr session fillestare
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) loadAllData(data.session.user.id);
-      else setDataReady(true);
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        const blocked = await checkBlocked(data.session.user.id);
+        if (blocked) { await supabase.auth.signOut(); return; }
+        setSession(data.session);
+        loadAllData(data.session.user.id);
+      } else {
+        setSession(null);
+        setDataReady(true);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, sess) => {
+      if (sess) {
+        const blocked = await checkBlocked(sess.user.id);
+        if (blocked) { await supabase.auth.signOut(); return; }
+      }
       setSession(sess);
       if (sess) {
         setDataReady(false);
@@ -344,6 +360,7 @@ const App: React.FC = () => {
   }
 
   const username = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Përdoruesi';
+  const isAdmin = username === 'arditzgura';
   const showGlobalBack = currentView !== 'dashboard' || selectedProfileClient || selectedProfileItem || previewInvoice || previewStockEntry;
 
   const navItems = [
@@ -354,6 +371,7 @@ const App: React.FC = () => {
     { id: 'items',        label: 'Artikujt',   icon: <Package size={18}/> },
     { id: 'stock-entries',label: 'Flethyrje',  icon: <Warehouse size={18}/> },
     { id: 'settings',     label: 'Cilësimet',  icon: <Settings size={18}/> },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: <Shield size={18}/> }] : []),
   ];
 
   return (
@@ -416,7 +434,7 @@ const App: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
-                  {navItems.find(n => n.id === currentView)?.label || (currentView==='new-stock-entry' ? 'Detajet e Fletëhyrjes' : '')}
+                  {navItems.find(n => n.id === currentView)?.label || (currentView==='new-stock-entry' ? 'Detajet e Fletëhyrjes' : currentView==='admin' ? 'Admin' : '')}
                 </h2>
                 <p className="text-slate-400 text-xs md:text-sm font-medium">Sistemi i Menaxhimit për {config.name}</p>
               </div>
@@ -429,6 +447,7 @@ const App: React.FC = () => {
             {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{setInvoices(p=>p.filter(i=>i.id!==id)); db.invoices.remove(uid,id).catch(console.error);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
             {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{setClients(p=>[...p,c]);db.clients.upsert(uid,c).catch(console.error);}} onUpdate={u=>{setClients(p=>p.map(c=>c.id===u.id?u:c));db.clients.upsert(uid,u).catch(console.error);}} onDelete={id=>{setClients(p=>p.filter(c=>c.id!==id));db.clients.remove(uid,id).catch(console.error);}} onUpdateItems={ni=>{setItems(ni);ni.forEach(i=>db.items.upsert(uid,i).catch(console.error));}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
             {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{setItems(p=>[...p,i]);db.items.upsert(uid,i).catch(console.error);}} onUpdate={u=>{setItems(p=>p.map(i=>i.id===u.id?u:i));db.items.upsert(uid,u).catch(console.error);}} onDelete={id=>{setItems(p=>p.filter(i=>i.id!==id));db.items.remove(uid,id).catch(console.error);}} onOpenProfile={setSelectedProfileItem}/>}
+            {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
                 onExport={() => {

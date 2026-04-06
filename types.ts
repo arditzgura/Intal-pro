@@ -96,4 +96,4 @@ export interface BusinessConfig {
   watermarkDesaturate?: boolean;
 }
 
-export type View = 'dashboard' | 'invoices' | 'clients' | 'items' | 'new-invoice' | 'settings' | 'stock-entries' | 'new-stock-entry';
+export type View = 'dashboard' | 'invoices' | 'clients' | 'items' | 'new-invoice' | 'settings' | 'stock-entries' | 'new-stock-entry' | 'admin';
