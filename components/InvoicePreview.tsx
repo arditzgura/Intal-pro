@@ -149,12 +149,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   };
 
   const sendWhatsApp = async () => {
-    // Merr numrin e telefonit të klientit
     const rawPhone = client?.phone || invoice.clientPhone || '';
-
-    // Pastro numrin — largo hapësirat, vizat, kllapat
     let phone = rawPhone.replace(/[\s\-().+]/g, '');
-    // Numrat shqiptarë: nëse fillon me 0 → 355XX, nëse 9 shifra → shto 355
     if (phone.startsWith('0')) phone = '355' + phone.slice(1);
     else if (phone.length === 9) phone = '355' + phone;
 
@@ -169,32 +165,27 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
       if (!blob) return;
 
       const fileName = invoice.clientName.trim().replace(/\s+/g, '_') + '_fatura.png';
-      const file = new File([blob], fileName, { type: 'image/png' });
 
-      // Mundësia 1: Web Share API (mobil — hap share sheet direkt)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Fatura #${invoice.invoiceNumber} — ${invoice.clientName}`,
-          text: `Fatura #${invoice.invoiceNumber}`,
-        });
-      } else {
-        // Mundësia 2: Desktop — shkarko PNG + hap WhatsApp Web
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = url;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      // Caption default që do të shfaqet poshtë fotos
+      const today = new Date().toLocaleDateString('sq-AL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const caption = `Fatura sot\n📋 Nr. ${invoice.invoiceNumber} — ${invoice.clientName}\n📅 ${today}`;
 
-        // Hap WhatsApp Web me numrin
-        setTimeout(() => {
-          window.open(`https://wa.me/${phone}`, '_blank');
-        }, 800);
-      }
+      // Hap WhatsApp direkt te kontakti me caption të paraplotësuar
+      const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(caption)}`;
+
+      // Shkarko PNG automatikisht
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = url;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      // Hap WhatsApp pas 600ms (pasi shkarkim filloi)
+      setTimeout(() => window.open(waUrl, '_blank'), 600);
+
     } catch (e: any) {
-      // Përdoruesi anuloi share-in — jo gabim real
-      if (e?.name !== 'AbortError') console.error(e);
+      console.error(e);
     } finally {
       setIsWhatsAppSending(false);
     }
