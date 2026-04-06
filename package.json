@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "vite build && node electron/build-electron.cjs && electron-builder build --win --publish never",
+    "electron:build": "cross-env BUILD_TARGET=electron vite build && node electron/build-electron.cjs && electron-builder build --win --publish never",
     "electron:preview": "node electron/build-electron.cjs && electron ."
   },
   "dependencies": {
