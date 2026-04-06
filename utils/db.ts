@@ -40,14 +40,13 @@ async function upsertMany<T extends { id: string }>(
   table: Table, userId: string, records: T[]
 ): Promise<void> {
   if (!records.length) return;
-  // Ruaj lokalisht
+  // Ruaj lokalisht menjëherë
   local.setAll(userId, table, records);
-  // Sinkronizo me cloud
-  try {
-    const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
-    const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id,user_id' });
-    if (error) console.warn('[sync] upsertMany', table, error.message);
-  } catch { /* offline */ }
+  // Sinkronizo me cloud në background (pa pritur)
+  const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
+  supabase.from(table).upsert(rows, { onConflict: 'id,user_id' })
+    .then(({ error }) => { if (error) console.warn('[sync] upsertMany', table, error.message); })
+    .catch(() => { /* offline */ });
 }
 
 // ─── Fshi një rekord ──────────────────────────────────────────────────────────
@@ -65,11 +64,12 @@ async function removeOne(table: Table, userId: string, id: string): Promise<void
 
 // ─── Fshi të gjitha ───────────────────────────────────────────────────────────
 async function clearTable(table: Table, userId: string): Promise<void> {
+  // Fshi lokalisht menjëherë
   local.clear(userId, table);
-  try {
-    const { error } = await supabase.from(table).delete().eq('user_id', userId);
-    if (error) console.warn('[sync] clear', table, error.message);
-  } catch { /* offline */ }
+  // Sinkronizo me cloud në background (pa pritur)
+  supabase.from(table).delete().eq('user_id', userId)
+    .then(({ error }) => { if (error) console.warn('[sync] clear', table, error.message); })
+    .catch(() => { /* offline */ });
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
