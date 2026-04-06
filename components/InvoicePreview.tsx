@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Invoice, Client, BusinessConfig } from '../types';
-import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins } from 'lucide-react';
+import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send } from 'lucide-react';
 
 interface Props {
   invoice: Invoice;
@@ -31,6 +31,7 @@ const formatTime = (dateStr: string) => {
 const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, onEdit }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isPngExporting, setIsPngExporting] = useState(false);
+  const [isWhatsAppSending, setIsWhatsAppSending] = useState(false);
 
   const handlePrint = (format: 'A4' | '80mm') => {
     document.body.classList.remove('format-80mm');
@@ -118,6 +119,87 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     }
   };
 
+  // Gjenero PNG blob (i përbashkët për export dhe WhatsApp)
+  const generatePngBlob = async (): Promise<Blob | null> => {
+    const source = document.getElementById('invoice-printable');
+    if (!source) return null;
+
+    const rollOnly = source.querySelectorAll<HTMLElement>('.roll-only');
+    const rollHide = source.querySelectorAll<HTMLElement>('.roll-hide');
+    rollOnly.forEach(el => (el.style.display = 'none'));
+    rollHide.forEach(el => (el.style.display = 'flex'));
+
+    const par = source.parentElement as HTMLElement | null;
+    const savedTrans = par?.style.transform ?? '';
+    const savedTransition = par?.style.transition ?? '';
+    if (par) { par.style.transition = 'none'; par.style.transform = 'none'; }
+
+    try {
+      // @ts-ignore
+      const canvas = await html2canvas(source, {
+        scale: 1.5, useCORS: true, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false, imageTimeout: 0,
+      });
+      return await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
+    } finally {
+      if (par) { par.style.transform = savedTrans; par.style.transition = savedTransition; }
+      rollOnly.forEach(el => el.style.removeProperty('display'));
+      rollHide.forEach(el => el.style.removeProperty('display'));
+    }
+  };
+
+  const sendWhatsApp = async () => {
+    // Merr numrin e telefonit të klientit
+    const rawPhone = client?.phone || invoice.clientPhone || '';
+
+    // Pastro numrin — largo hapësirat, vizat, kllapat
+    let phone = rawPhone.replace(/[\s\-().+]/g, '');
+    // Numrat shqiptarë: nëse fillon me 0 → 355XX, nëse 9 shifra → shto 355
+    if (phone.startsWith('0')) phone = '355' + phone.slice(1);
+    else if (phone.length === 9) phone = '355' + phone;
+
+    if (!phone) {
+      alert('Ky klient nuk ka numër telefoni të ruajtur në profil.');
+      return;
+    }
+
+    setIsWhatsAppSending(true);
+    try {
+      const blob = await generatePngBlob();
+      if (!blob) return;
+
+      const fileName = invoice.clientName.trim().replace(/\s+/g, '_') + '_fatura.png';
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // Mundësia 1: Web Share API (mobil — hap share sheet direkt)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Fatura #${invoice.invoiceNumber} — ${invoice.clientName}`,
+          text: `Fatura #${invoice.invoiceNumber}`,
+        });
+      } else {
+        // Mundësia 2: Desktop — shkarko PNG + hap WhatsApp Web
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = url;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+        // Hap WhatsApp Web me numrin
+        setTimeout(() => {
+          window.open(`https://wa.me/${phone}`, '_blank');
+        }, 800);
+      }
+    } catch (e: any) {
+      // Përdoruesi anuloi share-in — jo gabim real
+      if (e?.name !== 'AbortError') console.error(e);
+    } finally {
+      setIsWhatsAppSending(false);
+    }
+  };
+
   const displayCity = invoice.clientCity || client?.city || 'TIRANË';
 
   return (
@@ -127,6 +209,13 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
         <div className="bg-white p-2 rounded-2xl shadow-2xl border border-slate-200 flex items-center gap-2">
           <button onClick={exportPNG} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all">{isPngExporting ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />} PNG</button>
           <button onClick={exportPDF} className="bg-[#D81B60] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#AD1457] transition-all">{isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileCheck size={16} />} PDF</button>
+          {/* WhatsApp — shfaqet vetëm nëse klienti ka numër telefoni */}
+          {(client?.phone || invoice.clientPhone) && (
+            <button onClick={sendWhatsApp}
+              className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all">
+              {isWhatsAppSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} WhatsApp
+            </button>
+          )}
           <button onClick={() => handlePrint('A4')} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-black transition-all"><Printer size={16} /> A4</button>
           <button onClick={() => handlePrint('80mm')} className="bg-slate-100 text-slate-800 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all"><Printer size={16} /> 80MM</button>
           <div className="w-px h-6 bg-slate-200 mx-1"></div>
