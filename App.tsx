@@ -104,18 +104,46 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Timeout 5s — nëse Supabase nuk përgjigjet, shko te login
-    const timeout = setTimeout(() => {
-      setSession(null);
-      setDataReady(true);
-    }, 5000);
+    // Lexo sesionin nga localStorage menjëherë (sinkron, pa rrjet)
+    // Supabase e ruan sesionin me çelësin: sb-<ref>-auth-token
+    const getLocalSession = (): any => {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || '';
+          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            const val = JSON.parse(localStorage.getItem(key) || 'null');
+            if (val?.access_token) return val;
+          }
+        }
+      } catch { /* ignore */ }
+      return null;
+    };
 
-    // Merr session fillestare — pa checkBlocked (për shpejtësi)
+    const localSess = getLocalSession();
+    if (localSess) {
+      // Ka sesion lokal — ngarko të dhënat menjëherë pa pritur Supabase
+      const fakeSession = { user: { id: localSess.user?.id, user_metadata: localSess.user?.user_metadata, email: localSess.user?.email } } as any;
+      setSession(fakeSession);
+      loadAllData(fakeSession.user.id);
+    }
+
+    // Valido/rifresko sesionin me Supabase (në background, timeout 15s)
+    const timeout = setTimeout(() => {
+      if (!localSess) { setSession(null); setDataReady(true); }
+    }, 15000);
+
     supabase.auth.getSession().then(({ data }) => {
       clearTimeout(timeout);
-      setSession(data.session);
-      if (data.session) loadAllData(data.session.user.id);
-      else setDataReady(true);
+      if (data.session) {
+        setSession(data.session);
+        if (!localSess) loadAllData(data.session.user.id);
+      } else if (!localSess) {
+        setSession(null);
+        setDataReady(true);
+      }
+    }).catch(() => {
+      clearTimeout(timeout);
+      if (!localSess) { setSession(null); setDataReady(true); }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
