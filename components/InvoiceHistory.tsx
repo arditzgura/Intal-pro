@@ -44,9 +44,14 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   const isDailyMode = filterMode === 'today' || filterMode === 'day';
   const activeDayStr = filterMode === 'today' ? todayStr : selectedDay;
 
+  const clientMap = useMemo(() => {
+    const m: Record<string, Client> = {};
+    clients.forEach(c => { m[c.id] = c; });
+    return m;
+  }, [clients]);
+
   const availableCities = useMemo(() => {
     const cities = new Set<string>();
-    // Qytetet nga faturat (konsistente me atë që u ruajt)
     invoices.forEach(inv => {
       const city = inv.clientCity || clientMap[inv.clientId]?.city;
       if (city?.trim()) cities.add(city.trim());
@@ -60,12 +65,6 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
     invoices.forEach(inv => { if (inv.date) years.add(inv.date.slice(0, 4)); });
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [invoices]);
-
-  const clientMap = useMemo(() => {
-    const m: Record<string, Client> = {};
-    clients.forEach(c => { m[c.id] = c; });
-    return m;
-  }, [clients]);
 
   // Gjendja finale e çdo klienti nga fatura e tyre e fundit
   const clientDebtMap = useMemo(() => {
