@@ -14,6 +14,13 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
+  // Timeout helper — nëse Supabase nuk përgjigjet brenda 10s
+  const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+    ]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setSuccess('');
@@ -28,22 +35,21 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
 
     try {
       if (mode === 'register') {
-        const { error: err } = await supabase.auth.signUp({ email, password,
+        const { error: err } = await withTimeout(supabase.auth.signUp({ email, password,
           options: { data: { username: uname } }
-        });
+        }));
         if (err) {
           if (err.message.includes('already registered') || err.message.includes('User already registered'))
             setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
           else setError(err.message);
         } else {
           setSuccess('Llogaria u krijua! Duke u lidhur...');
-          // Auto-login pas regjistrimit
-          const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+          const { error: loginErr } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
           if (!loginErr) onAuth();
           else setError(loginErr.message);
         }
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: err } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
         if (err) {
           if (err.message.includes('Invalid login') || err.message.includes('invalid_credentials'))
             setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
@@ -52,6 +58,11 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           onAuth();
         }
       }
+    } catch (ex: any) {
+      if (ex?.message === 'timeout')
+        setError('Nuk ka lidhje me serverin. Kontrollo internetin dhe provo sërish.');
+      else
+        setError('Gabim i papritur. Provo sërish.');
     } finally {
       setLoading(false);
     }
