@@ -8,6 +8,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS } from './utils/storage';
 import { supabase } from './utils/supabase';
 import { db } from './utils/db';
+import { local } from './utils/localDb';
 import type { Session, RealtimeChannel } from '@supabase/supabase-js';
 
 import Dashboard       from './components/Dashboard';
@@ -59,8 +60,22 @@ const App: React.FC = () => {
   const scrollPositions  = useRef<Record<string, number>>({});
   const realtimeChannel  = useRef<RealtimeChannel | null>(null);
 
-  // ─── Ngarko të gjitha të dhënat nga Supabase ───────────────────────────────
+  // ─── Ngarko të dhënat: localStorage (i menjëhershëm) + Supabase (background) ─
   const loadAllData = useCallback(async (userId: string) => {
+    // 1. Ngarko nga localStorage menjëherë — shfaq UI pa vonesa
+    const localClients  = local.getAll<Client>(userId, 'clients');
+    const localItems    = local.getAll<Item>(userId, 'items');
+    const localInvoices = local.getAll<Invoice>(userId, 'invoices');
+    const localStock    = local.getAll<StockEntry>(userId, 'stock_entries');
+    const localCfg      = local.getConfig(userId);
+    setClients(localClients);
+    setItems(localItems);
+    setInvoices(localInvoices);
+    setStockEntries(localStock);
+    if (localCfg) setConfig({ ...DEFAULT_CONFIG, ...localCfg });
+    setDataReady(true);
+
+    // 2. Sinkronizo me Supabase në background (nëse ka internet)
     try {
       const [cls, itms, invs, stock, cfg] = await Promise.all([
         db.clients.fetchAll(userId),
@@ -74,10 +89,9 @@ const App: React.FC = () => {
       setInvoices(invs);
       setStockEntries(stock);
       if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
-    } catch (e) {
-      console.error('Gabim duke ngarkuar të dhënat:', e);
-    } finally {
-      setDataReady(true);
+    } catch {
+      // Offline — vazhdo me të dhënat lokale
+      console.info('[offline] Duke përdorur të dhënat lokale');
     }
   }, []);
 

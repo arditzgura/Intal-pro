@@ -1,100 +1,130 @@
 import { supabase } from './supabase';
+import { local } from './localDb';
 import { Client, Invoice, Item, StockEntry, BusinessConfig } from '../types';
 
 type Table = 'clients' | 'items' | 'invoices' | 'stock_entries';
 
-// ─── Lexo të gjitha ───────────────────────────────────────────────────────────
+// ─── Lexo nga Supabase (me fallback në localStorage) ─────────────────────────
 async function fetchAll<T>(table: Table, userId: string): Promise<T[]> {
-  const { data, error } = await supabase
-    .from(table)
-    .select('data')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return (data ?? []).map(r => r.data as T);
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .select('data')
+      .eq('user_id', userId);
+    if (error) throw error;
+    const result = (data ?? []).map(r => r.data as T);
+    // Sinkronizo localStorage me të dhënat cloud
+    local.setAll(userId, table, result);
+    return result;
+  } catch {
+    // Offline — kthe nga localStorage
+    return local.getAll<T>(userId, table);
+  }
 }
 
 // ─── Ruaj një rekord ──────────────────────────────────────────────────────────
 async function upsertOne<T extends { id: string }>(
   table: Table, userId: string, record: T
 ): Promise<void> {
-  const { error } = await supabase
+  // Ruaj lokalisht menjëherë
+  local.upsert(userId, table, record);
+  // Sinkronizo me cloud (pa pritur)
+  supabase
     .from(table)
-    .upsert({ id: record.id, user_id: userId, data: record }, { onConflict: 'id,user_id' });
-  if (error) throw error;
+    .upsert({ id: record.id, user_id: userId, data: record }, { onConflict: 'id,user_id' })
+    .then(({ error }) => { if (error) console.warn('[sync]', table, error.message); });
 }
 
-// ─── Ruaj shumë rekorde menjëherë (migrate / import) ─────────────────────────
+// ─── Ruaj shumë rekorde (import / migrate) ───────────────────────────────────
 async function upsertMany<T extends { id: string }>(
   table: Table, userId: string, records: T[]
 ): Promise<void> {
   if (!records.length) return;
-  const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
-  const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id,user_id' });
-  if (error) throw error;
+  // Ruaj lokalisht
+  local.setAll(userId, table, records);
+  // Sinkronizo me cloud
+  try {
+    const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
+    const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id,user_id' });
+    if (error) console.warn('[sync] upsertMany', table, error.message);
+  } catch { /* offline */ }
 }
 
 // ─── Fshi një rekord ──────────────────────────────────────────────────────────
 async function removeOne(table: Table, userId: string, id: string): Promise<void> {
-  const { error } = await supabase
+  // Fshi lokalisht
+  local.remove(userId, table, id);
+  // Sinkronizo me cloud
+  supabase
     .from(table)
     .delete()
     .eq('id', id)
-    .eq('user_id', userId);
-  if (error) throw error;
+    .eq('user_id', userId)
+    .then(({ error }) => { if (error) console.warn('[sync] remove', table, error.message); });
 }
 
-// ─── Fshi të gjitha (për import të plotë) ────────────────────────────────────
+// ─── Fshi të gjitha ───────────────────────────────────────────────────────────
 async function clearTable(table: Table, userId: string): Promise<void> {
-  const { error } = await supabase.from(table).delete().eq('user_id', userId);
-  if (error) throw error;
+  local.clear(userId, table);
+  try {
+    const { error } = await supabase.from(table).delete().eq('user_id', userId);
+    if (error) console.warn('[sync] clear', table, error.message);
+  } catch { /* offline */ }
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 async function fetchConfig(userId: string): Promise<BusinessConfig | null> {
-  const { data } = await supabase
-    .from('user_config')
-    .select('data')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.data ?? null;
+  try {
+    const { data } = await supabase
+      .from('user_config')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const cfg = data?.data ?? null;
+    if (cfg) local.setConfig(userId, cfg);
+    return cfg;
+  } catch {
+    return local.getConfig(userId);
+  }
 }
 
 async function saveConfig(userId: string, config: BusinessConfig): Promise<void> {
-  const { error } = await supabase
+  local.setConfig(userId, config);
+  supabase
     .from('user_config')
-    .upsert({ user_id: userId, data: config }, { onConflict: 'user_id' });
-  if (error) throw error;
+    .upsert({ user_id: userId, data: config }, { onConflict: 'user_id' })
+    .then(({ error }) => { if (error) console.warn('[sync] config', error.message); });
 }
 
 // ─── API publike ─────────────────────────────────────────────────────────────
 export const db = {
   clients: {
-    fetchAll: (uid: string) => fetchAll<Client>('clients', uid),
-    upsert:   (uid: string, r: Client)   => upsertOne('clients', uid, r),
-    upsertMany:(uid: string, rs: Client[])=> upsertMany('clients', uid, rs),
-    remove:   (uid: string, id: string)  => removeOne('clients', uid, id),
-    clear:    (uid: string)              => clearTable('clients', uid),
+    fetchAll:   (uid: string)              => fetchAll<Client>('clients', uid),
+    upsert:     (uid: string, r: Client)   => upsertOne('clients', uid, r),
+    upsertMany: (uid: string, rs: Client[])=> upsertMany('clients', uid, rs),
+    remove:     (uid: string, id: string)  => removeOne('clients', uid, id),
+    clear:      (uid: string)              => clearTable('clients', uid),
   },
   items: {
-    fetchAll: (uid: string) => fetchAll<Item>('items', uid),
-    upsert:   (uid: string, r: Item)     => upsertOne('items', uid, r),
-    upsertMany:(uid: string, rs: Item[]) => upsertMany('items', uid, rs),
-    remove:   (uid: string, id: string)  => removeOne('items', uid, id),
-    clear:    (uid: string)              => clearTable('items', uid),
+    fetchAll:   (uid: string)              => fetchAll<Item>('items', uid),
+    upsert:     (uid: string, r: Item)     => upsertOne('items', uid, r),
+    upsertMany: (uid: string, rs: Item[])  => upsertMany('items', uid, rs),
+    remove:     (uid: string, id: string)  => removeOne('items', uid, id),
+    clear:      (uid: string)              => clearTable('items', uid),
   },
   invoices: {
-    fetchAll: (uid: string) => fetchAll<Invoice>('invoices', uid),
-    upsert:   (uid: string, r: Invoice)  => upsertOne('invoices', uid, r),
-    upsertMany:(uid: string, rs: Invoice[])=> upsertMany('invoices', uid, rs),
-    remove:   (uid: string, id: string)  => removeOne('invoices', uid, id),
-    clear:    (uid: string)              => clearTable('invoices', uid),
+    fetchAll:   (uid: string)              => fetchAll<Invoice>('invoices', uid),
+    upsert:     (uid: string, r: Invoice)  => upsertOne('invoices', uid, r),
+    upsertMany: (uid: string, rs: Invoice[])=> upsertMany('invoices', uid, rs),
+    remove:     (uid: string, id: string)  => removeOne('invoices', uid, id),
+    clear:      (uid: string)              => clearTable('invoices', uid),
   },
   stockEntries: {
-    fetchAll: (uid: string) => fetchAll<StockEntry>('stock_entries', uid),
-    upsert:   (uid: string, r: StockEntry) => upsertOne('stock_entries', uid, r),
-    upsertMany:(uid: string, rs: StockEntry[])=> upsertMany('stock_entries', uid, rs),
-    remove:   (uid: string, id: string)  => removeOne('stock_entries', uid, id),
-    clear:    (uid: string)              => clearTable('stock_entries', uid),
+    fetchAll:   (uid: string)                => fetchAll<StockEntry>('stock_entries', uid),
+    upsert:     (uid: string, r: StockEntry) => upsertOne('stock_entries', uid, r),
+    upsertMany: (uid: string, rs: StockEntry[])=> upsertMany('stock_entries', uid, rs),
+    remove:     (uid: string, id: string)    => removeOne('stock_entries', uid, id),
+    clear:      (uid: string)                => clearTable('stock_entries', uid),
   },
   config: { fetch: fetchConfig, save: saveConfig },
 };
