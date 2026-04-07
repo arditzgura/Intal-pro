@@ -35,11 +35,27 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
   const handlePrint = (format: 'A4' | '80mm') => {
     document.body.classList.remove('format-80mm');
+
+    // Injekto @page size dinamikisht për printerin e saktë
+    let styleEl = document.getElementById('print-page-style') as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'print-page-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = format === '80mm'
+      ? '@page { size: 80mm auto !important; margin: 2mm !important; }'
+      : '@page { size: A4 portrait; margin: 0; }';
+
     if (format === '80mm') document.body.classList.add('format-80mm');
-    setTimeout(() => { 
-      window.print(); 
-      setTimeout(() => document.body.classList.remove('format-80mm'), 500);
-    }, 150);
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('format-80mm');
+        if (styleEl) styleEl.textContent = '@page { size: A4 portrait; margin: 0; }';
+      }, 500);
+    }, 200);
   };
 
   const balanceDue = (invoice.subtotal + (invoice.previousBalance || 0)) - (invoice.amountPaid || 0);
