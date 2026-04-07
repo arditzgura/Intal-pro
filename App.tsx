@@ -211,8 +211,8 @@ const App: React.FC = () => {
     });
     if (JSON.stringify(updated) !== JSON.stringify(clients)) {
       setClients(updated);
-      updated.filter((u, i) => u !== clients[i])
-        .forEach(c => db.clients.upsert(userId, c).catch(console.error));
+      const changedC = updated.filter((u, i) => u !== clients[i]);
+      db.clients.saveAll(userId, updated, changedC);
     }
   }, [invoices]); // eslint-disable-line
 
@@ -301,7 +301,8 @@ const App: React.FC = () => {
       return inv;
     });
     setInvoices(updated);
-    updated.filter((u, i) => u !== invoices[i]).forEach(inv => db.invoices.upsert(uid, inv).catch(console.error));
+    const changedInvs = updated.filter((u, i) => u !== invoices[i]);
+    db.invoices.saveAll(uid, updated, changedInvs);
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -370,8 +371,8 @@ const App: React.FC = () => {
       newInvoices = editInvoice ? invoices.map(inv => inv.id === final.id ? final : inv) : [final, ...invoices];
     }
     setInvoices(newInvoices);
-    newInvoices.filter((u, i) => u !== invoices[i] || u.id === final.id)
-      .forEach(inv => db.invoices.upsert(uid, inv).catch(console.error));
+    const changed = newInvoices.filter((u, i) => u !== invoices[i] || u.id === final.id);
+    db.invoices.saveAll(uid, newInvoices, changed);
 
     setEditInvoice(null);
     clearData(STORAGE_KEYS.DRAFT);
