@@ -209,9 +209,9 @@ const App: React.FC = () => {
           : Math.floor((inv.subtotal || 0) / 100)), 0);
       return client.points !== pts ? { ...client, points: pts } : client;
     });
-    if (JSON.stringify(updated) !== JSON.stringify(clients)) {
+    const changedC = updated.filter((u, i) => u !== clients[i]);
+    if (changedC.length > 0) {
       setClients(updated);
-      const changedC = updated.filter((u, i) => u !== clients[i]);
       db.clients.saveAll(userId, updated, changedC);
     }
   }, [invoices]); // eslint-disable-line

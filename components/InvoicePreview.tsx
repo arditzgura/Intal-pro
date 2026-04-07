@@ -33,10 +33,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const [isPngExporting, setIsPngExporting] = useState(false);
   const [isWhatsAppSending, setIsWhatsAppSending] = useState(false);
 
-  const handlePrint = (format: 'A4' | '80mm') => {
+  const handlePrint = async (format: 'A4' | '80mm') => {
     document.body.classList.remove('format-80mm');
 
-    // Injekto @page size dinamikisht për printerin e saktë
+    // Injekto @page size dinamikisht
     let styleEl = document.getElementById('print-page-style') as HTMLStyleElement | null;
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -49,13 +49,36 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
     if (format === '80mm') document.body.classList.add('format-80mm');
 
-    setTimeout(() => {
+    await new Promise(r => setTimeout(r, 200));
+
+    // Electron: printo direkt pa dialog
+    const eAPI = (window as any).electronAPI;
+    if (eAPI?.printSilent) {
+      if (format === '80mm') {
+        // Merr printerin e parë POS/thermal
+        const printers: any[] = await eAPI.getPrinters();
+        const thermal = printers.find(p =>
+          p.name.toLowerCase().includes('pos') ||
+          p.name.toLowerCase().includes('80') ||
+          p.name.toLowerCase().includes('thermal') ||
+          p.name.toLowerCase().includes('receipt')
+        );
+        await eAPI.printSilent({
+          deviceName: thermal?.name || printers[0]?.name || '',
+          pageSize: { width: 80000, height: 0 }, // mikrometer
+        });
+      } else {
+        await eAPI.printSilent({ pageSize: 'A4' });
+      }
+    } else {
+      // Browser: hap dialog normal
       window.print();
-      setTimeout(() => {
-        document.body.classList.remove('format-80mm');
-        if (styleEl) styleEl.textContent = '@page { size: A4 portrait; margin: 0; }';
-      }, 500);
-    }, 200);
+    }
+
+    setTimeout(() => {
+      document.body.classList.remove('format-80mm');
+      if (styleEl) styleEl.textContent = '@page { size: A4 portrait; margin: 0; }';
+    }, 500);
   };
 
   const balanceDue = (invoice.subtotal + (invoice.previousBalance || 0)) - (invoice.amountPaid || 0);

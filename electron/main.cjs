@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -11,6 +11,8 @@ function createWindow() {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
   const iconOpt  = fs.existsSync(iconPath) ? iconPath : undefined;
 
+  const preloadPath = path.join(__dirname, 'preload.cjs');
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -21,8 +23,9 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,      // lejon burime lokale (logo, watermark, fontet)
+      webSecurity: false,
       allowRunningInsecureContent: false,
+      preload: fs.existsSync(preloadPath) ? preloadPath : undefined,
     },
     backgroundColor: '#f8fafc',
     show: false,
@@ -50,6 +53,31 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+// ─── IPC: Print direkt te printeri (pa dialog) ────────────────────────────────
+ipcMain.handle('print-silent', async (_event, options) => {
+  if (!mainWindow) return { success: false, error: 'No window' };
+  return new Promise((resolve) => {
+    mainWindow.webContents.print(
+      {
+        silent: true,
+        deviceName: options.deviceName || '',
+        color: false,
+        margins: { marginType: 'none' },
+        pageSize: options.pageSize || 'A4',
+      },
+      (success, errorType) => {
+        resolve({ success, error: errorType });
+      }
+    );
+  });
+});
+
+// Merr listën e printerëve
+ipcMain.handle('get-printers', async () => {
+  if (!mainWindow) return [];
+  return mainWindow.webContents.getPrintersAsync();
+});
 
 // Hiq menunë e Electron-it (File, Edit, View, etj.)
 Menu.setApplicationMenu(null);
