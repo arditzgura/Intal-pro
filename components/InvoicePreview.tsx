@@ -36,7 +36,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const handlePrint = async (format: 'A4' | '80mm') => {
     document.body.classList.remove('format-80mm');
 
-    // Injekto @page size dinamikisht
+    // Injekto @page size
     let styleEl = document.getElementById('print-page-style') as HTMLStyleElement | null;
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -48,37 +48,25 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
       : '@page { size: A4 portrait; margin: 0; }';
 
     if (format === '80mm') document.body.classList.add('format-80mm');
-
     await new Promise(r => setTimeout(r, 200));
 
-    // Electron: printo direkt pa dialog
     const eAPI = (window as any).electronAPI;
-    if (eAPI?.printSilent) {
-      if (format === '80mm') {
-        // Merr printerin e parë POS/thermal
-        const printers: any[] = await eAPI.getPrinters();
-        const thermal = printers.find(p =>
-          p.name.toLowerCase().includes('pos') ||
-          p.name.toLowerCase().includes('80') ||
-          p.name.toLowerCase().includes('thermal') ||
-          p.name.toLowerCase().includes('receipt')
-        );
-        await eAPI.printSilent({
-          deviceName: thermal?.name || printers[0]?.name || '',
-          pageSize: { width: 80000, height: 0 }, // mikrometer
-        });
-      } else {
-        await eAPI.printSilent({ pageSize: 'A4' });
-      }
+    if (eAPI?.printWithDialog) {
+      // Electron: hap dialog me format të paracaktuar
+      await eAPI.printWithDialog(
+        format === '80mm'
+          ? { pageSize: { width: 80000, height: 200000 }, color: false }
+          : { pageSize: 'A4' }
+      );
     } else {
-      // Browser: hap dialog normal
+      // Browser/mobile: dialog standard
       window.print();
     }
 
     setTimeout(() => {
       document.body.classList.remove('format-80mm');
       if (styleEl) styleEl.textContent = '@page { size: A4 portrait; margin: 0; }';
-    }, 500);
+    }, 1000);
   };
 
   const balanceDue = (invoice.subtotal + (invoice.previousBalance || 0)) - (invoice.amountPaid || 0);
@@ -197,10 +185,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
       const file = new File([blob], fileName, { type: 'image/png' });
       const eAPI = (window as any).electronAPI;
 
-      if (eAPI?.shareFile) {
-        // Electron PC: ruaj në temp dhe hap dritaren Share të Windows
+      if (eAPI?.saveToDownloads) {
+        // Electron PC: ruaj në Downloads dhe hap folderin
         const arrayBuffer = await blob.arrayBuffer();
-        await eAPI.shareFile(Array.from(new Uint8Array(arrayBuffer)), fileName);
+        await eAPI.saveToDownloads(Array.from(new Uint8Array(arrayBuffer)), fileName);
       } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
         // Mobile / browser me Web Share API
         await navigator.share({ files: [file] });

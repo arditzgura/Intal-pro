@@ -54,41 +54,30 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-// ─── IPC: Share file (Windows Share Sheet) ────────────────────────────────────
-ipcMain.handle('share-file', async (_event, { buffer, fileName }) => {
-  const os   = require('os');
-  const tmp  = path.join(os.tmpdir(), fileName);
-  fs.writeFileSync(tmp, Buffer.from(buffer));
-  // Hap Windows Share Sheet me PowerShell
-  const { exec } = require('child_process');
-  const ps = `
-    Add-Type -AssemblyName Windows.ApplicationModel
-    $file = [Windows.Storage.StorageFile]::GetFileFromPathAsync('${tmp.replace(/\\/g, '\\\\')}').GetAwaiter().GetResult()
-    $dtm = [Windows.ApplicationModel.DataTransfer.DataTransferManager]::GetForCurrentView()
-    $pkg = [Windows.ApplicationModel.Package]::Current
-    Start-Process -FilePath "explorer.exe" -ArgumentList '/select,"${tmp.replace(/\\/g, '\\\\')}"'
-  `;
-  // Simpler: just open the file with default app so user can share from there
-  shell.openPath(tmp);
-  return { success: true, path: tmp };
+// ─── IPC: Ruaj PNG në Downloads dhe hap folderin ──────────────────────────────
+ipcMain.handle('save-to-downloads', async (_event, { buffer, fileName }) => {
+  const os       = require('os');
+  const downloads = path.join(os.homedir(), 'Downloads');
+  const filePath  = path.join(downloads, fileName);
+  fs.writeFileSync(filePath, Buffer.from(buffer));
+  shell.showItemInFolder(filePath); // hap Downloads me skedarin e zgjedhur
+  return { success: true, path: filePath };
 });
 
-// ─── IPC: Print direkt te printeri (pa dialog) ────────────────────────────────
-ipcMain.handle('print-silent', async (_event, options) => {
+// ─── IPC: Print me dialog zgjedhje printeri ───────────────────────────────────
+ipcMain.handle('print-with-dialog', async (_event, options) => {
   if (!mainWindow) return { success: false, error: 'No window' };
   return new Promise((resolve) => {
-    mainWindow.webContents.print(
-      {
-        silent: true,
-        deviceName: options.deviceName || '',
-        color: false,
-        margins: { marginType: 'none' },
-        pageSize: options.pageSize || 'A4',
-      },
-      (success, errorType) => {
-        resolve({ success, error: errorType });
-      }
-    );
+    const printOptions = {
+      silent: false,        // hap dialog
+      printBackground: true,
+      color: options.color !== false,
+      margins: { marginType: 'none' },
+    };
+    if (options.pageSize) printOptions.pageSize = options.pageSize;
+    mainWindow.webContents.print(printOptions, (success, errorType) => {
+      resolve({ success, error: errorType });
+    });
   });
 });
 
