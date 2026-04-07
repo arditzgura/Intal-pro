@@ -195,12 +195,17 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
       const fileName = invoice.clientName.trim().replace(/\s+/g, '_') + '_fatura.png';
       const file = new File([blob], fileName, { type: 'image/png' });
+      const eAPI = (window as any).electronAPI;
 
-      // Hap direkt WhatsApp me imazhin — përdoruesi zgjedh kontaktin dhe shton përshkrimin
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (eAPI?.shareFile) {
+        // Electron PC: ruaj në temp dhe hap dritaren Share të Windows
+        const arrayBuffer = await blob.arrayBuffer();
+        await eAPI.shareFile(Array.from(new Uint8Array(arrayBuffer)), fileName);
+      } else if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Mobile / browser me Web Share API
         await navigator.share({ files: [file] });
       } else {
-        // Fallback desktop: shkarko PNG
+        // Fallback: shkarko PNG
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.download = fileName; a.href = url; a.click();

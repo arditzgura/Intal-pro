@@ -54,6 +54,25 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// ─── IPC: Share file (Windows Share Sheet) ────────────────────────────────────
+ipcMain.handle('share-file', async (_event, { buffer, fileName }) => {
+  const os   = require('os');
+  const tmp  = path.join(os.tmpdir(), fileName);
+  fs.writeFileSync(tmp, Buffer.from(buffer));
+  // Hap Windows Share Sheet me PowerShell
+  const { exec } = require('child_process');
+  const ps = `
+    Add-Type -AssemblyName Windows.ApplicationModel
+    $file = [Windows.Storage.StorageFile]::GetFileFromPathAsync('${tmp.replace(/\\/g, '\\\\')}').GetAwaiter().GetResult()
+    $dtm = [Windows.ApplicationModel.DataTransfer.DataTransferManager]::GetForCurrentView()
+    $pkg = [Windows.ApplicationModel.Package]::Current
+    Start-Process -FilePath "explorer.exe" -ArgumentList '/select,"${tmp.replace(/\\/g, '\\\\')}"'
+  `;
+  // Simpler: just open the file with default app so user can share from there
+  shell.openPath(tmp);
+  return { success: true, path: tmp };
+});
+
 // ─── IPC: Print direkt te printeri (pa dialog) ────────────────────────────────
 ipcMain.handle('print-silent', async (_event, options) => {
   if (!mainWindow) return { success: false, error: 'No window' };
