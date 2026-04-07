@@ -35,8 +35,9 @@ const DEFAULT_CONFIG: BusinessConfig = {
 
 const App: React.FC = () => {
   // ─── Auth ──────────────────────────────────────────────────────────────────
-  const [session,    setSession]    = useState<Session | null | undefined>(undefined); // undefined = loading
-  const [dataReady,  setDataReady]  = useState(false);
+  const [session,     setSession]    = useState<Session | null | undefined>(undefined); // undefined = loading
+  const [realSession, setRealSession] = useState<Session | null>(null); // sesioni real nga Supabase (për realtime)
+  const [dataReady,   setDataReady]  = useState(false);
 
   // ─── Data ──────────────────────────────────────────────────────────────────
   const [clients,      setClients]      = useState<Client[]>([]);
@@ -136,6 +137,7 @@ const App: React.FC = () => {
       clearTimeout(timeout);
       if (data.session) {
         setSession(data.session);
+        setRealSession(data.session); // sesioni real — aktivizon realtime
         if (!localSess) loadAllData(data.session.user.id);
       } else if (!localSess) {
         setSession(null);
@@ -147,21 +149,19 @@ const App: React.FC = () => {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
-      // INITIAL_SESSION trajtohet nga getSession — shmang dyfishimin
       if (event === 'INITIAL_SESSION') return;
 
-      // Kur user kyçet, kontrollo nëse është bllokuar
       if (sess && event === 'SIGNED_IN') {
         const blocked = await checkBlocked(sess.user.id);
         if (blocked) { await supabase.auth.signOut(); return; }
       }
 
+      setRealSession(sess); // përditëso sesionin real (realtime)
       setSession(sess);
       if (sess) {
         setDataReady(false);
         loadAllData(sess.user.id);
       } else {
-        // Logout — fshi state
         setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
         setConfig(DEFAULT_CONFIG); setDataReady(false);
       }
@@ -169,14 +169,14 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, [loadAllData]);
 
-  // ─── Real-time subscriptions ───────────────────────────────────────────────
+  // ─── Real-time subscriptions — vetëm me sesion real nga Supabase ────────────
   useEffect(() => {
-    if (!session) {
+    if (!realSession) {
       realtimeChannel.current?.unsubscribe();
       realtimeChannel.current = null;
       return;
     }
-    const userId = session.user.id;
+    const userId = realSession.user.id;
 
     // Krijoni channel me filtër për user_id
     const channel = supabase
@@ -195,7 +195,7 @@ const App: React.FC = () => {
 
     realtimeChannel.current = channel;
     return () => { channel.unsubscribe(); };
-  }, [session]);
+  }, [realSession]);
 
   // ─── Pikët e klientëve ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -260,7 +260,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // Dil menjëherë nga UI (pa pritur Supabase)
+    setSession(null);
+    setRealSession(null);
+    setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
+    setConfig(DEFAULT_CONFIG);
+    // Pastaj fshi sesionin nga Supabase në background
+    supabase.auth.signOut().catch(console.error);
   };
 
   // ─── Computed ──────────────────────────────────────────────────────────────
