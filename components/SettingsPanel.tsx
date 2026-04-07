@@ -53,7 +53,7 @@ interface Props {
   onImport: (file: File) => Promise<boolean>;
 }
 
-const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig }> = ({ invoice, business }) => {
+const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
   const getCurrency = (type: 'short' | 'full' = 'full') => invoice.currency === 'EUR' ? (type === 'short' ? '€' : 'EURO') : (type === 'short' ? 'L' : 'Lekë');
   const balanceDue = (invoice.subtotal + (invoice.previousBalance || 0)) - (invoice.amountPaid || 0);
   const isSurplus = balanceDue < 0;
@@ -152,11 +152,61 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig }>
     );
   };
 
+  const paperRef = React.useRef<HTMLDivElement>(null);
+  const dragging = React.useRef(false);
+  const dragStart = React.useRef({ mouseX: 0, mouseY: 0, posX: 50, posY: 50 });
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!onUpdate) return;
+    e.preventDefault();
+    dragging.current = true;
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      posX: business.watermarkX ?? 50,
+      posY: business.watermarkY ?? 50,
+    };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current || !paperRef.current) return;
+      const rect = paperRef.current.getBoundingClientRect();
+      const dx = ((ev.clientX - dragStart.current.mouseX) / rect.width) * 100;
+      const dy = ((ev.clientY - dragStart.current.mouseY) / rect.height) * 100;
+      const nx = Math.max(0, Math.min(100, dragStart.current.posX + dx));
+      const ny = Math.max(0, Math.min(100, dragStart.current.posY + dy));
+      onUpdate({ ...business, watermarkX: Math.round(nx), watermarkY: Math.round(ny) });
+    };
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const wx = business.watermarkX ?? 50;
+  const wy = business.watermarkY ?? 50;
+
   return (
-    <div style={{ background: '#fff', width: '210mm', minHeight: '297mm', padding: '10mm 15mm', boxSizing: 'border-box', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div ref={paperRef} style={{ background: '#fff', width: '210mm', minHeight: '297mm', padding: '10mm 15mm', boxSizing: 'border-box', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       {business.watermarkUrl && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
-          <img src={business.watermarkUrl} alt="" style={{ width: `${business.watermarkSize ?? 60}%`, opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain' }} />
+        <div
+          onMouseDown={onUpdate ? onMouseDown : undefined}
+          style={{
+            position: 'absolute',
+            left: `${wx}%`,
+            top: `${wy}%`,
+            transform: 'translate(-50%, -50%)',
+            zIndex: 0,
+            cursor: onUpdate ? 'move' : 'default',
+            userSelect: 'none',
+          }}
+          title={onUpdate ? 'Tërhiq për të lëvizur watermark-un' : ''}
+        >
+          <img src={business.watermarkUrl} alt="" style={{ width: `${(business.watermarkSize ?? 60) * 1.98}px`, maxWidth: '160mm', opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain', display: 'block', pointerEvents: 'none' }} />
+          {onUpdate && (
+            <div style={{ position: 'absolute', inset: 0, border: '1.5px dashed #7c3aed55', borderRadius: 4, pointerEvents: 'none' }} />
+          )}
         </div>
       )}
       {/* Content above watermark */}
@@ -782,7 +832,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport }
 
         {/* Right: live invoice preview — paper only */}
         <div className="flex-1 overflow-y-auto flex items-start justify-center py-10 px-4">
-          <LiveInvoicePaper invoice={SAMPLE_INVOICE} business={config} />
+          <LiveInvoicePaper invoice={SAMPLE_INVOICE} business={config} onUpdate={onUpdate} />
         </div>
       </div>
     )}

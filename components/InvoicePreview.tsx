@@ -246,8 +246,15 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           
           {/* Watermark */}
           {business.watermarkUrl && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
-              <img src={business.watermarkUrl} alt="" style={{ width: `${business.watermarkSize ?? 60}%`, opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain' }} />
+            <div style={{
+              position: 'absolute',
+              left: `${business.watermarkX ?? 50}%`,
+              top: `${business.watermarkY ?? 50}%`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}>
+              <img src={business.watermarkUrl} alt="" style={{ width: `${(business.watermarkSize ?? 60) * 1.98}px`, maxWidth: '160mm', opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain', display: 'block' }} />
             </div>
           )}
 
