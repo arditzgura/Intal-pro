@@ -14,12 +14,24 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  // Timeout helper — nëse Supabase nuk përgjigjet brenda 10s
-  const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
+  const withTimeout = <T,>(promise: Promise<T>, ms = 20000): Promise<T> =>
     Promise.race([
       promise,
       new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
     ]);
+
+  // Kontrollo nëse mund të arrijmë Supabase
+  const checkConnectivity = async (): Promise<'ok' | 'no-internet' | 'server-down'> => {
+    if (!navigator.onLine) return 'no-internet';
+    try {
+      const url = (import.meta as any).env?.VITE_SUPABASE_URL;
+      if (!url) return 'server-down';
+      const res = await fetch(`${url}/auth/v1/health`, { method: 'GET', signal: AbortSignal.timeout(8000) });
+      return res.ok || res.status === 400 ? 'ok' : 'server-down';
+    } catch {
+      return 'server-down';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +46,17 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     const email = usernameToEmail(uname);
 
     try {
+      // Kontrollo lidhjen para se të provosh auth
+      const conn = await checkConnectivity();
+      if (conn === 'no-internet') {
+        setError('Nuk ka internet. Kontrollo lidhjen dhe provo sërish.');
+        return;
+      }
+      if (conn === 'server-down') {
+        setError('Serveri nuk është i arritshëm. Provo pas pak sekondash.');
+        return;
+      }
+
       if (mode === 'register') {
         const { error: err } = await withTimeout(supabase.auth.signUp({ email, password,
           options: { data: { username: uname } }
@@ -60,7 +83,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
       }
     } catch (ex: any) {
       if (ex?.message === 'timeout')
-        setError('Nuk ka lidhje me serverin. Kontrollo internetin dhe provo sërish.');
+        setError('Koha e pritjes skadoi. Lidhja është e ngadaltë — provo sërish.');
       else
         setError('Gabim i papritur. Provo sërish.');
     } finally {
