@@ -87,11 +87,42 @@ const App: React.FC = () => {
         db.stockEntries.fetchAll(userId),
         db.config.fetch(userId),
       ]);
-      setClients(cls);
-      setItems(itms);
-      setInvoices(invs);
-      setStockEntries(stock);
+
+      // Merge: bashko të dhënat cloud me ato lokale (cloud ka prioritet për rekorde ekzistuese)
+      const merge = <T extends { id: string }>(cloud: T[], local: T[]): T[] => {
+        const map = new Map<string, T>();
+        local.forEach(r => map.set(r.id, r));   // fillimisht lokalet
+        cloud.forEach(r => map.set(r.id, r));   // cloud mbishkruan lokalet (versioni më i ri)
+        return Array.from(map.values());
+      };
+
+      const mergedClients  = merge(cls,   localClients);
+      const mergedItems    = merge(itms,  localItems);
+      const mergedInvoices = merge(invs,  localInvoices);
+      const mergedStock    = merge(stock, localStock);
+
+      setClients(mergedClients);
+      setItems(mergedItems);
+      setInvoices(mergedInvoices);
+      setStockEntries(mergedStock);
       if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
+
+      // Ngarko në Supabase rekordet që mungojnë (janë vetëm lokalisht)
+      const missingClients  = localClients.filter(r  => !cls.find(c  => c.id === r.id));
+      const missingItems    = localItems.filter(r    => !itms.find(c => c.id === r.id));
+      const missingInvoices = localInvoices.filter(r => !invs.find(c => c.id === r.id));
+      const missingStock    = localStock.filter(r    => !stock.find(c => c.id === r.id));
+
+      if (missingClients.length)  { console.log(`[sync] uploading ${missingClients.length} missing clients`);  db.clients.upsertMany(userId, missingClients); }
+      if (missingItems.length)    { console.log(`[sync] uploading ${missingItems.length} missing items`);      db.items.upsertMany(userId, missingItems); }
+      if (missingInvoices.length) { console.log(`[sync] uploading ${missingInvoices.length} missing invoices`); db.invoices.upsertMany(userId, missingInvoices); }
+      if (missingStock.length)    { console.log(`[sync] uploading ${missingStock.length} missing stock`);      db.stockEntries.upsertMany(userId, missingStock); }
+
+      // Ruaj gjendjen e bashkuar lokalisht
+      local.setAll(userId, 'clients',       mergedClients);
+      local.setAll(userId, 'items',         mergedItems);
+      local.setAll(userId, 'invoices',      mergedInvoices);
+      local.setAll(userId, 'stock_entries', mergedStock);
     } catch {
       // Offline — vazhdo me të dhënat lokale
       console.info('[offline] Duke përdorur të dhënat lokale');
