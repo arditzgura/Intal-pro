@@ -25,11 +25,18 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     if (!navigator.onLine) return 'no-internet';
     try {
       const url = (import.meta as any).env?.VITE_SUPABASE_URL;
-      if (!url) return 'server-down';
-      const res = await fetch(`${url}/auth/v1/health`, { method: 'GET', signal: AbortSignal.timeout(8000) });
-      return res.ok || res.status === 400 ? 'ok' : 'server-down';
+      if (!url) return 'ok'; // nëse URL mungon, lejo Supabase client të provojë vetë
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`${url}/auth/v1/`, { method: 'GET', signal: controller.signal });
+        return res.status < 500 ? 'ok' : 'server-down';
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
-      return 'server-down';
+      // fetch dështoi — por mund të jetë CORS; lejo Supabase client të provojë
+      return 'ok';
     }
   };
 
