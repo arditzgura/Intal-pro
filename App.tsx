@@ -137,15 +137,25 @@ const App: React.FC = () => {
       clearTimeout(timeout);
       if (data.session) {
         setSession(data.session);
-        setRealSession(data.session); // sesioni real — aktivizon realtime
+        setRealSession(data.session);
         if (!localSess) loadAllData(data.session.user.id);
-      } else if (!localSess) {
+      } else {
+        // Token lokal nuk është valid — fshi dhe shfaq login
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i) || '';
+            if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k);
+          }
+        } catch {}
         setSession(null);
         setDataReady(true);
       }
     }).catch(() => {
       clearTimeout(timeout);
-      if (!localSess) { setSession(null); setDataReady(true); }
+      // Offline — lejo sesionin lokal të vazhdojë
+      if (localSess) return;
+      setSession(null);
+      setDataReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
