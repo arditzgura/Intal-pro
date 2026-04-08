@@ -508,7 +508,17 @@ const App: React.FC = () => {
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
                 onExport={() => {
-                  const db_export = { clients, items, invoices, stockEntries, config };
+                  // Lexo direkt nga localStorage — garanton të dhëna 100% të plota
+                  const db_export: Record<string, any> = {
+                    _version: 2,
+                    _exportedAt: new Date().toISOString(),
+                    _user: username,
+                    clients:      local.getAll(uid, 'clients'),
+                    items:        local.getAll(uid, 'items'),
+                    invoices:     local.getAll(uid, 'invoices'),
+                    stockEntries: local.getAll(uid, 'stockEntries'),
+                    config:       local.getConfig(uid) ?? config,
+                  };
                   const blob = new Blob([JSON.stringify(db_export, null, 2)], { type: 'application/json' });
                   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
                   a.download = `backup_intal_pro_${new Date().toLocaleDateString('en-CA')}.json`; a.click();
@@ -518,12 +528,18 @@ const App: React.FC = () => {
                     const text = await file.text();
                     const bk = JSON.parse(text);
                     if (!bk || typeof bk !== 'object') return false;
-                    // Pastro dhe ngarko të reja
-                    if (bk.clients)      { await db.clients.clear(uid); await db.clients.upsertMany(uid, bk.clients);      setClients(bk.clients); }
-                    if (bk.items)        { await db.items.clear(uid);   await db.items.upsertMany(uid, bk.items);           setItems(bk.items); }
-                    if (bk.invoices)     { await db.invoices.clear(uid);await db.invoices.upsertMany(uid, bk.invoices);     setInvoices(bk.invoices); }
-                    if (bk.stockEntries) { await db.stockEntries.clear(uid);await db.stockEntries.upsertMany(uid,bk.stockEntries); setStockEntries(bk.stockEntries); }
-                    if (bk.config)       { const nc = {...DEFAULT_CONFIG,...bk.config}; await db.config.save(uid,nc); setConfig(nc); }
+                    // Mbështet version 1 (i vjetër) dhe version 2
+                    const cl  = Array.isArray(bk.clients)      ? bk.clients      : [];
+                    const it  = Array.isArray(bk.items)         ? bk.items         : [];
+                    const inv = Array.isArray(bk.invoices)      ? bk.invoices      : [];
+                    const se  = Array.isArray(bk.stockEntries)  ? bk.stockEntries  : [];
+                    const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
+                    // Ruaj në localStorage dhe Supabase (fire-and-forget)
+                    if (cl.length)  { local.setAll(uid,'clients',cl);      db.clients.clear(uid).then(()=>db.clients.upsertMany(uid,cl)).catch(()=>{}); setClients(cl); }
+                    if (it.length)  { local.setAll(uid,'items',it);        db.items.clear(uid).then(()=>db.items.upsertMany(uid,it)).catch(()=>{}); setItems(it); }
+                    if (inv.length) { local.setAll(uid,'invoices',inv);    db.invoices.clear(uid).then(()=>db.invoices.upsertMany(uid,inv)).catch(()=>{}); setInvoices(inv); }
+                    if (se.length)  { local.setAll(uid,'stockEntries',se); db.stockEntries.clear(uid).then(()=>db.stockEntries.upsertMany(uid,se)).catch(()=>{}); setStockEntries(se); }
+                    if (cf)         { local.setConfig(uid,cf); db.config.save(uid,cf).catch(()=>{}); setConfig(cf); }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }

@@ -42,6 +42,9 @@ jobs:
       - name: Add 404.html for SPA routing
         run: cp dist/index.html dist/404.html
 
+      - name: Copy PWA icons
+        run: mkdir -p dist/icons && cp public/icons/* dist/icons/ 2>/dev/null || true
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  printWithDialog: (options) => ipcRenderer.invoke('print-with-dialog', options),
-  getPrinters:     () => ipcRenderer.invoke('get-printers'),
-  saveToDownloads: (buffer, fileName) => ipcRenderer.invoke('save-to-downloads', { buffer, fileName }),
+  saveToDesktop:   (buffer, fileName) => ipcRenderer.invoke('save-to-desktop', { buffer, fileName }),
+  shareImage:      (buffer, fileName) => ipcRenderer.invoke('share-image',     { buffer, fileName }),
+  savePdf:         (buffer, fileName) => ipcRenderer.invoke('save-pdf',        { buffer, fileName }),
+  printWithDialog: (options)          => ipcRenderer.invoke('print-with-dialog', options),
+  getPrinters:     ()                 => ipcRenderer.invoke('get-printers'),
 });

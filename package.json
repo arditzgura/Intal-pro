@@ -32,7 +32,9 @@
     "electron-builder": "^26.8.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "wait-on": "^9.0.4"
+    "vite-plugin-pwa": "^1.2.0",
+    "wait-on": "^9.0.4",
+    "workbox-window": "^7.4.0"
   },
   "build": {
     "appId": "com.intal.pro.faturim",

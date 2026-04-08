@@ -94,6 +94,20 @@ export interface BusinessConfig {
   watermarkX?: number;
   watermarkY?: number;
   watermarkDesaturate?: boolean;
+  thermalWidth?: number;   // gjerësia e printerit termal në mm (default 80)
+  // Tekstet e editueshmë të faturës
+  labelFature?: string;
+  labelKlienti?: string;
+  labelArtikulli?: string;
+  labelSasia?: string;
+  labelCmimi?: string;
+  labelTotali?: string;
+  labelNentotali?: string;
+  labelGjendja?: string;
+  labelPaguar?: string;
+  labelDetyrimi?: string;
+  labelTeprica?: string;
+  labelFaleminderit?: string;
 }
 
 export type View = 'dashboard' | 'invoices' | 'clients' | 'items' | 'new-invoice' | 'settings' | 'stock-entries' | 'new-stock-entry' | 'admin';

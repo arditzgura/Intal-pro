@@ -1,4 +1,7 @@
-const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, dialog } = require('electron');
+
+// Aktivizo print preview të Chromium brenda Electron
+app.commandLine.appendSwitch('enable-print-preview');
 const path = require('path');
 const fs   = require('fs');
 
@@ -54,34 +57,64 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-// ─── IPC: Ruaj PNG në Downloads dhe hap folderin ──────────────────────────────
-ipcMain.handle('save-to-downloads', async (_event, { buffer, fileName }) => {
-  const os       = require('os');
-  const downloads = path.join(os.homedir(), 'Downloads');
-  const filePath  = path.join(downloads, fileName);
+const os = require('os');
+const { exec } = require('child_process');
+
+// ─── IPC: Ruaj PNG në Desktop (pa share) ─────────────────────────────────────
+ipcMain.handle('save-to-desktop', async (_event, { buffer, fileName }) => {
+  const filePath = path.join(os.homedir(), 'Desktop', fileName);
   fs.writeFileSync(filePath, Buffer.from(buffer));
-  shell.showItemInFolder(filePath); // hap Downloads me skedarin e zgjedhur
   return { success: true, path: filePath };
 });
 
-// ─── IPC: Print me dialog zgjedhje printeri ───────────────────────────────────
+// ─── IPC: Ruaj PNG në Desktop + hap Windows Share Sheet ─────────────────────
+ipcMain.handle('share-image', async (_event, { buffer, fileName }) => {
+  const { clipboard, nativeImage } = require('electron');
+  const filePath = path.join(os.homedir(), 'Desktop', fileName);
+  const buf = Buffer.from(buffer);
+  fs.writeFileSync(filePath, buf);
+  try { clipboard.writeImage(nativeImage.createFromBuffer(buf)); } catch {}
+
+  const escaped = filePath.replace(/\\/g, '\\\\');
+  const ps = `
+    Add-Type -AssemblyName Windows.Storage
+    $file = [Windows.Storage.StorageFile]::GetFileFromPathAsync('${escaped}').GetAwaiter().GetResult()
+    $mgr  = [Windows.ApplicationModel.DataTransfer.DataTransferManager]::GetForCurrentView()
+    $mgr.add_DataRequested({
+      param($s,$e)
+      $e.Request.Data.SetBitmap([Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromFile($file))
+      $e.Request.Data.Properties.Title = '${fileName}'
+    })
+    [Windows.ApplicationModel.DataTransfer.DataTransferManager]::ShowShareUI()
+  `;
+  exec(`powershell -NoProfile -WindowStyle Hidden -Command "${ps.replace(/\r?\n/g,' ')}"`, () => {});
+  return { success: true, path: filePath };
+});
+
+// ─── IPC: Ruaj PDF në Desktop ─────────────────────────────────────────────────
+ipcMain.handle('save-pdf', async (_event, { buffer, fileName }) => {
+  const filePath = path.join(os.homedir(), 'Desktop', fileName);
+  fs.writeFileSync(filePath, Buffer.from(buffer));
+  shell.showItemInFolder(filePath);
+  return { success: true, path: filePath };
+});
+
+// ─── IPC: Print me dialog (print preview e Chromium) ─────────────────────────
 ipcMain.handle('print-with-dialog', async (_event, options) => {
-  if (!mainWindow) return { success: false, error: 'No window' };
+  if (!mainWindow) return { success: false };
   return new Promise((resolve) => {
-    const printOptions = {
-      silent: false,        // hap dialog
+    const opts = {
+      silent: false,
       printBackground: true,
       color: options.color !== false,
-      margins: { marginType: 'none' },
+      margins: { marginType: 'printableArea' },
     };
-    if (options.pageSize) printOptions.pageSize = options.pageSize;
-    mainWindow.webContents.print(printOptions, (success, errorType) => {
-      resolve({ success, error: errorType });
-    });
+    if (options.pageSize) opts.pageSize = options.pageSize;
+    mainWindow.webContents.print(opts, (success, err) => resolve({ success, err }));
   });
 });
 
-// Merr listën e printerëve
+// ─── IPC: Merr listën e printerëve ───────────────────────────────────────────
 ipcMain.handle('get-printers', async () => {
   if (!mainWindow) return [];
   return mainWindow.webContents.getPrintersAsync();

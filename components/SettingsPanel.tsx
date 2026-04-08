@@ -1,7 +1,7 @@
 
 import React, { useRef, useState } from 'react';
 import { BusinessConfig, Invoice } from '../types';
-import { Save, Download, Upload, Info, Building2, Phone, Mail, Globe, MapPin, Tag, ImageIcon, Trash2, FileText, Play, X, Layers } from 'lucide-react';
+import { Save, Download, Upload, Info, Building2, Phone, Mail, Globe, MapPin, Tag, ImageIcon, Trash2, FileText, Play, X, Layers, Printer } from 'lucide-react';
 
 const SAMPLE_INVOICE: Invoice = {
   id: 'sample',
@@ -62,15 +62,48 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
   const fs = `${business.itemFontSize || 10}px`;
   const ff = business.itemFont || 'Inter, sans-serif';
 
+  const lArt  = business.labelArtikulli  ?? 'ARTIKULLI';
+  const lSas  = business.labelSasia      ?? 'SASIA';
+  const lCmi  = business.labelCmimi      ?? 'ÇMIMI';
+  const lTot  = business.labelTotali     ?? 'TOTALI';
+  const lNen  = business.labelNentotali  ?? 'NËNTOTALI';
+  const lGje  = business.labelGjendja    ?? 'GJENDJA';
+  const lPag  = business.labelPaguar     ?? 'PAGUAR';
+  const lDet  = business.labelDetyrimi   ?? 'DETYRIMI';
+  const lTep  = business.labelTeprica    ?? 'TEPRICA';
+  const lFat  = business.labelFature     ?? 'FATURË';
+  const lKli  = business.labelKlienti    ?? 'KLIENTI';
+  const lFal  = business.labelFaleminderit ?? 'FALEMINDERIT QË NA BESUAT!';
+
+  // Arrow-key lëvizja e watermark-ut
+  React.useEffect(() => {
+    if (!onUpdate) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 5 : 1;
+      const wx = business.watermarkX ?? 50;
+      const wy = business.watermarkY ?? 50;
+      let nx = wx, ny = wy;
+      if (e.key === 'ArrowLeft')  nx = Math.max(0, wx - step);
+      if (e.key === 'ArrowRight') nx = Math.min(100, wx + step);
+      if (e.key === 'ArrowUp')    ny = Math.max(0, wy - step);
+      if (e.key === 'ArrowDown')  ny = Math.min(100, wy + step);
+      onUpdate({ ...business, watermarkX: Math.round(nx), watermarkY: Math.round(ny) });
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onUpdate, business]);
+
   const renderItems = () => {
     const items = invoice.items;
     if (tpl === 1) return (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          <th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>ARTIKULLI</th>
-          <th style={{ padding: '5px 8px', textAlign: 'center' }}>SASIA</th>
-          <th style={{ padding: '5px 12px', textAlign: 'center' }}>ÇMIMI</th>
-          <th style={{ padding: '5px 12px', textAlign: 'right' }}>TOTALI</th>
+          <th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th>
+          <th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th>
+          <th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th>
+          <th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th>
         </tr></thead>
         <tbody style={{ borderBottom: '1px solid #e2e8f0' }}>
           {items.map((item, i) => (
@@ -87,10 +120,10 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
     if (tpl === 2) return (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr style={{ background: '#e2e8f0', fontSize: '7px', fontWeight: 900, textTransform: 'uppercase' }}>
-          <th style={{ padding: '3px 8px', textAlign: 'left', width: '50%' }}>ARTIKULLI</th>
-          <th style={{ padding: '3px 6px', textAlign: 'center' }}>SASIA</th>
-          <th style={{ padding: '3px 8px', textAlign: 'center' }}>ÇMIMI</th>
-          <th style={{ padding: '3px 8px', textAlign: 'right' }}>TOTALI</th>
+          <th style={{ padding: '3px 8px', textAlign: 'left', width: '50%' }}>{lArt}</th>
+          <th style={{ padding: '3px 6px', textAlign: 'center' }}>{lSas}</th>
+          <th style={{ padding: '3px 8px', textAlign: 'center' }}>{lCmi}</th>
+          <th style={{ padding: '3px 8px', textAlign: 'right' }}>{lTot}</th>
         </tr></thead>
         <tbody>
           {items.map((item, i) => (
@@ -120,10 +153,10 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
     if (tpl === 4) return (
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }}>
-          <th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>ARTIKULLI</th>
-          <th style={{ padding: '5px 8px', textAlign: 'center' }}>SASIA</th>
-          <th style={{ padding: '5px 12px', textAlign: 'center' }}>ÇMIMI</th>
-          <th style={{ padding: '5px 12px', textAlign: 'right' }}>TOTALI</th>
+          <th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th>
+          <th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th>
+          <th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th>
+          <th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th>
         </tr></thead>
         <tbody>
           {items.map((item, i) => (
@@ -200,10 +233,11 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
             zIndex: 0,
             cursor: onUpdate ? 'move' : 'default',
             userSelect: 'none',
+            maxWidth: '100%',
           }}
-          title={onUpdate ? 'Tërhiq për të lëvizur watermark-un' : ''}
+          title={onUpdate ? 'Tërhiq ose përdor ↑↓←→ për të lëvizur' : ''}
         >
-          <img src={business.watermarkUrl} alt="" style={{ width: `${(business.watermarkSize ?? 60) * 1.98}px`, maxWidth: '160mm', opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain', display: 'block', pointerEvents: 'none' }} />
+          <img src={business.watermarkUrl} alt="" style={{ width: `${(business.watermarkSize ?? 60) * 1.98}px`, maxWidth: 'calc(210mm - 30mm)', opacity: (business.watermarkOpacity ?? 20) / 100, objectFit: 'contain', display: 'block', pointerEvents: 'none' }} />
           {onUpdate && (
             <div style={{ position: 'absolute', inset: 0, border: '1.5px dashed #7c3aed55', borderRadius: 4, pointerEvents: 'none' }} />
           )}
@@ -223,7 +257,7 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
           <div style={{ fontSize: '8px', color: '#475569', fontWeight: 700 }}>Tel: {business.phone}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-          <div style={{ fontSize: '32px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>FATURË</div>
+          <div style={{ fontSize: '32px', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>{lFat}</div>
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '6px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: '12px', fontWeight: 900, color: '#0f172a' }}>NR. {invoice.invoiceNumber}</div>
             <div style={{ fontSize: '7px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>DATA: {new Date().toLocaleDateString('sq-AL')}</div>
@@ -234,7 +268,7 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
       {/* Client row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
         <div>
-          <div style={{ fontSize: '8px', fontWeight: 900, color: '#D81B60', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '4px' }}>KLIENTI:</div>
+          <div style={{ fontSize: '8px', fontWeight: 900, color: '#D81B60', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '4px' }}>{lKli}:</div>
           <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', lineHeight: 1 }}>{invoice.clientName}</div>
           <div style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginTop: '4px' }}>{invoice.clientCity}</div>
         </div>
@@ -253,19 +287,19 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
       <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ width: '240px', border: '2px solid #0f172a', borderRadius: '16px', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b' }}><span>NËNTOTALI:</span><span style={{ color: '#0f172a' }}>{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
-            {invoice.previousBalance !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#d97706' }}><span>GJENDJA:</span><span>{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>}
-            {invoice.amountPaid !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#2563eb' }}><span>PAGUAR:</span><span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b' }}><span>{lNen}:</span><span style={{ color: '#0f172a' }}>{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
+            {invoice.previousBalance !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#d97706' }}><span>{lGje}:</span><span>{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>}
+            {invoice.amountPaid !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#2563eb' }}><span>{lPag}:</span><span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>}
           </div>
           <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #0f172a', background: isSurplus ? '#fffbeb' : isPaidInFull ? '#f0fdf4' : '#fff1f2' }}>
-            <span style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b' }}>{isSurplus ? 'TEPRICA:' : 'DETYRIMI:'}</span>
+            <span style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b' }}>{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
             <span style={{ fontSize: '18px', fontWeight: 900, color: isSurplus ? '#d97706' : isPaidInFull ? '#16a34a' : '#e11d48' }}>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
           </div>
         </div>
       </div>
 
       <div style={{ textAlign: 'center', borderTop: '1px solid #f1f5f9', marginTop: '16px', paddingTop: '10px' }}>
-        <p style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#0f172a' }}>FALEMINDERIT QË NA BESUAT!</p>
+        <p style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#0f172a' }}>{lFal}</p>
       </div>
       </div> {/* end content zIndex wrapper */}
     </div>
@@ -744,6 +778,70 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport }
             </div>
           )}
         </div>
+
+        {/* Formati i Printerit Termal */}
+        <div className="pt-6 border-t border-slate-100 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-slate-100 p-2 rounded-lg text-slate-600"><Printer size={18}/></div>
+            <h4 className="font-black text-slate-700 text-sm uppercase tracking-widest">Printeri Termal (80mm)</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Gjerësia e Letrës: <span className="text-slate-700">{config.thermalWidth ?? 80}mm</span>
+              </label>
+              <input type="range" min={58} max={112} step={2}
+                value={config.thermalWidth ?? 80}
+                onChange={e => onUpdate({ ...config, thermalWidth: parseInt(e.target.value) })}
+                className="w-full accent-slate-700"
+              />
+              <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                <span>58mm</span><span>80mm (Standard)</span><span>112mm</span>
+              </div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 leading-relaxed">
+              <p className="font-black text-slate-700 mb-1">Gjerësia e zakonshme:</p>
+              <p>• <strong>58mm</strong> — Printer i vogël portativ</p>
+              <p>• <strong>80mm</strong> — POS standard (i parazgjedhur)</p>
+              <p>• <strong>112mm</strong> — Printer industrial</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tekstet e Editueshmë */}
+        <div className="pt-6 border-t border-slate-100 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600"><FileText size={18}/></div>
+            <h4 className="font-black text-slate-700 text-sm uppercase tracking-widest">Tekstet e Faturës</h4>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {([
+              ['labelFature',      'Titulli (FATURË)',       'FATURË'],
+              ['labelKlienti',     'Klienti',                'KLIENTI'],
+              ['labelArtikulli',   'Kolona: Artikulli',      'ARTIKULLI'],
+              ['labelSasia',       'Kolona: Sasia',          'SASIA'],
+              ['labelCmimi',       'Kolona: Çmimi',          'ÇMIMI'],
+              ['labelTotali',      'Kolona: Totali',         'TOTALI'],
+              ['labelNentotali',   'Nëntotali',              'NËNTOTALI'],
+              ['labelGjendja',     'Gjendja',                'GJENDJA'],
+              ['labelPaguar',      'Paguar',                 'PAGUAR'],
+              ['labelDetyrimi',    'Detyrimi',               'DETYRIMI'],
+              ['labelTeprica',     'Teprica',                'TEPRICA'],
+              ['labelFaleminderit','Teksti i fundit',        'FALEMINDERIT QË NA BESUAT!'],
+            ] as [keyof typeof config, string, string][]).map(([key, label, placeholder]) => (
+              <div key={key} className="space-y-1">
+                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                <input
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none text-xs font-bold focus:border-emerald-400 transition-all"
+                  placeholder={placeholder}
+                  value={(config[key] as string) ?? ''}
+                  onChange={e => onUpdate({ ...config, [key]: e.target.value || undefined })}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400">Lëreni bosh për të përdorur vlerën e parazgjedhur.</p>
+        </div>
       </div>
     </div>
 
@@ -820,6 +918,10 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport }
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase">Opacity: <span className="text-violet-600">{config.watermarkOpacity ?? 20}%</span></label>
                   <input type="range" min={5} max={80} step={5} value={config.watermarkOpacity ?? 20} onChange={e => onUpdate({ ...config, watermarkOpacity: parseInt(e.target.value) })} className="w-full accent-violet-600" />
+                </div>
+                <div className="p-2 bg-violet-50 rounded-lg border border-violet-100">
+                  <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">↑↓←→ Lëviz watermark-un</p>
+                  <p className="text-[8px] text-violet-400 mt-0.5">Shift + shigjeta = lëvizje 5%</p>
                 </div>
               </>
             ) : (
