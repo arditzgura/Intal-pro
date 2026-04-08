@@ -22,6 +22,14 @@ async function fetchAll<T>(table: Table, userId: string): Promise<T[]> {
   }
 }
 
+// ─── Emit sync error event ────────────────────────────────────────────────────
+function emitSyncError(table: string, msg: string) {
+  try { window.dispatchEvent(new CustomEvent('intal-sync-error', { detail: { table, msg } })); } catch {}
+}
+function emitSyncOk() {
+  try { window.dispatchEvent(new CustomEvent('intal-sync-ok')); } catch {}
+}
+
 // ─── Ruaj një rekord ──────────────────────────────────────────────────────────
 async function upsertOne<T extends { id: string }>(
   table: Table, userId: string, record: T
@@ -32,7 +40,10 @@ async function upsertOne<T extends { id: string }>(
   supabase
     .from(table)
     .upsert({ id: record.id, user_id: userId, data: record }, { onConflict: 'id,user_id' })
-    .then(({ error }) => { if (error) console.warn('[sync]', table, error.message); });
+    .then(({ error }) => {
+      if (error) { emitSyncError(table, error.message); console.warn('[sync]', table, error.message); }
+      else emitSyncOk();
+    });
 }
 
 // ─── Ruaj shumë rekorde (import / migrate) ───────────────────────────────────
@@ -45,7 +56,10 @@ async function upsertMany<T extends { id: string }>(
   // Sinkronizo me cloud në background (pa pritur)
   const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
   supabase.from(table).upsert(rows, { onConflict: 'id,user_id' })
-    .then(({ error }) => { if (error) console.warn('[sync] upsertMany', table, error.message); })
+    .then(({ error }) => {
+      if (error) { emitSyncError(table, error.message); console.warn('[sync] upsertMany', table, error.message); }
+      else emitSyncOk();
+    })
     .catch(() => { /* offline */ });
 }
 
@@ -106,7 +120,10 @@ function saveAllLocal<T extends { id: string }>(
   if (!changed.length) return;
   const rows = changed.map(r => ({ id: r.id, user_id: userId, data: r }));
   supabase.from(table).upsert(rows, { onConflict: 'id,user_id' })
-    .then(({ error }) => { if (error) console.warn('[sync] saveAll', table, error.message); })
+    .then(({ error }) => {
+      if (error) { emitSyncError(table, error.message); console.warn('[sync] saveAll', table, error.message); }
+      else emitSyncOk();
+    })
     .catch(() => { /* offline */ });
 }
 

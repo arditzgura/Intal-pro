@@ -56,6 +56,8 @@ const App: React.FC = () => {
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
   const [selectedProfileItem,   setSelectedProfileItem]   = useState<Item | null>(null);
   const [isMobileMenuOpen,      setIsMobileMenuOpen]      = useState(false);
+  const [syncError,             setSyncError]             = useState<string | null>(null);
+  const [isRefreshing,          setIsRefreshing]          = useState(false);
 
   const mainRef          = useRef<HTMLDivElement>(null);
   const scrollPositions  = useRef<Record<string, number>>({});
@@ -95,6 +97,25 @@ const App: React.FC = () => {
       console.info('[offline] Duke përdorur të dhënat lokale');
     }
   }, []);
+
+  // ─── Sync error listener ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onErr = (e: Event) => {
+      const { table, msg } = (e as CustomEvent).detail;
+      setSyncError(`Gabim sinkronizimi (${table}): ${msg}`);
+    };
+    const onOk = () => setSyncError(null);
+    window.addEventListener('intal-sync-error', onErr);
+    window.addEventListener('intal-sync-ok', onOk);
+    return () => { window.removeEventListener('intal-sync-error', onErr); window.removeEventListener('intal-sync-ok', onOk); };
+  }, []);
+
+  const handleForceRefresh = async () => {
+    if (!session || isRefreshing) return;
+    setIsRefreshing(true);
+    try { await loadAllData(session.user.id); setSyncError(null); }
+    finally { setIsRefreshing(false); }
+  };
 
   // ─── Auth state change ─────────────────────────────────────────────────────
   const checkBlocked = async (userId: string): Promise<boolean> => {
@@ -270,13 +291,20 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    // Dil menjëherë nga UI (pa pritur Supabase)
+    // 1. Fshi token nga localStorage menjëherë (sinkron)
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i) || '';
+        if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k);
+      }
+    } catch {}
+    // 2. Pastro state
     setSession(null);
     setRealSession(null);
     setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
     setConfig(DEFAULT_CONFIG);
-    // Pastaj fshi sesionin nga Supabase në background
-    supabase.auth.signOut().catch(console.error);
+    // 3. Njofto Supabase në background
+    supabase.auth.signOut().catch(() => {});
   };
 
   // ─── Computed ──────────────────────────────────────────────────────────────
@@ -484,18 +512,30 @@ const App: React.FC = () => {
               <span className="font-black italic text-sm text-white">INTAL PRO</span>
             </div>
           </div>
-          <div className="hidden lg:flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">I kyçur si</p>
-              <p className="text-sm font-black text-slate-800 uppercase tracking-tighter">{username}</p>
-            </div>
-            <button onClick={handleLogout} title="Dil" className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 transition-all">
-              <LogOut size={18}/>
+          <div className="flex items-center gap-2">
+            <button onClick={handleForceRefresh} title="Rifresko të dhënat nga cloud"
+              className={`p-2 rounded-xl transition-all ${isRefreshing ? 'text-[#D81B60]' : syncError ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-[#D81B60]'} hover:bg-slate-50`}>
+              <Loader2 size={18} className={isRefreshing ? 'animate-spin' : ''} strokeWidth={isRefreshing ? 2.5 : 2}/>
             </button>
+            <div className="hidden lg:flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">I kyçur si</p>
+                <p className="text-sm font-black text-slate-800 uppercase tracking-tighter">{username}</p>
+              </div>
+              <button onClick={handleLogout} title="Dil" className="p-2 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 transition-all">
+                <LogOut size={18}/>
+              </button>
+            </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2"><Menu/></button>
         </header>
 
+        {syncError && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+            <p className="text-amber-800 text-[11px] font-bold truncate">{syncError}</p>
+            <button onClick={() => setSyncError(null)} className="text-amber-500 hover:text-amber-700 shrink-0 text-xs font-black">✕</button>
+          </div>
+        )}
         <main ref={mainRef} className="flex-1 overflow-y-auto p-3 md:p-8 lg:p-12">
           <div className="max-w-7xl mx-auto space-y-4 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
