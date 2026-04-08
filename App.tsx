@@ -341,8 +341,8 @@ const App: React.FC = () => {
       return inv;
     });
     setInvoices(updated);
-    const changedInvs = updated.filter((u, i) => u !== invoices[i]);
-    db.invoices.saveAll(uid, updated, changedInvs);
+    const changedInvs = updated.filter((u, i) => u !== invoices[i]); // pozicioni nuk ndryshon këtu
+    db.invoices.saveAll(uid, updated, changedInvs.slice(0, 50)); // max 50
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -411,7 +411,12 @@ const App: React.FC = () => {
       newInvoices = editInvoice ? invoices.map(inv => inv.id === final.id ? final : inv) : [final, ...invoices];
     }
     setInvoices(newInvoices);
-    const changed = newInvoices.filter((u, i) => u !== invoices[i] || u.id === final.id);
+    // Krahaso sipas ID-së (jo pozicionit) — parandalon dërgimin e të gjitha faturave
+    const oldMap = new Map(invoices.map(inv => [inv.id, inv]));
+    const changed = newInvoices.filter(u => {
+      const old = oldMap.get(u.id);
+      return !old || JSON.stringify(old) !== JSON.stringify(u);
+    });
     db.invoices.saveAll(uid, newInvoices, changed);
 
     setEditInvoice(null);

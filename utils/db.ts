@@ -130,26 +130,35 @@ async function saveConfig(userId: string, config: BusinessConfig): Promise<void>
 function saveAllLocal<T extends { id: string }>(
   table: Table, userId: string, records: T[], changed: T[]
 ): void {
-  // Një shkrim i vetëm në localStorage për të gjithë listën
+  // Ruaj gjithë listën lokalisht
   local.setAll(userId, table, records);
-  // Sinkronizo vetëm rekorder e ndryshuar me cloud (background)
+  // Sinkronizo vetëm rekordet e ndryshuar me cloud (max 50 për herë)
   if (!changed.length) return;
-  const rows = changed.map(r => ({ id: r.id, user_id: userId, data: r }));
-  console.log(`[sync] saveAll ${table} ${rows.length} records, ids: ${rows.map(r=>r.id).join(',')}`);
-  supabase.from(table).upsert(rows)
-    .then(({ error, status }) => {
-      if (error) {
-        console.error(`[sync ERROR] saveAll ${table}: ${error.message} (code: ${error.code}, status: ${status})`);
-        emitSyncError(table, error.message);
-      } else {
-        console.log(`[sync OK] saveAll ${table}`);
-        emitSyncOk();
-      }
-    })
-    .catch((e: any) => {
-      console.error(`[sync CATCH] saveAll ${table}:`, e);
-      emitSyncError(table, e?.message ?? 'network error');
-    });
+
+  // Dërgoji në grupe prej 50 maksimum
+  const BATCH = 50;
+  const sendBatch = (batch: T[]) => {
+    const rows = batch.map(r => ({ id: r.id, user_id: userId, data: r }));
+    console.log(`[sync] saveAll ${table} ${rows.length} records`);
+    supabase.from(table).upsert(rows)
+      .then(({ error, status }) => {
+        if (error) {
+          console.error(`[sync ERROR] saveAll ${table}: ${error.message} (code: ${error.code}, status: ${status})`);
+          emitSyncError(table, error.message);
+        } else {
+          console.log(`[sync OK] saveAll ${table} ${rows.length} records`);
+          emitSyncOk();
+        }
+      })
+      .catch((e: any) => {
+        console.error(`[sync CATCH] saveAll ${table}:`, e);
+        emitSyncError(table, e?.message ?? 'network error');
+      });
+  };
+
+  for (let i = 0; i < changed.length; i += BATCH) {
+    sendBatch(changed.slice(i, i + BATCH));
+  }
 }
 
 // ─── API publike ─────────────────────────────────────────────────────────────
