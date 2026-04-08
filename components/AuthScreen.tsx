@@ -14,7 +14,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  const withTimeout = <T,>(p: Promise<T>, ms = 15000): Promise<T> =>
+  const withTimeout = <T,>(p: Promise<T>, ms = 30000): Promise<T> =>
     Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +45,8 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           else setError(loginErr.message);
         }
       } else {
-        const { error: err } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+        const { data: loginData, error: err } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+        console.log('[auth] signIn result:', { email, err: err?.message, hasSession: !!loginData?.session });
         if (err) {
           if (err.message.includes('Invalid login') || err.message.includes('invalid_credentials'))
             setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
