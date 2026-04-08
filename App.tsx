@@ -159,7 +159,9 @@ const App: React.FC = () => {
       if (data.session) {
         setSession(data.session);
         setRealSession(data.session);
-        if (!localSess) loadAllData(data.session.user.id);
+        // Gjithmonë rifresko nga cloud kur kemi sesion real (me auth token të vlefshëm)
+        // Kur kishim localSess, thirrjet Supabase dështonin sepse client s'kishte token
+        loadAllData(data.session.user.id);
       } else {
         // Token lokal nuk është valid — fshi dhe shfaq login
         try {
