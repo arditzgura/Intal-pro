@@ -14,32 +14,6 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  const withTimeout = <T,>(promise: Promise<T>, ms = 20000): Promise<T> =>
-    Promise.race([
-      promise,
-      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-    ]);
-
-  // Kontrollo nëse mund të arrijmë Supabase
-  const checkConnectivity = async (): Promise<'ok' | 'no-internet' | 'server-down'> => {
-    if (!navigator.onLine) return 'no-internet';
-    try {
-      const url = (import.meta as any).env?.VITE_SUPABASE_URL;
-      if (!url) return 'ok'; // nëse URL mungon, lejo Supabase client të provojë vetë
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      try {
-        const res = await fetch(`${url}/auth/v1/`, { method: 'GET', signal: controller.signal });
-        return res.status < 500 ? 'ok' : 'server-down';
-      } finally {
-        clearTimeout(timer);
-      }
-    } catch {
-      // fetch dështoi — por mund të jetë CORS; lejo Supabase client të provojë
-      return 'ok';
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setSuccess('');
@@ -53,33 +27,22 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     const email = usernameToEmail(uname);
 
     try {
-      // Kontrollo lidhjen para se të provosh auth
-      const conn = await checkConnectivity();
-      if (conn === 'no-internet') {
-        setError('Nuk ka internet. Kontrollo lidhjen dhe provo sërish.');
-        return;
-      }
-      if (conn === 'server-down') {
-        setError('Serveri nuk është i arritshëm. Provo pas pak sekondash.');
-        return;
-      }
-
       if (mode === 'register') {
-        const { error: err } = await withTimeout(supabase.auth.signUp({ email, password,
+        const { error: err } = await supabase.auth.signUp({ email, password,
           options: { data: { username: uname } }
-        }));
+        });
         if (err) {
           if (err.message.includes('already registered') || err.message.includes('User already registered'))
             setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
           else setError(err.message);
         } else {
           setSuccess('Llogaria u krijua! Duke u lidhur...');
-          const { error: loginErr } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+          const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
           if (!loginErr) onAuth();
           else setError(loginErr.message);
         }
       } else {
-        const { error: err } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) {
           if (err.message.includes('Invalid login') || err.message.includes('invalid_credentials'))
             setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
@@ -89,10 +52,8 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
         }
       }
     } catch (ex: any) {
-      if (ex?.message === 'timeout')
-        setError('Koha e pritjes skadoi. Lidhja është e ngadaltë — provo sërish.');
-      else
-        setError('Gabim i papritur. Provo sërish.');
+      setError('Gabim i papritur. Provo sërish.');
+      console.error(ex);
     } finally {
       setLoading(false);
     }
