@@ -39,14 +39,23 @@ async function upsertOne<T extends { id: string }>(
   // Ruaj lokalisht menjëherë
   local.upsert(userId, table, record);
   // Sinkronizo me cloud (pa pritur)
+  console.log(`[sync] upsert ${table} id=${record.id} user=${userId}`);
   supabase
     .from(table)
     .upsert({ id: record.id, user_id: userId, data: record })
-    .then(({ error }) => {
-      if (error) emitSyncError(table, error.message);
-      else emitSyncOk();
+    .then(({ error, status }) => {
+      if (error) {
+        console.error(`[sync ERROR] ${table}: ${error.message} (code: ${error.code}, status: ${status})`);
+        emitSyncError(table, error.message);
+      } else {
+        console.log(`[sync OK] ${table} id=${record.id}`);
+        emitSyncOk();
+      }
     })
-    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
+    .catch((e: any) => {
+      console.error(`[sync CATCH] ${table}:`, e);
+      emitSyncError(table, e?.message ?? 'network error');
+    });
 }
 
 // ─── Ruaj shumë rekorde (import / migrate) ───────────────────────────────────
@@ -126,12 +135,21 @@ function saveAllLocal<T extends { id: string }>(
   // Sinkronizo vetëm rekorder e ndryshuar me cloud (background)
   if (!changed.length) return;
   const rows = changed.map(r => ({ id: r.id, user_id: userId, data: r }));
+  console.log(`[sync] saveAll ${table} ${rows.length} records, ids: ${rows.map(r=>r.id).join(',')}`);
   supabase.from(table).upsert(rows)
-    .then(({ error }) => {
-      if (error) emitSyncError(table, error.message);
-      else emitSyncOk();
+    .then(({ error, status }) => {
+      if (error) {
+        console.error(`[sync ERROR] saveAll ${table}: ${error.message} (code: ${error.code}, status: ${status})`);
+        emitSyncError(table, error.message);
+      } else {
+        console.log(`[sync OK] saveAll ${table}`);
+        emitSyncOk();
+      }
     })
-    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
+    .catch((e: any) => {
+      console.error(`[sync CATCH] saveAll ${table}:`, e);
+      emitSyncError(table, e?.message ?? 'network error');
+    });
 }
 
 // ─── API publike ─────────────────────────────────────────────────────────────
