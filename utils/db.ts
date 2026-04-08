@@ -4,6 +4,15 @@ import { Client, Invoice, Item, StockEntry, BusinessConfig } from '../types';
 
 type Table = 'clients' | 'items' | 'invoices' | 'stock_entries';
 
+// ─── Emit sync events ─────────────────────────────────────────────────────────
+function emitSyncError(table: string, msg: string) {
+  console.warn('[sync error]', table, msg);
+  try { window.dispatchEvent(new CustomEvent('intal-sync-error', { detail: { table, msg } })); } catch {}
+}
+function emitSyncOk() {
+  try { window.dispatchEvent(new CustomEvent('intal-sync-ok')); } catch {}
+}
+
 // ─── Lexo nga Supabase (me fallback në localStorage) ─────────────────────────
 async function fetchAll<T>(table: Table, userId: string): Promise<T[]> {
   try {
@@ -16,18 +25,11 @@ async function fetchAll<T>(table: Table, userId: string): Promise<T[]> {
     // Sinkronizo localStorage me të dhënat cloud
     local.setAll(userId, table, result);
     return result;
-  } catch {
+  } catch (e: any) {
+    emitSyncError(table, e?.message ?? 'fetch failed');
     // Offline — kthe nga localStorage
     return local.getAll<T>(userId, table);
   }
-}
-
-// ─── Emit sync error event ────────────────────────────────────────────────────
-function emitSyncError(table: string, msg: string) {
-  try { window.dispatchEvent(new CustomEvent('intal-sync-error', { detail: { table, msg } })); } catch {}
-}
-function emitSyncOk() {
-  try { window.dispatchEvent(new CustomEvent('intal-sync-ok')); } catch {}
 }
 
 // ─── Ruaj një rekord ──────────────────────────────────────────────────────────
@@ -39,11 +41,12 @@ async function upsertOne<T extends { id: string }>(
   // Sinkronizo me cloud (pa pritur)
   supabase
     .from(table)
-    .upsert({ id: record.id, user_id: userId, data: record }, { onConflict: 'id,user_id' })
+    .upsert({ id: record.id, user_id: userId, data: record })
     .then(({ error }) => {
-      if (error) { emitSyncError(table, error.message); console.warn('[sync]', table, error.message); }
+      if (error) emitSyncError(table, error.message);
       else emitSyncOk();
-    });
+    })
+    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
 }
 
 // ─── Ruaj shumë rekorde (import / migrate) ───────────────────────────────────
@@ -55,12 +58,12 @@ async function upsertMany<T extends { id: string }>(
   local.setAll(userId, table, records);
   // Sinkronizo me cloud në background (pa pritur)
   const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
-  supabase.from(table).upsert(rows, { onConflict: 'id,user_id' })
+  supabase.from(table).upsert(rows)
     .then(({ error }) => {
-      if (error) { emitSyncError(table, error.message); console.warn('[sync] upsertMany', table, error.message); }
+      if (error) emitSyncError(table, error.message);
       else emitSyncOk();
     })
-    .catch(() => { /* offline */ });
+    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
 }
 
 // ─── Fshi një rekord ──────────────────────────────────────────────────────────
@@ -73,7 +76,8 @@ async function removeOne(table: Table, userId: string, id: string): Promise<void
     .delete()
     .eq('id', id)
     .eq('user_id', userId)
-    .then(({ error }) => { if (error) console.warn('[sync] remove', table, error.message); });
+    .then(({ error }) => { if (error) emitSyncError(table, error.message); })
+    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
 }
 
 // ─── Fshi të gjitha ───────────────────────────────────────────────────────────
@@ -82,22 +86,24 @@ async function clearTable(table: Table, userId: string): Promise<void> {
   local.clear(userId, table);
   // Sinkronizo me cloud në background (pa pritur)
   supabase.from(table).delete().eq('user_id', userId)
-    .then(({ error }) => { if (error) console.warn('[sync] clear', table, error.message); })
-    .catch(() => { /* offline */ });
+    .then(({ error }) => { if (error) emitSyncError(table, error.message); })
+    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 async function fetchConfig(userId: string): Promise<BusinessConfig | null> {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_config')
       .select('data')
       .eq('user_id', userId)
       .maybeSingle();
+    if (error) throw error;
     const cfg = data?.data ?? null;
     if (cfg) local.setConfig(userId, cfg);
     return cfg;
-  } catch {
+  } catch (e: any) {
+    emitSyncError('user_config', e?.message ?? 'fetch failed');
     return local.getConfig(userId);
   }
 }
@@ -106,8 +112,9 @@ async function saveConfig(userId: string, config: BusinessConfig): Promise<void>
   local.setConfig(userId, config);
   supabase
     .from('user_config')
-    .upsert({ user_id: userId, data: config }, { onConflict: 'user_id' })
-    .then(({ error }) => { if (error) console.warn('[sync] config', error.message); });
+    .upsert({ user_id: userId, data: config })
+    .then(({ error }) => { if (error) emitSyncError('user_config', error.message); })
+    .catch((e: any) => emitSyncError('user_config', e?.message ?? 'network error'));
 }
 
 // ─── Ruaj listën e plotë lokalisht (batch — një shkrim i vetëm) ───────────────
@@ -119,12 +126,12 @@ function saveAllLocal<T extends { id: string }>(
   // Sinkronizo vetëm rekorder e ndryshuar me cloud (background)
   if (!changed.length) return;
   const rows = changed.map(r => ({ id: r.id, user_id: userId, data: r }));
-  supabase.from(table).upsert(rows, { onConflict: 'id,user_id' })
+  supabase.from(table).upsert(rows)
     .then(({ error }) => {
-      if (error) { emitSyncError(table, error.message); console.warn('[sync] saveAll', table, error.message); }
+      if (error) emitSyncError(table, error.message);
       else emitSyncOk();
     })
-    .catch(() => { /* offline */ });
+    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
 }
 
 // ─── API publike ─────────────────────────────────────────────────────────────
