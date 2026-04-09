@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<title>INTAL PRO - Rikupero të Dhënat</title>
+<style>
+  body { font-family: sans-serif; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .box { background: #1e293b; border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; border: 1px solid #334155; }
+  h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+  p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+  input { width: 100%; padding: 12px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: white; font-size: 14px; font-weight: bold; margin-bottom: 12px; box-sizing: border-box; outline: none; }
+  button { width: 100%; padding: 14px; background: #D81B60; color: white; border: none; border-radius: 10px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; }
+  button:hover { background: #AD1457; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .msg { margin-top: 16px; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: bold; display: none; }
+  .ok { background: #064e3b; color: #6ee7b7; border: 1px solid #065f46; }
+  .err { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🔄 Rikupero të Dhënat</h1>
+  <p>Fut kredencialet e vjetra të Supabase për të rikuperuar faturat, klientët dhe artikujt.</p>
+  <input id="user" type="text" placeholder="Username (p.sh. arditzgura)" />
+  <input id="pass" type="password" placeholder="Fjalëkalimi" />
+  <button id="btn" onclick="recover()">Rikupero të Dhënat</button>
+  <div id="msg" class="msg"></div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://qdabziyuisaqeqveltke.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_rvoYUnCDtL0bxB5GNk44nA_Y207L58x';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function show(text, isOk) {
+  const el = document.getElementById('msg');
+  el.style.display = 'block';
+  el.className = 'msg ' + (isOk ? 'ok' : 'err');
+  el.innerHTML = text;
+}
+
+window.recover = async function() {
+  const username = document.getElementById('user').value.trim();
+  const password = document.getElementById('pass').value;
+  const btn = document.getElementById('btn');
+
+  if (!username || !password) { show('Plotëso të dyja fushat!', false); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Duke u lidhur...';
+  show('', false);
+
+  // Login me Supabase
+  const email = username.toLowerCase() + '@intal.app';
+  const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+  if (authErr) { show('❌ Login dështoi: ' + authErr.message, false); btn.disabled = false; btn.textContent = 'Rikupero të Dhënat'; return; }
+
+  const uid = authData.user.id;
+  btn.textContent = 'Duke marrë të dhënat...';
+
+  // Fetch të gjitha të dhënat
+  const [invRes, clRes, itRes, stRes, cfRes] = await Promise.all([
+    supabase.from('invoices').select('*').eq('user_id', uid),
+    supabase.from('clients').select('*').eq('user_id', uid),
+    supabase.from('items').select('*').eq('user_id', uid),
+    supabase.from('stock_entries').select('*').eq('user_id', uid),
+    supabase.from('user_config').select('*').eq('user_id', uid).maybeSingle(),
+  ]);
+
+  const invoices = invRes.data || [];
+  const clients  = clRes.data  || [];
+  const items    = itRes.data  || [];
+  const stock    = stRes.data  || [];
+  const config   = cfRes.data  || null;
+
+  // Krijo user lokal
+  function simpleHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) { h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
+    return h.toString(36);
+  }
+
+  const localUserId = 'local-' + Date.now();
+  const localUser = { id: localUserId, username, passwordHash: simpleHash(password) };
+
+  // Ruaj users
+  const existingUsers = JSON.parse(localStorage.getItem('intal_local_users') || '[]');
+  const filtered = existingUsers.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+  localStorage.setItem('intal_local_users', JSON.stringify([...filtered, localUser]));
+
+  // Ruaj session
+  localStorage.setItem('intal_session', JSON.stringify({ user: localUser, loggedAt: Date.now() }));
+
+  // Ruaj të dhënat
+  const clean = (arr) => arr.map(({ user_id, ...rest }) => rest);
+  localStorage.setItem('intal_' + localUserId + '_invoices',      JSON.stringify(clean(invoices)));
+  localStorage.setItem('intal_' + localUserId + '_clients',       JSON.stringify(clean(clients)));
+  localStorage.setItem('intal_' + localUserId + '_items',         JSON.stringify(clean(items)));
+  localStorage.setItem('intal_' + localUserId + '_stock_entries', JSON.stringify(clean(stock)));
+  if (config) {
+    const { user_id, ...cfg } = config;
+    localStorage.setItem('intal_' + localUserId + '_config', JSON.stringify(cfg));
+  }
+
+  show(`✅ Rikuperuar me sukses!<br>
+    📄 ${invoices.length} Fatura<br>
+    👥 ${clients.length} Klientë<br>
+    📦 ${items.length} Artikuj<br>
+    📋 ${stock.length} Fletëhyrje<br><br>
+    <strong>Tani mund të hapësh aplikacionin →</strong>
+    <a href="/Intal-pro/" style="color:#6ee7b7">Hap Aplikacionin</a>`, true);
+
+  btn.textContent = '✅ U rikuperua!';
+};
+</script>
+</body>
+</html>
