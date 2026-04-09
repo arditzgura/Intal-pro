@@ -141,6 +141,42 @@ const App: React.FC = () => {
     }, 800);
   }, [config]); // eslint-disable-line
 
+  // ─── Backup lokal ─────────────────────────────────────────────────────────
+  const doBackup = useCallback((isAuto = false) => {
+    if (!session) return;
+    const uid = session.user.id;
+    const data = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      user: session.user.username,
+      invoices:      local.getAll(uid, 'invoices'),
+      clients:       local.getAll(uid, 'clients'),
+      items:         local.getAll(uid, 'items'),
+      stock_entries: local.getAll(uid, 'stock_entries'),
+      config:        local.getConfig(uid),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const date = new Date().toLocaleDateString('en-CA');
+    a.href     = url;
+    a.download = `intal-backup-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    localStorage.setItem('intal_last_backup', Date.now().toString());
+    if (!isAuto) alert(`✅ Backup u ruajt:\nintal-backup-${date}.json\n\nFaturat: ${(data.invoices as any[]).length} | Klientët: ${(data.clients as any[]).length} | Artikujt: ${(data.items as any[]).length}`);
+  }, [session]);
+
+  // Auto-backup çdo 24 orë kur hapet app-i
+  useEffect(() => {
+    if (!session || !dataReady) return;
+    const last = parseInt(localStorage.getItem('intal_last_backup') || '0');
+    const diff = Date.now() - last;
+    if (diff > 24 * 60 * 60 * 1000) { // 24 orë
+      setTimeout(() => doBackup(true), 3000); // pas 3 sekondash
+    }
+  }, [session, dataReady, doBackup]);
+
   // ─── Scroll restore ───────────────────────────────────────────────────────
   useEffect(() => {
     const main = mainRef.current;
@@ -421,22 +457,7 @@ const App: React.FC = () => {
             {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
-                onExport={() => {
-                  // Lexo direkt nga localStorage — garanton të dhëna 100% të plota
-                  const db_export: Record<string, any> = {
-                    _version: 2,
-                    _exportedAt: new Date().toISOString(),
-                    _user: username,
-                    clients:      local.getAll(uid, 'clients'),
-                    items:        local.getAll(uid, 'items'),
-                    invoices:     local.getAll(uid, 'invoices'),
-                    stockEntries: local.getAll(uid, 'stockEntries'),
-                    config:       local.getConfig(uid) ?? config,
-                  };
-                  const blob = new Blob([JSON.stringify(db_export, null, 2)], { type: 'application/json' });
-                  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-                  a.download = `backup_intal_pro_${new Date().toLocaleDateString('en-CA')}.json`; a.click();
-                }}
+                onExport={() => doBackup(false)}
                 onImport={async (file) => {
                   try {
                     const text = await file.text();
