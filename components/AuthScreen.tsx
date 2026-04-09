@@ -1,11 +1,51 @@
 import React, { useState } from 'react';
 import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { supabase, usernameToEmail } from '../utils/supabase';
 
-interface Props { onAuth: () => void; }
+// ─── Auth lokal — pa Supabase ─────────────────────────────────────────────────
+const LOCAL_USERS_KEY = 'intal_local_users';
+
+interface LocalUser { id: string; username: string; passwordHash: string; }
+
+function simpleHash(str: string): string {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
+  return h.toString(36);
+}
+
+function getUsers(): LocalUser[] {
+  try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]'); } catch { return []; }
+}
+function saveUsers(users: LocalUser[]) {
+  localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+}
+export function localLogin(username: string, password: string): LocalUser | null {
+  const users = getUsers();
+  const u = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  if (!u) return null;
+  return simpleHash(password) === u.passwordHash ? u : null;
+}
+export function localRegister(username: string, password: string): LocalUser | 'exists' {
+  const users = getUsers();
+  if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return 'exists';
+  const newUser: LocalUser = { id: 'local-' + Date.now(), username, passwordHash: simpleHash(password) };
+  saveUsers([...users, newUser]);
+  return newUser;
+}
+export function setLocalSession(user: LocalUser) {
+  localStorage.setItem('intal_session', JSON.stringify({ user, loggedAt: Date.now() }));
+}
+export function getLocalSession(): { user: LocalUser } | null {
+  try { return JSON.parse(localStorage.getItem('intal_session') || 'null'); } catch { return null; }
+}
+export function clearLocalSession() {
+  localStorage.removeItem('intal_session');
+}
+
+// ─── Komponenti ───────────────────────────────────────────────────────────────
+interface Props { onAuth: (user: LocalUser) => void; }
 
 const AuthScreen: React.FC<Props> = ({ onAuth }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode]           = useState<'login' | 'register'>('login');
   const [username, setUsername]   = useState('');
   const [password, setPassword]   = useState('');
   const [password2, setPassword2] = useState('');
@@ -14,10 +54,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  const withTimeout = <T,>(p: Promise<T>, ms = 30000): Promise<T> =>
-    Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setSuccess('');
 
@@ -27,48 +64,31 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     if (mode === 'register' && password !== password2) return setError('Fjalëkalimet nuk përputhen.');
 
     setLoading(true);
-    const email = usernameToEmail(uname);
-
-    try {
+    setTimeout(() => {
       if (mode === 'register') {
-        const { error: err } = await withTimeout(supabase.auth.signUp({ email, password,
-          options: { data: { username: uname } }
-        }));
-        if (err) {
-          if (err.message.includes('already registered') || err.message.includes('User already registered'))
-            setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
-          else setError(err.message);
+        const result = localRegister(uname, password);
+        if (result === 'exists') {
+          setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
         } else {
-          setSuccess('Llogaria u krijua! Duke u lidhur...');
-          const { error: loginErr } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
-          if (!loginErr) onAuth();
-          else setError(loginErr.message);
+          setLocalSession(result);
+          onAuth(result);
         }
       } else {
-        const { data: loginData, error: err } = await supabase.auth.signInWithPassword({ email, password });
-        console.log('[auth] signIn result:', { email, err: err?.message, hasSession: !!loginData?.session });
-        if (err) {
-          if (err.message.includes('Invalid login') || err.message.includes('invalid_credentials'))
-            setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
-          else setError(err.message);
+        const user = localLogin(uname, password);
+        if (!user) {
+          setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
         } else {
-          onAuth();
+          setLocalSession(user);
+          onAuth(user);
         }
       }
-    } catch (ex: any) {
-      if ((ex as any)?.message === 'timeout')
-        setError('S\'u mor përgjigje nga serveri. Kontrollo internetin dhe provo sërish.');
-      else
-        setError('Gabim lidhjeje. Provo sërish.');
-    } finally {
       setLoading(false);
-    }
+    }, 100);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <div className="bg-[#D81B60] p-3 rounded-2xl shadow-2xl shadow-[#D81B60]/30 mb-4">
             <FileText size={32} className="text-white" />
@@ -81,79 +101,45 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           </p>
         </div>
 
-        {/* Card */}
         <div className="bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
-          {/* Toggle */}
           <div className="flex bg-slate-700 p-1 rounded-xl mb-6">
-            <button
-              onClick={() => { setMode('login'); setError(''); }}
-              className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
-            >
+            <button onClick={() => { setMode('login'); setError(''); }}
+              className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <LogIn size={12} className="inline mr-1.5" /> Hyr
             </button>
-            <button
-              onClick={() => { setMode('register'); setError(''); }}
-              className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
-            >
+            <button onClick={() => { setMode('register'); setError(''); }}
+              className={`flex-1 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
               <UserPlus size={12} className="inline mr-1.5" /> Krijo Llogari
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username */}
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                Emri i Përdoruesit
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="p.sh. arditzgura"
-                autoComplete="username"
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold"
-              />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Emri i Përdoruesit</label>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
+                placeholder="p.sh. arditzgura" autoComplete="username"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold" />
             </div>
-
-            {/* Password */}
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                Fjalëkalimi
-              </label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Fjalëkalimi</label>
               <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Minimumi 6 karaktere"
-                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                  className="w-full px-4 py-3 pr-12 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold"
-                />
+                <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="Minimumi 6 karaktere" autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  className="w-full px-4 py-3 pr-12 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold" />
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-
-            {/* Konfirmo fjalëkalimin (vetëm register) */}
             {mode === 'register' && (
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                  Konfirmo Fjalëkalimin
-                </label>
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password2}
-                  onChange={e => setPassword2(e.target.value)}
-                  placeholder="Ripërsërit fjalëkalimin"
-                  autoComplete="new-password"
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold"
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Konfirmo Fjalëkalimin</label>
+                <input type={showPass ? 'text' : 'password'} value={password2} onChange={e => setPassword2(e.target.value)}
+                  placeholder="Ripërsërit fjalëkalimin" autoComplete="new-password"
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 outline-none focus:border-[#D81B60] transition-colors text-sm font-bold" />
               </div>
             )}
-
-            {/* Error / Success */}
             {error && (
               <div className="flex items-start gap-2 bg-rose-900/30 border border-rose-700/50 rounded-xl px-3 py-2.5">
                 <AlertCircle size={15} className="text-rose-400 shrink-0 mt-0.5" />
@@ -165,20 +151,13 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
                 <p className="text-emerald-300 text-xs font-bold">{success}</p>
               </div>
             )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#D81B60] hover:bg-[#AD1457] text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-[#D81B60]/20 disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full bg-[#D81B60] hover:bg-[#AD1457] text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-[#D81B60]/20 disabled:opacity-60 flex items-center justify-center gap-2 mt-2">
               {loading ? <Loader2 size={18} className="animate-spin" /> :
-                mode === 'login' ? <><LogIn size={16} /> Hyr</> : <><UserPlus size={16} /> Krijo & Hyr</>
-              }
+                mode === 'login' ? <><LogIn size={16} /> Hyr</> : <><UserPlus size={16} /> Krijo & Hyr</>}
             </button>
           </form>
         </div>
-
         <p className="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest mt-6">
           INTAL PRO © {new Date().getFullYear()}
         </p>

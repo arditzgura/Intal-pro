@@ -6,10 +6,8 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS } from './utils/storage';
-import { supabase } from './utils/supabase';
-import { db } from './utils/db';
 import { local } from './utils/localDb';
-import type { Session, RealtimeChannel } from '@supabase/supabase-js';
+import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
 import ClientManager   from './components/ClientManager';
@@ -34,10 +32,9 @@ const DEFAULT_CONFIG: BusinessConfig = {
 };
 
 const App: React.FC = () => {
-  // ─── Auth ──────────────────────────────────────────────────────────────────
-  const [session,     setSession]    = useState<Session | null | undefined>(undefined); // undefined = loading
-  const [realSession, setRealSession] = useState<Session | null>(null); // sesioni real nga Supabase (për realtime)
-  const [dataReady,   setDataReady]  = useState(false);
+  // ─── Auth (lokal) ──────────────────────────────────────────────────────────
+  const [session,   setSession]  = useState<{ user: { id: string; username: string } } | null | undefined>(undefined);
+  const [dataReady, setDataReady] = useState(false);
 
   // ─── Data ──────────────────────────────────────────────────────────────────
   const [clients,      setClients]      = useState<Client[]>([]);
@@ -55,211 +52,37 @@ const App: React.FC = () => {
   const [editStockEntry,        setEditStockEntry]        = useState<StockEntry | null>(null);
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
   const [selectedProfileItem,   setSelectedProfileItem]   = useState<Item | null>(null);
-  const [isMobileMenuOpen,      setIsMobileMenuOpen]      = useState(false);
-  const [syncError,             setSyncError]             = useState<string | null>(null);
-  const [isRefreshing,          setIsRefreshing]          = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const mainRef          = useRef<HTMLDivElement>(null);
-  const scrollPositions  = useRef<Record<string, number>>({});
-  const realtimeChannel  = useRef<RealtimeChannel | null>(null);
+  const mainRef         = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef<Record<string, number>>({});
 
-  // ─── Ngarko të dhënat: localStorage (i menjëhershëm) + Supabase (background) ─
-  const loadAllData = useCallback(async (userId: string) => {
-    // 1. Ngarko nga localStorage menjëherë — shfaq UI pa vonesa
-    const localClients  = local.getAll<Client>(userId, 'clients');
-    const localItems    = local.getAll<Item>(userId, 'items');
-    const localInvoices = local.getAll<Invoice>(userId, 'invoices');
-    const localStock    = local.getAll<StockEntry>(userId, 'stock_entries');
-    const localCfg      = local.getConfig(userId);
-    setClients(localClients);
-    setItems(localItems);
-    setInvoices(localInvoices);
-    setStockEntries(localStock);
-    if (localCfg) setConfig({ ...DEFAULT_CONFIG, ...localCfg });
+  // ─── Ngarko të dhënat nga localStorage ───────────────────────────────────────
+  const loadAllData = useCallback((userId: string) => {
+    const cls   = local.getAll<Client>(userId, 'clients');
+    const itms  = local.getAll<Item>(userId, 'items');
+    const invs  = local.getAll<Invoice>(userId, 'invoices');
+    const stock = local.getAll<StockEntry>(userId, 'stock_entries');
+    const cfg   = local.getConfig(userId);
+    setClients(cls);
+    setItems(itms);
+    setInvoices(invs);
+    setStockEntries(stock);
+    if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
     setDataReady(true);
-
-    // 2. Sinkronizo me Supabase në background (nëse ka internet)
-    try {
-      const [cls, itms, invs, stock, cfg] = await Promise.all([
-        db.clients.fetchAll(userId),
-        db.items.fetchAll(userId),
-        db.invoices.fetchAll(userId),
-        db.stockEntries.fetchAll(userId),
-        db.config.fetch(userId),
-      ]);
-
-      // Merge: bashko të dhënat cloud me ato lokale (cloud ka prioritet për rekorde ekzistuese)
-      const merge = <T extends { id: string }>(cloud: T[], local: T[]): T[] => {
-        const map = new Map<string, T>();
-        local.forEach(r => map.set(r.id, r));   // fillimisht lokalet
-        cloud.forEach(r => map.set(r.id, r));   // cloud mbishkruan lokalet (versioni më i ri)
-        return Array.from(map.values());
-      };
-
-      const mergedClients  = merge(cls,   localClients);
-      const mergedItems    = merge(itms,  localItems);
-      const mergedInvoices = merge(invs,  localInvoices);
-      const mergedStock    = merge(stock, localStock);
-
-      setClients(mergedClients);
-      setItems(mergedItems);
-      setInvoices(mergedInvoices);
-      setStockEntries(mergedStock);
-      if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
-
-      // Ngarko në Supabase rekordet që mungojnë (janë vetëm lokalisht)
-      const missingClients  = localClients.filter(r  => !cls.find(c  => c.id === r.id));
-      const missingItems    = localItems.filter(r    => !itms.find(c => c.id === r.id));
-      const missingInvoices = localInvoices.filter(r => !invs.find(c => c.id === r.id));
-      const missingStock    = localStock.filter(r    => !stock.find(c => c.id === r.id));
-
-      if (missingClients.length)  { console.log(`[sync] uploading ${missingClients.length} missing clients`);  db.clients.upsertMany(userId, missingClients); }
-      if (missingItems.length)    { console.log(`[sync] uploading ${missingItems.length} missing items`);      db.items.upsertMany(userId, missingItems); }
-      if (missingInvoices.length) { console.log(`[sync] uploading ${missingInvoices.length} missing invoices`); db.invoices.upsertMany(userId, missingInvoices); }
-      if (missingStock.length)    { console.log(`[sync] uploading ${missingStock.length} missing stock`);      db.stockEntries.upsertMany(userId, missingStock); }
-
-      // Ruaj gjendjen e bashkuar lokalisht
-      local.setAll(userId, 'clients',       mergedClients);
-      local.setAll(userId, 'items',         mergedItems);
-      local.setAll(userId, 'invoices',      mergedInvoices);
-      local.setAll(userId, 'stock_entries', mergedStock);
-    } catch {
-      // Offline — vazhdo me të dhënat lokale
-      console.info('[offline] Duke përdorur të dhënat lokale');
-    }
   }, []);
 
-  // ─── Sync error listener ───────────────────────────────────────────────────
+  // ─── Auth: ngarko sesionin lokal ──────────────────────────────────────────
   useEffect(() => {
-    const onErr = (e: Event) => {
-      const { table, msg } = (e as CustomEvent).detail;
-      setSyncError(`Gabim sinkronizimi (${table}): ${msg}`);
-    };
-    const onOk = () => setSyncError(null);
-    window.addEventListener('intal-sync-error', onErr);
-    window.addEventListener('intal-sync-ok', onOk);
-    return () => { window.removeEventListener('intal-sync-error', onErr); window.removeEventListener('intal-sync-ok', onOk); };
-  }, []);
-
-  const handleForceRefresh = async () => {
-    if (!session || isRefreshing) return;
-    setIsRefreshing(true);
-    try { await loadAllData(session.user.id); setSyncError(null); }
-    finally { setIsRefreshing(false); }
-  };
-
-  // ─── Auth state change ─────────────────────────────────────────────────────
-  const checkBlocked = async (userId: string): Promise<boolean> => {
-    try {
-      const { data } = await supabase.from('profiles').select('is_blocked').eq('user_id', userId).single();
-      return data?.is_blocked === true;
-    } catch { return false; }
-  };
-
-  useEffect(() => {
-    // Lexo sesionin nga localStorage menjëherë (sinkron, pa rrjet)
-    // Supabase e ruan sesionin me çelësin: sb-<ref>-auth-token
-    const getLocalSession = (): any => {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i) || '';
-          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-            const val = JSON.parse(localStorage.getItem(key) || 'null');
-            if (val?.access_token) return val;
-          }
-        }
-      } catch { /* ignore */ }
-      return null;
-    };
-
-    const localSess = getLocalSession();
-    if (localSess) {
-      // Ka sesion lokal — ngarko të dhënat menjëherë pa pritur Supabase
-      const fakeSession = { user: { id: localSess.user?.id, user_metadata: localSess.user?.user_metadata, email: localSess.user?.email } } as any;
-      setSession(fakeSession);
-      loadAllData(fakeSession.user.id);
-    }
-
-    // Valido/rifresko sesionin me Supabase (në background, timeout 15s)
-    const timeout = setTimeout(() => {
-      if (!localSess) { setSession(null); setDataReady(true); }
-    }, 15000);
-
-    supabase.auth.getSession().then(({ data }) => {
-      clearTimeout(timeout);
-      if (data.session) {
-        setSession(data.session);
-        setRealSession(data.session);
-        // Gjithmonë rifresko nga cloud kur kemi sesion real (me auth token të vlefshëm)
-        // Kur kishim localSess, thirrjet Supabase dështonin sepse client s'kishte token
-        loadAllData(data.session.user.id);
-      } else {
-        // Token lokal nuk është valid — fshi dhe shfaq login
-        try {
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const k = localStorage.key(i) || '';
-            if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k);
-          }
-        } catch {}
-        setSession(null);
-        setDataReady(true);
-      }
-    }).catch(() => {
-      clearTimeout(timeout);
-      // Offline — lejo sesionin lokal të vazhdojë
-      if (localSess) return;
+    const sess = getLocalSession();
+    if (sess) {
+      setSession({ user: { id: sess.user.id, username: sess.user.username } });
+      loadAllData(sess.user.id);
+    } else {
       setSession(null);
       setDataReady(true);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
-      if (event === 'INITIAL_SESSION') return;
-
-      if (sess && event === 'SIGNED_IN') {
-        const blocked = await checkBlocked(sess.user.id);
-        if (blocked) { await supabase.auth.signOut(); return; }
-      }
-
-      setRealSession(sess); // përditëso sesionin real (realtime)
-      setSession(sess);
-      if (sess) {
-        setDataReady(false);
-        loadAllData(sess.user.id);
-      } else {
-        setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
-        setConfig(DEFAULT_CONFIG); setDataReady(false);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [loadAllData]);
-
-  // ─── Real-time subscriptions — vetëm me sesion real nga Supabase ────────────
-  useEffect(() => {
-    if (!realSession) {
-      realtimeChannel.current?.unsubscribe();
-      realtimeChannel.current = null;
-      return;
     }
-    const userId = realSession.user.id;
-
-    // Krijoni channel me filtër për user_id
-    const channel = supabase
-      .channel(`user-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients',      filter: `user_id=eq.${userId}` },
-        () => db.clients.fetchAll(userId).then(setClients).catch(console.error))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'items',        filter: `user_id=eq.${userId}` },
-        () => db.items.fetchAll(userId).then(setItems).catch(console.error))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices',     filter: `user_id=eq.${userId}` },
-        () => db.invoices.fetchAll(userId).then(setInvoices).catch(console.error))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_entries',filter: `user_id=eq.${userId}` },
-        () => db.stockEntries.fetchAll(userId).then(setStockEntries).catch(console.error))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_config',  filter: `user_id=eq.${userId}` },
-        () => db.config.fetch(userId).then(cfg => { if (cfg) setConfig(c => ({ ...c, ...cfg })); }).catch(console.error))
-      .subscribe();
-
-    realtimeChannel.current = channel;
-    return () => { channel.unsubscribe(); };
-  }, [realSession]);
+  }, [loadAllData]);
 
   // ─── Pikët e klientëve ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -276,7 +99,7 @@ const App: React.FC = () => {
     const changedC = updated.filter((u, i) => u !== clients[i]);
     if (changedC.length > 0) {
       setClients(updated);
-      db.clients.saveAll(userId, updated, changedC);
+      local.setAll(userId, 'clients', updated);
     }
   }, [invoices]); // eslint-disable-line
 
@@ -286,7 +109,7 @@ const App: React.FC = () => {
     if (!session || !dataReady) return;
     if (configSaveTimer.current) clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(() => {
-      db.config.save(session.user.id, config).catch(console.error);
+      local.setConfig(session.user.id, config);
     }, 800);
   }, [config]); // eslint-disable-line
 
@@ -323,21 +146,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    // 1. Fshi token nga localStorage menjëherë (sinkron)
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i) || '';
-        if (k.startsWith('sb-') && k.endsWith('-auth-token')) localStorage.removeItem(k);
-      }
-    } catch {}
-    // 2. Pastro state
+  const handleLogout = () => {
+    clearLocalSession();
     setSession(null);
-    setRealSession(null);
     setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
     setConfig(DEFAULT_CONFIG);
-    // 3. Njofto Supabase në background
-    supabase.auth.signOut().catch(() => {});
+    setDataReady(false);
   };
 
   // ─── Computed ──────────────────────────────────────────────────────────────
@@ -353,7 +167,7 @@ const App: React.FC = () => {
     return (nums.length ? Math.max(...nums) + 1 : 1001).toString();
   }, [stockEntries]);
 
-  // ─── CRUD me Supabase ──────────────────────────────────────────────────────
+  // ─── CRUD lokal ───────────────────────────────────────────────────────────
   const uid = session?.user.id ?? '';
 
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
@@ -372,8 +186,7 @@ const App: React.FC = () => {
       return inv;
     });
     setInvoices(updated);
-    const changedInvs = updated.filter((u, i) => u !== invoices[i]); // pozicioni nuk ndryshon këtu
-    db.invoices.saveAll(uid, updated, changedInvs.slice(0, 50)); // max 50
+    local.setAll(uid, 'invoices', updated);
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -381,7 +194,7 @@ const App: React.FC = () => {
       ? stockEntries.map(e => e.id === entry.id ? entry : e)
       : [entry, ...stockEntries];
     setStockEntries(newEntries);
-    db.stockEntries.upsert(uid, entry).catch(console.error);
+    local.setAll(uid, 'stock_entries', newEntries);
     setEditStockEntry(null);
 
     let updatedItems = [...items]; let changed = false;
@@ -395,7 +208,7 @@ const App: React.FC = () => {
         updatedItems.push(ni); changed = true;
       }
     });
-    if (changed) { setItems(updatedItems); updatedItems.forEach(i => db.items.upsert(uid, i).catch(console.error)); }
+    if (changed) { setItems(updatedItems); local.setAll(uid, 'items', updatedItems); }
     handleNavigate('stock-entries');
   };
 
@@ -409,7 +222,6 @@ const App: React.FC = () => {
     if (!existing) {
       const nc: Client = { id: Date.now().toString(), name: invoice.clientName.trim(), city: invoice.clientCity || '', address: '', phone: invoice.clientPhone || '', email: '', points: 0 };
       updClients.push(nc); final.clientId = nc.id; cChanged = true;
-      db.clients.upsert(uid, nc).catch(console.error);
     } else { final.clientId = existing.id; }
 
     final.items = invoice.items.map(invItem => {
@@ -418,14 +230,13 @@ const App: React.FC = () => {
       if (!ex) {
         const ni: Item = { id: 'item-' + Date.now() + Math.random().toString(36).substr(2,5), name: invItem.name.trim(), unit: 'copë', price: invItem.price, preferentialPrices: [] };
         updItems.push(ni); iChanged = true;
-        db.items.upsert(uid, ni).catch(console.error);
         return { ...invItem, itemId: ni.id };
       }
       return { ...invItem, itemId: ex.id };
     });
 
-    if (cChanged) setClients(updClients);
-    if (iChanged) setItems(updItems);
+    if (cChanged) { setClients(updClients); local.setAll(uid, 'clients', updClients); }
+    if (iChanged) { setItems(updItems); local.setAll(uid, 'items', updItems); }
 
     const today = new Date().toLocaleDateString('en-CA');
     if (final.status === 'E paguar' && !final.paymentDate) final.paymentDate = today;
@@ -442,13 +253,7 @@ const App: React.FC = () => {
       newInvoices = editInvoice ? invoices.map(inv => inv.id === final.id ? final : inv) : [final, ...invoices];
     }
     setInvoices(newInvoices);
-    // Krahaso sipas ID-së (jo pozicionit) — parandalon dërgimin e të gjitha faturave
-    const oldMap = new Map(invoices.map(inv => [inv.id, inv]));
-    const changed = newInvoices.filter(u => {
-      const old = oldMap.get(u.id);
-      return !old || JSON.stringify(old) !== JSON.stringify(u);
-    });
-    db.invoices.saveAll(uid, newInvoices, changed);
+    local.setAll(uid, 'invoices', newInvoices);
 
     setEditInvoice(null);
     clearData(STORAGE_KEYS.DRAFT);
@@ -478,7 +283,10 @@ const App: React.FC = () => {
   }
 
   // Pa sesion → ekrani i login-it
-  if (!session) return <AuthScreen onAuth={() => {}} />;
+  if (!session) return <AuthScreen onAuth={(user) => {
+    setSession({ user: { id: user.id, username: user.username } });
+    loadAllData(user.id);
+  }} />;
 
   // Me sesion por të dhënat nuk janë gati
   if (!dataReady) {
@@ -492,7 +300,7 @@ const App: React.FC = () => {
     );
   }
 
-  const username = session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Përdoruesi';
+  const username = session.user.username || 'Përdoruesi';
   const isAdmin = username === 'arditzgura';
   const showGlobalBack = currentView !== 'dashboard' || selectedProfileClient || selectedProfileItem || previewInvoice || previewStockEntry;
 
@@ -551,10 +359,6 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleForceRefresh} title="Rifresko të dhënat nga cloud"
-              className={`p-2 rounded-xl transition-all ${isRefreshing ? 'text-[#D81B60]' : syncError ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-[#D81B60]'} hover:bg-slate-50`}>
-              <Loader2 size={18} className={isRefreshing ? 'animate-spin' : ''} strokeWidth={isRefreshing ? 2.5 : 2}/>
-            </button>
             <div className="hidden lg:flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">I kyçur si</p>
@@ -568,12 +372,6 @@ const App: React.FC = () => {
           <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2"><Menu/></button>
         </header>
 
-        {syncError && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
-            <p className="text-amber-800 text-[11px] font-bold truncate">{syncError}</p>
-            <button onClick={() => setSyncError(null)} className="text-amber-500 hover:text-amber-700 shrink-0 text-xs font-black">✕</button>
-          </div>
-        )}
         <main ref={mainRef} className="flex-1 overflow-y-auto p-3 md:p-8 lg:p-12">
           <div className="max-w-7xl mx-auto space-y-4 md:space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -587,11 +385,11 @@ const App: React.FC = () => {
 
             {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries}/>}
             {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack}/>}
-            {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{setStockEntries(p=>p.filter(e=>e.id!==id)); db.stockEntries.remove(uid,id).catch(console.error);}} onPreview={setPreviewStockEntry}/>}
+            {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid,'stock_entries',upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{setInvoices(p=>p.filter(i=>i.id!==id)); db.invoices.remove(uid,id).catch(console.error);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
-            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{setClients(p=>[...p,c]);db.clients.upsert(uid,c).catch(console.error);}} onUpdate={u=>{setClients(p=>p.map(c=>c.id===u.id?u:c));db.clients.upsert(uid,u).catch(console.error);}} onDelete={id=>{setClients(p=>p.filter(c=>c.id!==id));db.clients.remove(uid,id).catch(console.error);}} onUpdateItems={ni=>{setItems(ni);ni.forEach(i=>db.items.upsert(uid,i).catch(console.error));}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
-            {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{setItems(p=>[...p,i]);db.items.upsert(uid,i).catch(console.error);}} onUpdate={u=>{setItems(p=>p.map(i=>i.id===u.id?u:i));db.items.upsert(uid,u).catch(console.error);}} onDelete={id=>{setItems(p=>p.filter(i=>i.id!==id));db.items.remove(uid,id).catch(console.error);}} onOpenProfile={setSelectedProfileItem}/>}
+            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const upd=invoices.filter(i=>i.id!==id);setInvoices(upd);local.setAll(uid,'invoices',upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
+            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid,'clients',upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid,'clients',upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
+            {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid,'items',upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);local.setAll(uid,'items',upd);}} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
@@ -622,12 +420,12 @@ const App: React.FC = () => {
                     const inv = Array.isArray(bk.invoices)      ? bk.invoices      : [];
                     const se  = Array.isArray(bk.stockEntries)  ? bk.stockEntries  : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    // Ruaj në localStorage dhe Supabase (fire-and-forget)
-                    if (cl.length)  { local.setAll(uid,'clients',cl);      db.clients.clear(uid).then(()=>db.clients.upsertMany(uid,cl)).catch(()=>{}); setClients(cl); }
-                    if (it.length)  { local.setAll(uid,'items',it);        db.items.clear(uid).then(()=>db.items.upsertMany(uid,it)).catch(()=>{}); setItems(it); }
-                    if (inv.length) { local.setAll(uid,'invoices',inv);    db.invoices.clear(uid).then(()=>db.invoices.upsertMany(uid,inv)).catch(()=>{}); setInvoices(inv); }
-                    if (se.length)  { local.setAll(uid,'stockEntries',se); db.stockEntries.clear(uid).then(()=>db.stockEntries.upsertMany(uid,se)).catch(()=>{}); setStockEntries(se); }
-                    if (cf)         { local.setConfig(uid,cf); db.config.save(uid,cf).catch(()=>{}); setConfig(cf); }
+                    // Ruaj vetëm lokalisht
+                    if (cl.length)  { local.setAll(uid,'clients',cl);       setClients(cl); }
+                    if (it.length)  { local.setAll(uid,'items',it);         setItems(it); }
+                    if (inv.length) { local.setAll(uid,'invoices',inv);     setInvoices(inv); }
+                    if (se.length)  { local.setAll(uid,'stock_entries',se); setStockEntries(se); }
+                    if (cf)         { local.setConfig(uid,cf);              setConfig(cf); }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
@@ -669,8 +467,8 @@ const App: React.FC = () => {
       {/* Overlays */}
       {previewInvoice  && <InvoicePreview invoice={previewInvoice} business={config} client={clients.find(c=>c.id===previewInvoice.clientId)} onClose={()=>setPreviewInvoice(null)} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}}/>}
       {previewStockEntry && <StockEntryPreview entry={previewStockEntry} business={config} onClose={()=>setPreviewStockEntry(null)} onEdit={e=>{setPreviewStockEntry(null);setEditStockEntry(e);setCurrentView('new-stock-entry');}}/>}
-      {selectedProfileClient && <ClientProfile client={selectedProfileClient} invoices={invoices} items={items} onUpdateItems={ni=>{setItems(ni);ni.forEach(i=>db.items.upsert(uid,i).catch(console.error));}} onUpdateClient={u=>{setClients(p=>p.map(c=>c.id===u.id?u:c));db.clients.upsert(uid,u).catch(console.error);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>}
-      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{setItems(p=>p.map(i=>i.id===u.id?u:i));db.items.upsert(uid,u).catch(console.error);}} onClose={()=>setSelectedProfileItem(null)}/>}
+      {selectedProfileClient && <ClientProfile client={selectedProfileClient} invoices={invoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>}
+      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
     </div>
   );
 };
