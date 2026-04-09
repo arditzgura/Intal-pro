@@ -57,13 +57,41 @@ const App: React.FC = () => {
   const mainRef         = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
 
-  // ─── Ngarko të dhënat nga localStorage ───────────────────────────────────────
+  // ─── Ngarko të dhënat nga localStorage (me migrim automatik) ────────────────
   const loadAllData = useCallback((userId: string) => {
-    const cls   = local.getAll<Client>(userId, 'clients');
-    const itms  = local.getAll<Item>(userId, 'items');
-    const invs  = local.getAll<Invoice>(userId, 'invoices');
-    const stock = local.getAll<StockEntry>(userId, 'stock_entries');
-    const cfg   = local.getConfig(userId);
+    let invs  = local.getAll<Invoice>(userId, 'invoices');
+    let cls   = local.getAll<Client>(userId, 'clients');
+    let itms  = local.getAll<Item>(userId, 'items');
+    let stock = local.getAll<StockEntry>(userId, 'stock_entries');
+    let cfg   = local.getConfig(userId);
+
+    // Migrim: nëse nuk ka të dhëna, kërko nën ID-të e vjetra (Supabase)
+    if (!invs.length) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || '';
+        const m = key.match(/^intal_(.+)_invoices$/);
+        if (m && m[1] !== userId) {
+          const oldId = m[1];
+          const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
+          if (oldInvs.length > 0) {
+            // Migro të dhënat nga ID e vjetër tek e reja
+            cls   = local.getAll<Client>(oldId, 'clients');
+            itms  = local.getAll<Item>(oldId, 'items');
+            invs  = oldInvs;
+            stock = local.getAll<StockEntry>(oldId, 'stock_entries');
+            cfg   = local.getConfig(oldId) ?? cfg;
+            local.setAll(userId, 'clients',       cls);
+            local.setAll(userId, 'items',         itms);
+            local.setAll(userId, 'invoices',      invs);
+            local.setAll(userId, 'stock_entries', stock);
+            if (cfg) local.setConfig(userId, cfg);
+            console.log(`[migrate] ${oldInvs.length} invoices nga ${oldId} → ${userId}`);
+            break;
+          }
+        }
+      }
+    }
+
     setClients(cls);
     setItems(itms);
     setInvoices(invs);
