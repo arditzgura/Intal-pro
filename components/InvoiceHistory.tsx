@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice, Client } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
 import { exportInvoicesToExcel } from '../utils/exportUtils';
 
 interface Props {
@@ -23,6 +24,7 @@ const formatDateDisplay = (dateStr: string) => {
 const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPreview, onEdit, onUpdateStatus, onSelectClient }) => {
   const [ready, setReady] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     setReady(false);
@@ -191,6 +193,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   };
 
   return (
+    <>
     <div className="space-y-6">
       {/* Filtrat */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-6">
@@ -413,7 +416,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
                         )}
                         <button onClick={() => onPreview(inv)} className="p-2 text-slate-400 hover:text-indigo-600 transition-all" title="Shiko"><Eye size={16} /></button>
                         <button onClick={() => onEdit(inv)} className="p-2 text-slate-400 hover:text-amber-600 transition-all" title="Ndrysho"><Edit3 size={16} /></button>
-                        <button onClick={() => onDelete(inv.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-all" title="Fshi"><Trash2 size={16} /></button>
+                        <button onClick={() => setConfirmId(inv.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-all" title="Fshi"><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -434,6 +437,16 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
         )}
       </div>
     </div>
+
+      {confirmId && (
+        <ConfirmDialog
+          title="Fshi Faturën"
+          message={`Fatura #${invoices.find(i=>i.id===confirmId)?.invoiceNumber} do të fshihet përgjithmonë. Jeni i sigurt?`}
+          onConfirm={() => onDelete(confirmId)}
+          onCancel={() => setConfirmId(null)}
+        />
+      )}
+    </>
   );
 };
 
