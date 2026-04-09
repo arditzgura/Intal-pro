@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
+import ConfirmDialog from './ConfirmDialog';
 import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -26,6 +27,7 @@ type SortOption =
 const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, onAdd, onUpdate, onDelete, onOpenProfile }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name_asc');
   
@@ -334,7 +336,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-3">
                         <button onClick={() => handleEdit(item)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><Edit2 size={20}/></button>
-                        <button onClick={() => onDelete(item.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={20}/></button>
+                        <button onClick={() => setConfirmId(item.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={20}/></button>
                       </div>
                     </td>
                   </tr>
@@ -438,6 +440,15 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               </div>
            </div>
         </div>
+      )}
+
+      {confirmId && (
+        <ConfirmDialog
+          title="Fshi Artikullin"
+          message={`Artikulli "${items.find(i => i.id === confirmId)?.name}" do të fshihet përgjithmonë. Jeni i sigurt?`}
+          onConfirm={() => onDelete(confirmId)}
+          onCancel={() => setConfirmId(null)}
+        />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { StockEntry, Item } from '../types';
+import ConfirmDialog from './ConfirmDialog';
 import { Search, Calendar, Package, Plus, History, Trash2, Edit3, Eye, FileSpreadsheet, Filter, X, BarChart3, Warehouse, Calculator, List, PieChart, ChevronRight, TrendingUp, ArrowUpRight, ArrowDownWideNarrow, Landmark, Clock, Download } from 'lucide-react';
 import { exportStockEntryToExcel, exportAllStockEntriesToExcel } from '../utils/exportUtils';
 
@@ -21,6 +22,7 @@ const formatDateDisplay = (dateStr: string) => {
 
 const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, onDelete, onPreview }) => {
   const [search, setSearch] = useState('');
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<'month' | 'year'>('month');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7)); // YYYY-MM
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString()); // YYYY
@@ -254,7 +256,7 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
                         <button onClick={() => onPreview(entry)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Shiko"><Eye size={20}/></button>
                         <button onClick={() => exportStockEntryToExcel(entry)} className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all" title="Excel"><FileSpreadsheet size={20}/></button>
                         <button onClick={() => onEdit(entry)} className="p-2.5 text-amber-500 hover:bg-amber-50 rounded-xl transition-all" title="Ndrysho"><Edit3 size={20}/></button>
-                        <button onClick={() => onDelete(entry.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Fshi"><Trash2 size={20}/></button>
+                        <button onClick={() => setConfirmId(entry.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Fshi"><Trash2 size={20}/></button>
                      </div>
                   </div>
                 </div>
@@ -395,6 +397,15 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
            </div>
         </div>
       </div>
+
+      {confirmId && (
+        <ConfirmDialog
+          title="Fshi Fletëhyrjen"
+          message={`Fletëhyrja #${entries.find(e => e.id === confirmId)?.entryNumber} do të fshihet përgjithmonë. Jeni i sigurt?`}
+          onConfirm={() => onDelete(confirmId)}
+          onCancel={() => setConfirmId(null)}
+        />
+      )}
     </div>
   );
 };

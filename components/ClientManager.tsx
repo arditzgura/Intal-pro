@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Item, PreferentialPrice, Invoice } from '../types';
+import ConfirmDialog from './ConfirmDialog';
 import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3 } from 'lucide-react';
 
 interface Props {
@@ -20,6 +21,7 @@ type SortOption = 'alphabetical' | 'most_billed' | 'highest_debt';
 const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpdate, onDelete, onUpdateItems, onPreviewInvoice, onOpenProfile }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('alphabetical');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -240,7 +242,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
                         </button>
                         <div className="flex items-center opacity-0 group-hover:opacity-100 transition-all">
                           <button onClick={() => handleEdit(client)} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"><Edit2 size={16}/></button>
-                          <button onClick={() => onDelete(client.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={16}/></button>
+                          <button onClick={() => setConfirmId(client.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={16}/></button>
                         </div>
                       </div>
                     </td>
@@ -301,6 +303,15 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             </form>
           </div>
         </div>
+      )}
+
+      {confirmId && (
+        <ConfirmDialog
+          title="Fshi Klientin"
+          message={`Klienti "${clients.find(c => c.id === confirmId)?.name}" do të fshihet përgjithmonë. Jeni i sigurt?`}
+          onConfirm={() => onDelete(confirmId)}
+          onCancel={() => setConfirmId(null)}
+        />
       )}
     </div>
   );
