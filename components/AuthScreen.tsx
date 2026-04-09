@@ -45,7 +45,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           else setError(loginErr.message);
         }
       } else {
-        const { data: loginData, error: err } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+        const { data: loginData, error: err } = await supabase.auth.signInWithPassword({ email, password });
         console.log('[auth] signIn result:', { email, err: err?.message, hasSession: !!loginData?.session });
         if (err) {
           if (err.message.includes('Invalid login') || err.message.includes('invalid_credentials'))
