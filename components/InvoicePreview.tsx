@@ -302,6 +302,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                   <p className="text-[8px] font-black text-[#D81B60] uppercase tracking-widest">{business.slogan || 'CILËSIA ËSHTË PRIORITETI YNË'}</p>
                   <p className="text-[8px] font-bold text-slate-700 uppercase leading-none">{business.address}</p>
                   <p className="text-[8px] font-bold text-slate-700 leading-none">Tel: {business.phone}</p>
+                  {business.website && <p className="text-[8px] font-bold text-slate-700 leading-none">{business.website}</p>}
                 </div>
               </div>
               <div className="relative flex flex-col items-end pt-2">
@@ -471,6 +472,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 <h2 style={{ fontSize: '18pt', margin: '0', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{business.name}</h2>
                 <div style={{ fontSize: '10pt', margin: '2px 0', lineHeight: '1.1' }}>{business.address}</div>
                 <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>Tel: {business.phone}</div>
+                {business.website && <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>{business.website}</div>}
              </div>
              
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
