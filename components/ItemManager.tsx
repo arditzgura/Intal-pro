@@ -187,8 +187,16 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     return { salesStats, stockBalances, globalTotalUnitsSold };
   }, [mergedItems, items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
+  const matchesFuzzy = (name: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+    const parts = q.split(/\s+/).filter(p => p.length > 0);
+    const target = name.toLowerCase();
+    return parts.every(p => target.includes(p));
+  };
+
   const sortedAndFilteredItems = useMemo(() => {
-    let result = mergedItems.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+    let result = mergedItems.filter(i => matchesFuzzy(i.name, search));
     
     result.sort((a, b) => {
       switch (sortBy) {

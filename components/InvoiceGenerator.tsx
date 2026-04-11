@@ -498,18 +498,26 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                {invoiceItems.map((item, idx) => (
                  <div key={idx} className={`grid grid-cols-12 px-4 py-3 md:px-6 items-center gap-4 relative transition-all group ${activeItemSearchIdx === idx ? 'z-[1000] bg-indigo-50/10' : 'z-0 hover:bg-slate-50/50'}`}>
                     <div className="col-span-6 relative">
-                      <div className={`px-1 py-1 border-b-2 transition-all ${activeItemSearchIdx === idx ? 'border-indigo-600' : 'border-transparent'}`}>
-                        <input 
-                          ref={el => { itemInputRefs.current[idx] = el; }}
-                          className="w-full text-sm font-black outline-none uppercase bg-transparent placeholder:text-slate-300 placeholder:font-normal" 
-                          value={item.name} 
-                          onChange={e => { updateItem(idx, { name: e.target.value }); setActiveItemSearchIdx(idx); setHighlightedItemIdx(0); }} 
-                          onFocus={(e) => { setActiveItemSearchIdx(idx); (e.target as HTMLInputElement).select(); }}
-                          onBlur={() => setTimeout(() => { if (activeItemSearchIdx === idx) setActiveItemSearchIdx(null); }, 200)}
-                          onKeyDown={e => handleItemKeyDown(e, idx)}
-                          placeholder="Kërko artikullin..." 
-                        />
-                      </div>
+                      {(() => {
+                        const isRegistered = !item.name.trim() || items.some(i => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+                        return (
+                          <div className={`px-1 py-1 border-b-2 transition-all ${activeItemSearchIdx === idx ? 'border-indigo-600' : !isRegistered ? 'border-rose-400' : 'border-transparent'}`}>
+                            <input
+                              ref={el => { itemInputRefs.current[idx] = el; }}
+                              className={`w-full text-sm font-black outline-none uppercase bg-transparent placeholder:text-slate-300 placeholder:font-normal ${!isRegistered && item.name.trim() ? 'text-rose-500' : ''}`}
+                              value={item.name}
+                              onChange={e => { updateItem(idx, { name: e.target.value, itemId: 'm-' + Date.now() }); setActiveItemSearchIdx(idx); setHighlightedItemIdx(0); }}
+                              onFocus={(e) => { setActiveItemSearchIdx(idx); (e.target as HTMLInputElement).select(); }}
+                              onBlur={() => setTimeout(() => { if (activeItemSearchIdx === idx) setActiveItemSearchIdx(null); }, 200)}
+                              onKeyDown={e => handleItemKeyDown(e, idx)}
+                              placeholder="Kërko artikullin..."
+                            />
+                            {!isRegistered && item.name.trim() && (
+                              <p className="text-[9px] text-rose-400 font-bold uppercase mt-0.5">⚠ Artikull i paregjistruar</p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {activeItemSearchIdx === idx && item.name.trim() !== '' && dropdownPos && (
                         <div style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999999 }} className="bg-white border-2 border-indigo-600 shadow-[0_20px_50px_rgba(0,0,0,0.2)] rounded-2xl py-2 overflow-hidden ring-4 ring-indigo-600/10 animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
