@@ -37,6 +37,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   
   const [prevBalanceLabel, setPrevBalanceLabel] = useState('Gjendja (+)');
   const [amountPaidLabel, setAmountPaidLabel] = useState('Paguar (-)');
+  const [paymentDate, setPaymentDate] = useState<string>('');
   
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
@@ -102,6 +103,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       setPrevBalanceLabel(initialData.previousBalanceLabel || 'Gjendja (+)');
       setAmountPaidLabel(initialData.amountPaidLabel || 'Paguar (-)');
       setNotes(initialData.notes || '');
+      setPaymentDate(initialData.paymentDate || '');
     } else {
       const draft = loadData<any>(STORAGE_KEYS.DRAFT, null);
       if (draft && !isDraftLoaded) {
@@ -375,7 +377,8 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       amountPaidLabel,
       total: finalSubtotal,
       status: finalStatus,
-      notes: notes.trim() || undefined
+      notes: notes.trim() || undefined,
+      paymentDate: paymentDate || undefined
     });
   };
 
@@ -488,9 +491,29 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
             </div>
           </div>
         </div>
-        <div className="md:col-span-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</label>
-           <input type="date" className="w-full bg-transparent text-sm font-bold outline-none h-10 cursor-pointer" value={invoiceDate.split('T')[0]} onChange={e => setInvoiceDate(`${e.target.value}T00:00:00`)} />
+        <div className="md:col-span-4 bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+           <div>
+             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data e Faturës</label>
+             <input type="date" className="w-full bg-transparent text-sm font-bold outline-none h-10 cursor-pointer" value={invoiceDate.split('T')[0]} onChange={e => setInvoiceDate(`${e.target.value}T00:00:00`)} />
+           </div>
+           {initialData && (
+             <div>
+               <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                 <CheckCircle2 size={11} className="text-emerald-500" /> Data e Pagesës
+               </label>
+               <input
+                 type="date"
+                 className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500 transition-all mt-1 cursor-pointer text-emerald-700"
+                 value={paymentDate}
+                 onChange={e => setPaymentDate(e.target.value)}
+               />
+               {paymentDate && (
+                 <button onClick={() => setPaymentDate('')} className="text-[9px] text-slate-400 hover:text-rose-500 font-bold uppercase mt-1 flex items-center gap-1 transition-all">
+                   <X size={10} /> Hiq datën
+                 </button>
+               )}
+             </div>
+           )}
         </div>
       </div>
 
