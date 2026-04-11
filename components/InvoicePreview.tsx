@@ -312,9 +312,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                   <div className="flex flex-col items-center">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DATA: {formatDate(invoice.date)}</span>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ORA: {formatTime(invoice.date)}</span>
-                    {invoice.paymentDate && (
-                      <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-0.5">PAGUAR: {formatDate(invoice.paymentDate)}</span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -488,12 +485,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 <span>DATA:</span>
                 <span>{formatDate(invoice.date)}</span>
              </div>
-             {invoice.paymentDate && (
-               <div style={{ fontSize: '11pt', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 'bold' }}>
-                 <span>PAGUAR:</span>
-                 <span>{formatDate(invoice.paymentDate)}</span>
-               </div>
-             )}
              
              {/* Kuadrat i vetëm për Klientin dhe Pikët: Emri dhe Qyteti paralel brenda tij */}
              <div style={{ display: 'flex', border: '2px solid #000', marginBottom: '4px', overflow: 'hidden' }}>
