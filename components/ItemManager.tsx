@@ -121,34 +121,27 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     });
   };
 
+  // Bashko artikujt me emrin e njëjtë (case-insensitive)
+  const mergedItems = useMemo(() => {
+    const map = new Map<string, Item>();
+    items.forEach(item => {
+      const key = item.name.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+      // mbaj çmimin më të lartë dhe preferentialPrices nga të dyja
+    });
+    return Array.from(map.values());
+  }, [items]);
+
   const itemStats = useMemo(() => {
     const salesStats: Record<string, number> = {};
     const stockBalances: Record<string, number> = {};
     let globalTotalUnitsSold = 0;
 
-    // Llogaritja e Balancës së Stokut (Gjithë kohës)
-    items.forEach(item => {
-      // Hyrjet
-      const totalIn = stockEntries.reduce((acc, entry) => {
-        const found = entry.items.find(it => it.itemId === item.id || it.name.toLowerCase() === item.name.toLowerCase());
-        return acc + (found ? Number(found.quantity) : 0);
-      }, 0);
-      
-      // Daljet (Gjithë kohës)
-      const totalOut = invoices.reduce((acc, inv) => {
-        if (inv.status === 'Anuluar') return acc;
-        const found = inv.items.find(it => it.itemId === item.id || it.name.toLowerCase() === item.name.toLowerCase());
-        return acc + (found ? Number(found.quantity) : 0);
-      }, 0);
-
-      stockBalances[item.id] = totalIn - totalOut;
-    });
-
-    // Llogaritja e Shitjeve sipas periudhës së zgjedhur
     const filteredInvoices = invoices.filter(inv => {
       if (inv.status === 'Anuluar') return false;
       const invDate = inv.date.slice(0, 10);
-      
       if (filterMode === 'all') return true;
       if (filterMode === 'today') return invDate === todayStr;
       if (filterMode === 'day') return invDate === selectedDay;
@@ -157,21 +150,45 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
       return true;
     });
 
-    items.forEach(item => {
-      const qtySoldInPeriod = filteredInvoices
-        .reduce((acc, inv) => {
-          const found = inv.items.find(it => it.itemId === item.id || it.name.toLowerCase() === item.name.toLowerCase());
-          return acc + (found ? Number(found.quantity) : 0);
-        }, 0);
-      salesStats[item.id] = qtySoldInPeriod;
-      globalTotalUnitsSold += qtySoldInPeriod;
+    // Llogarit statistikat për çdo artikull unik (bashkon duplikatet me emrin e njëjtë)
+    mergedItems.forEach(item => {
+      const nameLower = item.name.trim().toLowerCase();
+      // Gjej të gjithë IDs me të njëjtin emër
+      const sameNameIds = new Set(items.filter(i => i.name.trim().toLowerCase() === nameLower).map(i => i.id));
+
+      const totalIn = stockEntries.reduce((acc, entry) => {
+        const found = entry.items.find(it => sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower);
+        return acc + (found ? Number(found.quantity) : 0);
+      }, 0);
+
+      const totalOut = invoices.reduce((acc, inv) => {
+        if (inv.status === 'Anuluar') return acc;
+        // shmang numërim të dyfishtë - merr vetëm njëherë për rreshtin
+        let qty = 0;
+        inv.items.forEach(it => {
+          if (sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower) qty += Number(it.quantity);
+        });
+        return acc + qty;
+      }, 0);
+
+      stockBalances[item.id] = totalIn - totalOut;
+
+      const qtySold = filteredInvoices.reduce((acc, inv) => {
+        let qty = 0;
+        inv.items.forEach(it => {
+          if (sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower) qty += Number(it.quantity);
+        });
+        return acc + qty;
+      }, 0);
+      salesStats[item.id] = qtySold;
+      globalTotalUnitsSold += qtySold;
     });
 
     return { salesStats, stockBalances, globalTotalUnitsSold };
-  }, [items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
+  }, [mergedItems, items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const sortedAndFilteredItems = useMemo(() => {
-    let result = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+    let result = mergedItems.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
     
     result.sort((a, b) => {
       switch (sortBy) {

@@ -10,6 +10,7 @@ interface Props {
   invoices: Invoice[];
   onSubmit: (invoice: Invoice) => void;
   onCancel: () => void;
+  onAddItem?: (item: Item) => void;
   initialData?: Invoice | null;
   defaultInvoiceNumber?: string;
 }
@@ -21,7 +22,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, initialData, defaultInvoiceNumber }) => {
+const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber }) => {
   const [clientName, setClientName] = useState(initialData?.clientName || '');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(initialData?.clientId || null);
   const [clientCity, setClientCity] = useState(initialData?.clientCity || '');
@@ -49,6 +50,8 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
   const [isClientSearchActive, setIsClientSearchActive] = useState(false);
   const [highlightedClientIdx, setHighlightedClientIdx] = useState(0);
+  const [quickAddItem, setQuickAddItem] = useState<{ name: string; idx: number } | null>(null);
+  const [quickAddForm, setQuickAddForm] = useState({ unit: 'copë', price: 0, purchasePrice: 0 });
 
   const qtyInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const priceInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -372,6 +375,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   };
 
   return (
+    <>
     <div className="bg-white p-4 md:p-8 rounded-2xl border border-slate-200 shadow-xl min-h-screen relative animate-in fade-in duration-300">
       {/* Header Fature */}
       <div className="flex flex-col md:flex-row justify-between items-start mb-8 md:mb-12 gap-6">
@@ -521,8 +525,16 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                           </div>
                           
                           {items.filter(i => matchesFuzzy(i.name, item.name)).length === 0 && (
-                            <div className="px-4 py-8 text-center bg-slate-50/50">
-                               <p className="text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Nuk u gjet asnjë artikull me këtë emër</p>
+                            <div className="px-4 py-6 text-center bg-slate-50/50 space-y-3">
+                              <p className="text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Ky artikull nuk ekziston</p>
+                              {onAddItem && (
+                                <button
+                                  onMouseDown={(e) => { e.preventDefault(); setQuickAddItem({ name: item.name, idx }); setQuickAddForm({ unit: 'copë', price: 0, purchasePrice: 0 }); setActiveItemSearchIdx(null); }}
+                                  className="flex items-center gap-2 mx-auto bg-[#D81B60] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#AD1457] transition-all"
+                                >
+                                  <Plus size={14} /> Ta shtojmë?
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -654,6 +666,59 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
         </div>
       </div>
     </div>
+    {/* Quick-add artikull */}
+    {quickAddItem && (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#D81B60]/10 p-2 rounded-xl"><Package size={20} className="text-[#D81B60]" /></div>
+            <div>
+              <h3 className="font-black text-slate-900 uppercase text-sm">Shto Artikull të Ri</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Artikulli nuk është i regjistruar</p>
+            </div>
+          </div>
+          <div className="bg-slate-50 px-4 py-3 rounded-xl">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Emri</p>
+            <p className="font-black text-slate-900 uppercase text-sm">{quickAddItem.name}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Njësia</label>
+              <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none" value={quickAddForm.unit} onChange={e => setQuickAddForm(f => ({ ...f, unit: e.target.value }))}>
+                <option value="copë">Copë</option>
+                <option value="kg">Kg</option>
+                <option value="litër">Litër</option>
+                <option value="pako">Pako</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Kosto Blerje</label>
+              <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none" value={quickAddForm.purchasePrice || ''} onChange={e => setQuickAddForm(f => ({ ...f, purchasePrice: parseFloat(e.target.value) || 0 }))} placeholder="0" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Çmimi i Shitjes (Lek)</label>
+            <input type="number" step="0.01" autoFocus className="w-full p-3 bg-slate-50 border-2 border-[#D81B60]/30 focus:border-[#D81B60] rounded-xl font-black text-lg text-emerald-600 outline-none transition-all" value={quickAddForm.price || ''} onChange={e => setQuickAddForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))} placeholder="0" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setQuickAddItem(null)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 rounded-xl hover:bg-slate-100 transition-all">Anulo</button>
+            <button
+              onClick={() => {
+                if (!quickAddItem || !onAddItem) return;
+                const newItem: Item = { id: Date.now().toString(), name: quickAddItem.name, unit: quickAddForm.unit, price: quickAddForm.price, purchasePrice: quickAddForm.purchasePrice, preferentialPrices: [] };
+                onAddItem(newItem);
+                selectItemForInvoice(quickAddItem.idx, newItem);
+                setQuickAddItem(null);
+              }}
+              className="flex-1 bg-[#D81B60] text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#AD1457] transition-all"
+            >
+              Shto &amp; Zgjidh
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
