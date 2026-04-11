@@ -196,11 +196,19 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     return counts;
   }, [invoices]);
 
-  const getFilteredItemsSorted = (query: string) =>
-    items
+  const getFilteredItemsSorted = (query: string) => {
+    const seen = new Set<string>();
+    return items
       .filter(i => matchesFuzzy(i.name, query))
       .sort((a, b) => (itemSalesCount[b.name.trim().toLowerCase()] || 0) - (itemSalesCount[a.name.trim().toLowerCase()] || 0))
+      .filter(i => {
+        const key = i.name.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .slice(0, 15);
+  };
 
   const filteredClients = useMemo(() => {
     if (!clientName.trim() || selectedClientId) return [];
