@@ -341,10 +341,9 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     }
   };
 
-  const handleSaveInvoice = (isPaid: boolean = false) => {
+  const handleSaveInvoice = (isPaid: boolean = false, keepStatus: boolean = false) => {
     if (!clientName.trim()) return alert("Vendosni emrin e klientit.");
-    
-    // Aktivizojmë flagun e dorëzimit që të ndalojmë ruajtjen e draftit gjatë unmount
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
@@ -352,28 +351,30 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     const finalPrevBal = Number(prevBalNum) || 0;
     const finalPaid = isPaid ? (finalSubtotal + finalPrevBal) : (Number(paidNum) || 0);
     const finalBalanceDue = finalSubtotal + finalPrevBal - finalPaid;
-    
-    // Pastrojmë draftin menjëherë nga memorie
+
     clearData(STORAGE_KEYS.DRAFT);
+
+    const computedStatus = (finalBalanceDue <= 0 || isPaid) ? 'E paguar' as const : 'Pa paguar' as const;
+    const finalStatus = keepStatus && initialData?.status ? initialData.status : computedStatus;
 
     onSubmit({
       id: initialData?.id || Date.now().toString(),
-      invoiceNumber, 
-      date: invoiceDate, 
-      clientId: selectedClientId || 'manual', 
-      clientName, 
-      clientCity, 
+      invoiceNumber,
+      date: invoiceDate,
+      clientId: selectedClientId || 'manual',
+      clientName,
+      clientCity,
       clientPhone: shipTo,
-      items: invoiceItems.filter(i => i.name.trim() !== ''), 
-      currency, 
-      subtotal: finalSubtotal, 
+      items: invoiceItems.filter(i => i.name.trim() !== ''),
+      currency,
+      subtotal: finalSubtotal,
       tax: 0,
-      previousBalance: finalPrevBal, 
-      previousBalanceLabel: prevBalanceLabel, 
-      amountPaid: finalPaid, 
+      previousBalance: finalPrevBal,
+      previousBalanceLabel: prevBalanceLabel,
+      amountPaid: finalPaid,
       amountPaidLabel,
-      total: finalSubtotal, 
-      status: (finalBalanceDue <= 0 || isPaid) ? 'E paguar' as const : 'Pa paguar' as const, 
+      total: finalSubtotal,
+      status: finalStatus,
       notes: notes.trim() || undefined
     });
   };
@@ -416,7 +417,17 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
         <div className="w-full md:text-right flex flex-col items-start md:items-end gap-3">
           <div className="flex items-center gap-3 w-full justify-between md:justify-end">
             <button onClick={handleClearForm} className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"><RotateCcw size={14} /> PASTRO</button>
+            <div className="flex items-center gap-2">
+              {initialData && (
+                <button
+                  onClick={() => handleSaveInvoice(false, true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-900 text-slate-900 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all active:scale-95"
+                >
+                  <Save size={13} /> Ruaj
+                </button>
+              )}
             <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase">Faturë</h1>
+            </div>
           </div>
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
             <div className="inline-flex items-center bg-slate-100 p-1 rounded-lg">

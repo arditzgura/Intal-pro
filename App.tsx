@@ -186,7 +186,8 @@ const App: React.FC = () => {
     return () => main.removeEventListener('scroll', h);
   }, [currentView]);
   useEffect(() => {
-    setTimeout(() => { if (mainRef.current) mainRef.current.scrollTop = scrollPositions.current[currentView] || 0; }, 0);
+    const target = currentView === 'new-invoice' ? 0 : (scrollPositions.current[currentView] || 0);
+    setTimeout(() => { if (mainRef.current) mainRef.current.scrollTop = target; }, 0);
   }, [currentView]);
 
   // ─── Helpers navigimi ──────────────────────────────────────────────────────

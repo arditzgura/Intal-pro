@@ -310,8 +310,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 <div className="w-44 py-2 bg-slate-50 border border-slate-100 rounded-xl flex flex-col items-center justify-center gap-0.5 shadow-sm z-10">
                   <span className="text-xs font-black text-slate-900">NR. {invoice.invoiceNumber}</span>
                   <div className="flex flex-col items-center">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">DATA: {formatDate(invoice.date)}</span>
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">ORA: {formatTime(invoice.date)}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DATA: {formatDate(invoice.date)}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ORA: {formatTime(invoice.date)}</span>
                   </div>
                 </div>
               </div>
@@ -440,13 +440,13 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 </div>
                 <div className="w-64 bg-white border-2 border-slate-900 rounded-[20px] overflow-hidden">
                    <div className="p-3 space-y-1.5">
-                      <div className="flex justify-between items-center text-slate-400 text-[10px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[11px]">{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
-                      {invoice.previousBalance !== 0 && (<div className="flex justify-between items-center text-amber-600 text-[10px] font-black uppercase tracking-widest"><span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || lGje}:</span><span className="text-[11px]">{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>)}
-                      {invoice.amountPaid !== 0 && (<div className="flex justify-between items-center text-blue-600 text-[10px] font-black uppercase tracking-widest"><span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span><span className="text-[11px]">- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>)}
+                      <div className="flex justify-between items-center text-slate-400 text-[11px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[13px]">{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
+                      {invoice.previousBalance !== 0 && (<div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || lGje}:</span><span className="text-[13px]">{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>)}
+                      {invoice.amountPaid !== 0 && (<div className="flex justify-between items-center text-blue-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span><span className="text-[13px]">- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>)}
                    </div>
                    <div className={`p-3 flex justify-between items-center border-t border-slate-900 ${isSurplus ? 'bg-amber-50' : isPaidInFull ? 'bg-emerald-50' : 'bg-rose-50'}`}>
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
-                      <span className={`text-xl font-black tracking-tighter ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
+                      <span className={`text-2xl font-black tracking-tighter ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {Math.abs(balanceDue).toLocaleString()} {invoice.currency === 'EUR' ? 'EURO' : 'LEKË'}
                       </span>
                    </div>
