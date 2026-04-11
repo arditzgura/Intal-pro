@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Item, StockEntry, StockEntryItem } from '../types';
-import { Plus, Hash, Package, Trash2, Save, ArrowLeft, Calendar, Truck, PackageSearch } from 'lucide-react';
+import { Item, Invoice, StockEntry, StockEntryItem } from '../types';
+import { Plus, Hash, Package, Trash2, Save, ArrowLeft, Calendar, Truck, PackageSearch, Search } from 'lucide-react';
 
 interface Props {
   items: Item[];
+  invoices: Invoice[];
   onSave: (entry: StockEntry, updateGlobalPrices: boolean) => void;
   onCancel: () => void;
   nextNumber: string;
@@ -17,7 +18,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const StockEntryGenerator: React.FC<Props> = ({ items, onSave, onCancel, nextNumber, initialData }) => {
+const StockEntryGenerator: React.FC<Props> = ({ items, invoices, onSave, onCancel, nextNumber, initialData }) => {
   const [entryNumber, setEntryNumber] = useState(nextNumber);
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [origin, setOrigin] = useState('MAGAZINA QENDRORE');
@@ -58,6 +59,24 @@ const StockEntryGenerator: React.FC<Props> = ({ items, onSave, onCancel, nextNum
     return queryParts.every(part => targetLower.includes(part));
   };
 
+  const itemSalesCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    invoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      inv.items.forEach(it => {
+        const key = it.name.trim().toLowerCase();
+        counts[key] = (counts[key] || 0) + Number(it.quantity);
+      });
+    });
+    return counts;
+  }, [invoices]);
+
+  const getFilteredItemsSorted = (query: string) =>
+    items
+      .filter(i => matchesFuzzy(i.name, query))
+      .sort((a, b) => (itemSalesCount[b.name.trim().toLowerCase()] || 0) - (itemSalesCount[a.name.trim().toLowerCase()] || 0))
+      .slice(0, 10);
+
   const addRow = () => {
     setEntryItems([...entryItems, { itemId: 'm-' + Date.now(), name: '', quantity: 1, purchasePrice: 0, sellingPrice: 0, total: 0 }]);
   };
@@ -95,7 +114,7 @@ const StockEntryGenerator: React.FC<Props> = ({ items, onSave, onCancel, nextNum
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, idx: number) => {
-    const filtered = items.filter(i => matchesFuzzy(i.name, entryItems[idx].name)).slice(0, 10);
+    const filtered = getFilteredItemsSorted(entryItems[idx].name);
     
     if (activeSearchIdx === idx && filtered.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -215,34 +234,53 @@ const StockEntryGenerator: React.FC<Props> = ({ items, onSave, onCancel, nextNum
           {entryItems.map((item, idx) => (
             <div key={idx} className="grid grid-cols-12 px-6 py-4 items-center group relative z-[1]">
               <div className="col-span-5 relative">
-                <input 
-                  ref={el => { nameRefs.current[idx] = el; }}
-                  className="w-full font-bold outline-none bg-transparent"
-                  placeholder="Shkruaj emrin e artikullit..."
-                  value={item.name}
-                  onChange={e => updateRow(idx, { name: e.target.value })}
-                  onKeyDown={e => handleKeyDown(e, idx)}
-                  onFocus={() => {setActiveSearchIdx(idx); setHighlightedIdx(0);}}
-                />
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-slate-300 shrink-0" />
+                  <input
+                    ref={el => { nameRefs.current[idx] = el; }}
+                    className="w-full font-bold outline-none bg-transparent"
+                    placeholder="Kërko artikullin..."
+                    value={item.name}
+                    onChange={e => updateRow(idx, { name: e.target.value })}
+                    onKeyDown={e => handleKeyDown(e, idx)}
+                    onFocus={() => {setActiveSearchIdx(idx); setHighlightedIdx(0);}}
+                    onBlur={() => setTimeout(() => setActiveSearchIdx(null), 200)}
+                  />
+                </div>
                 
-                {activeSearchIdx === idx && item.name.length > 0 && items.filter(i => matchesFuzzy(i.name, item.name)).length > 0 && (
-                  <div className="absolute top-full left-0 w-full bg-white border border-slate-200 shadow-2xl z-[200] rounded-xl mt-1 py-1 overflow-hidden ring-1 ring-black/5 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="px-3 py-1 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-                       <PackageSearch size={12} className="text-slate-400" />
-                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gjetjet në katalog</span>
+                {activeSearchIdx === idx && item.name.length > 0 && (
+                  <div className="absolute top-full left-0 w-full bg-white border-2 border-indigo-600 shadow-2xl z-[200] rounded-2xl mt-1 overflow-hidden ring-4 ring-indigo-600/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Search size={12} className="text-indigo-600" />
+                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Zgjidh Artikullin</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase">Enter për të zgjedhur</span>
                     </div>
-                    {items.filter(i => matchesFuzzy(i.name, item.name)).slice(0, 8).map((i, sIdx) => (
-                      <button 
-                        key={i.id} 
-                        onMouseDown={() => selectItem(idx, i)} 
-                        className={`w-full text-left p-3 text-xs font-bold border-b border-slate-50 last:border-none transition-colors flex justify-between items-center ${highlightedIdx === sIdx ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-700'}`}
+                    <div className="flex flex-col max-h-[300px] overflow-y-auto">
+                    {getFilteredItemsSorted(item.name).map((i, sIdx) => (
+                      <button
+                        key={i.id}
+                        onMouseDown={() => selectItem(idx, i)}
+                        onMouseEnter={() => setHighlightedIdx(sIdx)}
+                        className={`w-full text-left px-5 py-3 flex justify-between items-center transition-all border-b border-slate-50 last:border-none ${highlightedIdx === sIdx ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
-                        <span className="uppercase">{i.name}</span>
-                        <span className={`text-[10px] font-black ${highlightedIdx === sIdx ? 'text-indigo-200' : 'text-indigo-600'}`}>
-                          SHT: {i.price.toLocaleString()} L
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black uppercase tracking-tight">{i.name}</span>
+                          <span className={`text-[10px] font-bold uppercase ${highlightedIdx === sIdx ? 'text-indigo-200' : 'text-slate-400'}`}>{i.unit}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-[9px] font-bold uppercase ${highlightedIdx === sIdx ? 'text-indigo-200' : 'text-slate-400'}`}>Shitje</p>
+                          <p className={`text-sm font-black ${highlightedIdx === sIdx ? 'text-white' : 'text-indigo-600'}`}>{i.price.toLocaleString()} L</p>
+                        </div>
                       </button>
                     ))}
+                    {getFilteredItemsSorted(item.name).length === 0 && (
+                      <div className="px-4 py-6 text-center bg-slate-50/50">
+                        <p className="text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Nuk u gjet asnjë artikull</p>
+                      </div>
+                    )}
+                    </div>
                   </div>
                 )}
               </div>

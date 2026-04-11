@@ -181,6 +181,25 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     return queryParts.every(part => targetLower.includes(part));
   };
 
+  // Shitjet totale për çdo artikull (për renditje)
+  const itemSalesCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    invoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      inv.items.forEach(it => {
+        const key = it.name.trim().toLowerCase();
+        counts[key] = (counts[key] || 0) + Number(it.quantity);
+      });
+    });
+    return counts;
+  }, [invoices]);
+
+  const getFilteredItemsSorted = (query: string) =>
+    items
+      .filter(i => matchesFuzzy(i.name, query))
+      .sort((a, b) => (itemSalesCount[b.name.trim().toLowerCase()] || 0) - (itemSalesCount[a.name.trim().toLowerCase()] || 0))
+      .slice(0, 15);
+
   const filteredClients = useMemo(() => {
     if (!clientName.trim() || selectedClientId) return [];
     return clients.filter(c => matchesFuzzy(`${c.name} ${c.city || ''}`, clientName)).slice(0, 10);
@@ -236,7 +255,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   };
 
   const handleItemKeyDown = (e: React.KeyboardEvent, idx: number) => {
-    const filtered = items.filter(i => matchesFuzzy(i.name, invoiceItems[idx].name)).slice(0, 10);
+    const filtered = getFilteredItemsSorted(invoiceItems[idx].name);
     
     if (activeItemSearchIdx === idx && filtered.length > 0 && invoiceItems[idx].name.trim() !== '') {
       if (e.key === 'ArrowDown') {
@@ -503,7 +522,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                           </div>
                           
                           <div className="flex flex-col max-h-[350px] overflow-y-auto custom-scrollbar">
-                            {items.filter(i => matchesFuzzy(i.name, item.name)).slice(0, 15).map((i, sIdx) => (
+                            {getFilteredItemsSorted(item.name).map((i, sIdx) => (
                               <button 
                                 key={i.id} 
                                 onMouseDown={(e) => { e.preventDefault(); selectItemForInvoice(idx, i); }} 
@@ -524,7 +543,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                             ))}
                           </div>
                           
-                          {items.filter(i => matchesFuzzy(i.name, item.name)).length === 0 && (
+                          {getFilteredItemsSorted(item.name).length === 0 && (
                             <div className="px-4 py-6 text-center bg-slate-50/50 space-y-3">
                               <p className="text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Ky artikull nuk ekziston</p>
                               {onAddItem && (
