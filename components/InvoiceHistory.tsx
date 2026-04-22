@@ -106,11 +106,13 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   // Funksion ndihmës për filtrin kohor ditor (i njëjti për filteredInvoices dhe totals)
   const matchesDailyFilter = (inv: Invoice, activeDay: string): boolean => {
     const invDate = inv.date.slice(0, 10);
+    const payDate = inv.paymentDate || null;
     const cd = clientDebtMap[inv.clientId];
     const isLatest = cd?.latestId === inv.id;
     const isAbsorbedInv = inv.status === 'Pa paguar' && cd && inv.id !== cd.latestId;
     return (
       invDate === activeDay
+      || (payDate === activeDay)
       || (isLatest && cd.latestPaid && cd.latestPaymentDate === activeDay && invDate !== activeDay)
       || (isAbsorbedInv && cd.latestPaid && cd.latestPaymentDate === activeDay)
     );
@@ -135,9 +137,11 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
       if (filterMode === 'today' || filterMode === 'day') {
         matchesTime = matchesDailyFilter(inv, activeDayStr);
       } else if (filterMode === 'month') {
-        matchesTime = inv.date.slice(0, 7) === selectedMonth;
+        const payMonth = inv.paymentDate ? inv.paymentDate.slice(0, 7) : null;
+        matchesTime = inv.date.slice(0, 7) === selectedMonth || payMonth === selectedMonth;
       } else if (filterMode === 'year') {
-        matchesTime = inv.date.slice(0, 4) === selectedYear;
+        const payYear = inv.paymentDate ? inv.paymentDate.slice(0, 4) : null;
+        matchesTime = inv.date.slice(0, 4) === selectedYear || payYear === selectedYear;
       }
 
       return matchesStatus && matchesSearch && matchesTime && matchesCity;
@@ -169,11 +173,12 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
 
       if (shitjetMatches) totalSales += getConvVal(inv.subtotal, inv.currency);
 
-      // Arketimet: të gjitha faturat e filtruara (duke përfshirë ato nga data tjetër)
+      // Arketimet: data e pagesës ka prioritet mbi datën e faturës
+      const effectivePayDate = inv.paymentDate || inv.date.slice(0, 10);
       const arkëtimiMatches =
         filterMode === 'all' ? true :
-        filterMode === 'month' ? inv.date.slice(0, 7) === selectedMonth :
-        filterMode === 'year' ? inv.date.slice(0, 4) === selectedYear :
+        filterMode === 'month' ? (effectivePayDate.slice(0, 7) === selectedMonth) :
+        filterMode === 'year' ? (effectivePayDate.slice(0, 4) === selectedYear) :
         matchesDailyFilter(inv, activeDayStr);
 
       if (arkëtimiMatches) totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);

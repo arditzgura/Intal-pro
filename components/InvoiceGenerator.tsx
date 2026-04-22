@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Client, Item, Invoice, InvoiceItem, Payment } from '../types';
+import { Client, Item, Invoice, InvoiceItem } from '../types';
 import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock } from 'lucide-react';
 import { loadData, saveData, STORAGE_KEYS, clearData } from '../utils/storage';
 
@@ -38,10 +38,6 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [prevBalanceLabel, setPrevBalanceLabel] = useState('Gjendja (+)');
   const [amountPaidLabel, setAmountPaidLabel] = useState('Paguar (-)');
   const [paymentDate, setPaymentDate] = useState<string>('');
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [newPaymentAmount, setNewPaymentAmount] = useState<string>('');
-  const [newPaymentDate, setNewPaymentDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
-  const [newPaymentNote, setNewPaymentNote] = useState<string>('');
   
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
@@ -108,19 +104,6 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       setAmountPaidLabel(initialData.amountPaidLabel || 'Paguar (-)');
       setNotes(initialData.notes || '');
       setPaymentDate(initialData.paymentDate || '');
-      // Ngarko arketimet ose migro amountPaid ekzistues
-      if (initialData.payments && initialData.payments.length > 0) {
-        setPayments(initialData.payments);
-      } else if (initialData.amountPaid > 0) {
-        setPayments([{
-          id: 'migrated-' + initialData.id,
-          date: (initialData.paymentDate || initialData.date.split('T')[0]),
-          amount: initialData.amountPaid,
-          note: ''
-        }]);
-      } else {
-        setPayments([]);
-      }
     } else {
       const draft = loadData<any>(STORAGE_KEYS.DRAFT, null);
       if (draft && !isDraftLoaded) {
@@ -376,10 +359,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
     const finalSubtotal = Number(subtotal) || 0;
     const finalPrevBal = Number(prevBalNum) || 0;
-    const paymentsTotal = initialData ? payments.reduce((s, p) => s + p.amount, 0) : 0;
-    const finalPaid = isPaid
-      ? (finalSubtotal + finalPrevBal)
-      : (initialData ? paymentsTotal : (Number(paidNum) || 0));
+    const finalPaid = isPaid ? (finalSubtotal + finalPrevBal) : (Number(paidNum) || 0);
     const finalBalanceDue = finalSubtotal + finalPrevBal - finalPaid;
 
     clearData(STORAGE_KEYS.DRAFT);
@@ -406,8 +386,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       total: finalSubtotal,
       status: finalStatus,
       notes: notes.trim() || undefined,
-      paymentDate: paymentDate || undefined,
-      payments: initialData ? payments : undefined
+      paymentDate: paymentDate || undefined
     });
   };
 
@@ -683,66 +662,6 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
              <Plus size={18} strokeWidth={3} /> Shto Rresht të Ri
            </button>
 
-           {initialData && (
-             <div className="bg-emerald-50 p-6 rounded-[32px] border border-emerald-100 shadow-inner space-y-4">
-               <div className="flex items-center gap-2">
-                 <Wallet size={16} className="text-emerald-600" />
-                 <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Arketimet</h4>
-               </div>
-
-               {/* Lista e arketimeve */}
-               {payments.length > 0 && (
-                 <div className="space-y-2">
-                   {payments.map((p, i) => (
-                     <div key={p.id} className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3 border border-emerald-100 shadow-sm">
-                       <div className="flex-1 min-w-0">
-                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{p.date.split('-').reverse().join('/')}</p>
-                         <p className="text-sm font-black text-slate-900">{p.amount.toLocaleString()} {currency === 'EUR' ? '€' : 'L'}</p>
-                         {p.note && <p className="text-[10px] text-slate-400 font-medium italic truncate">{p.note}</p>}
-                       </div>
-                       <button onClick={() => setPayments(prev => prev.filter((_, j) => j !== i))} className="p-1.5 text-slate-300 hover:text-rose-500 transition-all active:scale-90">
-                         <Trash2 size={14} />
-                       </button>
-                     </div>
-                   ))}
-                   <div className="flex justify-between items-center px-2 pt-1">
-                     <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Totali i arkëtuar:</span>
-                     <span className="text-sm font-black text-emerald-700">{payments.reduce((s,p)=>s+p.amount,0).toLocaleString()} {currency === 'EUR' ? '€' : 'L'}</span>
-                   </div>
-                 </div>
-               )}
-
-               {/* Forma për arketim të ri */}
-               <div className="bg-white rounded-2xl p-4 border border-emerald-200 space-y-3">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Shto Arketim të Ri</p>
-                 <div className="grid grid-cols-2 gap-3">
-                   <div>
-                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Data</label>
-                     <input type="date" className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500 transition-all cursor-pointer text-emerald-700" value={newPaymentDate} onChange={e => setNewPaymentDate(e.target.value)} />
-                   </div>
-                   <div>
-                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Shuma</label>
-                     <input type="number" className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-sm font-black text-emerald-700 outline-none focus:border-emerald-500 transition-all" value={newPaymentAmount} onChange={e => setNewPaymentAmount(e.target.value)} onFocus={e => (e.target as HTMLInputElement).select()} placeholder="0" />
-                   </div>
-                 </div>
-                 <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all" value={newPaymentNote} onChange={e => setNewPaymentNote(e.target.value)} placeholder="Shënim (opsional)" />
-                 <button
-                   onClick={() => {
-                     const amt = parseFloat(newPaymentAmount);
-                     if (!amt || amt <= 0) return;
-                     setPayments(prev => [...prev, { id: Date.now().toString(), date: newPaymentDate, amount: amt, note: newPaymentNote.trim() || undefined }]);
-                     setNewPaymentAmount('');
-                     setNewPaymentNote('');
-                     setNewPaymentDate(new Date().toLocaleDateString('en-CA'));
-                   }}
-                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95"
-                 >
-                   <Plus size={14} strokeWidth={3} /> Shto Arketim
-                 </button>
-               </div>
-             </div>
-           )}
-
            <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 shadow-inner">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-3">
                 <MessageSquareText size={16} className="text-[#D81B60]" /> Shënime për këtë faturë
@@ -782,13 +701,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                   <Wallet size={16} className="text-emerald-600" />
                   <input className="bg-transparent border-none text-[10px] font-black text-emerald-600 uppercase outline-none w-full" value={amountPaidLabel} onChange={e => setAmountPaidLabel(e.target.value)} />
                 </div>
-                {initialData ? (
-                  <div className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 text-lg shadow-inner border border-emerald-100">
-                    {payments.reduce((s,p)=>s+p.amount,0).toLocaleString()} {currency === 'EUR' ? '€' : 'L'}
-                  </div>
-                ) : (
-                  <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
-                )}
+                <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
               </div>
               
               <div className={`p-10 rounded-[40px] text-white shadow-2xl relative overflow-hidden transition-all duration-500 transform hover:scale-[1.02] ${isSurplus ? 'bg-amber-500 border-b-8 border-amber-700' : 'bg-slate-900 border-b-8 border-rose-600'}`}>
