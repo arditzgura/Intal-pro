@@ -24,6 +24,13 @@ export interface Item {
   preferentialPrices?: PreferentialPrice[];
 }
 
+export interface Payment {
+  id: string;
+  date: string;   // YYYY-MM-DD
+  amount: number;
+  note?: string;
+}
+
 export interface InvoiceItem {
   itemId: string;
   name: string;
@@ -53,6 +60,7 @@ export interface Invoice {
   status: 'E paguar' | 'Pa paguar' | 'Anuluar';
   notes?: string; // Shënime shtesë
   paymentDate?: string; // Data kur faturë është paguar
+  payments?: Payment[]; // Arketimet e pjesshme me datë
 }
 
 export interface StockEntryItem {

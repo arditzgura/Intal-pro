@@ -442,7 +442,16 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                    <div className="p-3 space-y-1.5">
                       <div className="flex justify-between items-center text-slate-400 text-[11px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[13px]">{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
                       {invoice.previousBalance !== 0 && (<div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || lGje}:</span><span className="text-[13px]">{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>)}
-                      {invoice.amountPaid !== 0 && (<div className="flex justify-between items-center text-blue-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span><span className="text-[13px]">- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>)}
+                      {invoice.payments && invoice.payments.length > 0 ? (
+                        invoice.payments.map((p, i) => (
+                          <div key={p.id || i} className="flex justify-between items-center text-emerald-600 text-[10px] font-black uppercase tracking-widest">
+                            <span>{lPag} {p.date.split('-').reverse().join('/')}:</span>
+                            <span className="text-[12px]">- {p.amount.toLocaleString()} {getCurrency('short')}</span>
+                          </div>
+                        ))
+                      ) : (
+                        invoice.amountPaid !== 0 && (<div className="flex justify-between items-center text-blue-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span><span className="text-[13px]">- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>)
+                      )}
                    </div>
                    <div className={`p-3 flex justify-between items-center border-t border-slate-900 ${isSurplus ? 'bg-amber-50' : isPaidInFull ? 'bg-emerald-50' : 'bg-rose-50'}`}>
                       <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
@@ -533,11 +542,20 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <span>{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span>
                    </div>
                 )}
-                {invoice.amountPaid !== 0 && (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                {invoice.payments && invoice.payments.length > 0 ? (
+                  invoice.payments.map((p, i) => (
+                    <div key={p.id || i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt', color: '#059669', fontWeight: 'bold' }}>
+                      <span>PAGUAR {p.date.split('-').reverse().join('/')}:</span>
+                      <span>- {p.amount.toLocaleString()} {getCurrency('short')}</span>
+                    </div>
+                  ))
+                ) : (
+                  invoice.amountPaid !== 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
                       <span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || 'PAGUAR'}:</span>
                       <span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
-                   </div>
+                    </div>
+                  )
                 )}
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '16pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
