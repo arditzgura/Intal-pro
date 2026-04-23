@@ -1,6 +1,12 @@
 
 import { Client, Item, Invoice, BusinessConfig } from '../types';
 
+// Normalizon tekstin: lowercase + ç→c, Ç→c, ë→e, Ë→e
+export const normalize = (s: string): string =>
+  s.toLowerCase()
+    .replace(/ç/g, 'c')
+    .replace(/ë/g, 'e');
+
 const STORAGE_KEYS = {
   CLIENTS: 'fatura_clients',
   ITEMS: 'fatura_items',

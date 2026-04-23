@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Item, Invoice, StockEntry, StockEntryItem } from '../types';
 import { Plus, Hash, Package, Trash2, Save, ArrowLeft, Calendar, Truck, PackageSearch, Search } from 'lucide-react';
+import { normalize } from '../utils/storage';
 
 interface Props {
   items: Item[];
@@ -52,11 +53,10 @@ const StockEntryGenerator: React.FC<Props> = ({ items, invoices, onSave, onCance
   }, [initialData, nextNumber]);
 
   const matchesFuzzy = (target: string, query: string) => {
-    const q = query.toLowerCase().trim();
+    const q = normalize(query.trim());
     if (!q) return true;
-    const targetLower = target.toLowerCase();
-    const queryParts = q.split(' ').filter(p => p.length > 0);
-    return queryParts.every(part => targetLower.includes(part));
+    const targetNorm = normalize(target);
+    return q.split(/\s+/).filter(p => p.length > 0).every(part => targetNorm.includes(part));
   };
 
   const itemSalesCount = useMemo(() => {
@@ -64,18 +64,26 @@ const StockEntryGenerator: React.FC<Props> = ({ items, invoices, onSave, onCance
     invoices.forEach(inv => {
       if (inv.status === 'Anuluar') return;
       inv.items.forEach(it => {
-        const key = it.name.trim().toLowerCase();
+        const key = normalize(it.name.trim());
         counts[key] = (counts[key] || 0) + Number(it.quantity);
       });
     });
     return counts;
   }, [invoices]);
 
-  const getFilteredItemsSorted = (query: string) =>
-    items
+  const getFilteredItemsSorted = (query: string) => {
+    const seen = new Set<string>();
+    return items
       .filter(i => matchesFuzzy(i.name, query))
-      .sort((a, b) => (itemSalesCount[b.name.trim().toLowerCase()] || 0) - (itemSalesCount[a.name.trim().toLowerCase()] || 0))
+      .sort((a, b) => (itemSalesCount[normalize(b.name.trim())] || 0) - (itemSalesCount[normalize(a.name.trim())] || 0))
+      .filter(i => {
+        const key = normalize(i.name.trim());
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .slice(0, 10);
+  };
 
   const addRow = () => {
     setEntryItems([...entryItems, { itemId: 'm-' + Date.now(), name: '', quantity: 1, purchasePrice: 0, sellingPrice: 0, total: 0 }]);

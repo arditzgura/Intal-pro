@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Item, PreferentialPrice, Invoice } from '../types';
 import ConfirmDialog from './ConfirmDialog';
+import { normalize } from '../utils/storage';
 import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3 } from 'lucide-react';
 
 interface Props {
@@ -122,8 +123,8 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
 
   const sortedAndFilteredClients = useMemo(() => {
     let result = clients.filter(c => {
-      const q = search.toLowerCase().trim();
-      const matchesSearch = c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q));
+      const q = normalize(search.trim());
+      const matchesSearch = normalize(c.name).includes(q) || (c.city && normalize(c.city).includes(q));
       const matchesCity = cityFilter === 'all' || c.city === cityFilter;
       return matchesSearch && matchesCity;
     });

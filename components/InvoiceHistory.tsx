@@ -4,6 +4,7 @@ import { Invoice, Client } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import { exportInvoicesToExcel } from '../utils/exportUtils';
+import { normalize } from '../utils/storage';
 
 interface Props {
   invoices: Invoice[];
@@ -68,6 +69,12 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [invoices]);
 
+  // Çelës unik për klient: ID reale ose emër+qytet për ato manuale
+  const getClientKey = (inv: Invoice): string =>
+    inv.clientId && inv.clientId !== 'manual'
+      ? inv.clientId
+      : `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+
   // Gjendja finale e çdo klienti nga fatura e tyre e fundit
   const clientDebtMap = useMemo(() => {
     const map: Record<string, {
@@ -77,12 +84,13 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
     const byClient: Record<string, Invoice[]> = {};
     invoices.forEach(inv => {
       if (inv.status === 'Anuluar') return;
-      if (!byClient[inv.clientId]) byClient[inv.clientId] = [];
-      byClient[inv.clientId].push(inv);
+      const key = getClientKey(inv);
+      if (!byClient[key]) byClient[key] = [];
+      byClient[key].push(inv);
     });
-    Object.entries(byClient).forEach(([, invs]) => {
+    Object.entries(byClient).forEach(([key, invs]) => {
       const latest = invs.reduce((a, b) => a.date > b.date ? a : b);
-      map[latest.clientId] = {
+      map[key] = {
         balance: (latest.subtotal + (latest.previousBalance || 0)) - (latest.amountPaid || 0),
         currency: latest.currency,
         latestId: latest.id,
@@ -98,7 +106,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   // 'paguar' = debija u shlye nëpërmjet faturës së fundit
   const getAbsorbedStatus = (inv: Invoice): 'none' | 'pasuar' | 'paguar' => {
     if (inv.status !== 'Pa paguar') return 'none';
-    const cd = clientDebtMap[inv.clientId];
+    const cd = clientDebtMap[getClientKey(inv)];
     if (!cd || inv.id === cd.latestId) return 'none';
     return cd.latestPaid ? 'paguar' : 'pasuar';
   };
@@ -107,7 +115,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   const matchesDailyFilter = (inv: Invoice, activeDay: string): boolean => {
     const invDate = inv.date.slice(0, 10);
     const payDate = inv.paymentDate || null;
-    const cd = clientDebtMap[inv.clientId];
+    const cd = clientDebtMap[getClientKey(inv)];
     const isLatest = cd?.latestId === inv.id;
     const isAbsorbedInv = inv.status === 'Pa paguar' && cd && inv.id !== cd.latestId;
     return (
@@ -119,19 +127,18 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   };
 
   const filteredInvoices = useMemo(() => {
-    const searchLower = search.toLowerCase();
+    const searchNorm = normalize(search);
     return invoices.filter(inv => {
       const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
       const client = clientMap[inv.clientId];
       // Prioritet: qyteti i ruajtur në faturë, pastaj qyteti aktual i klientit
       const invCity = inv.clientCity || client?.city || '';
-      const invCityLower = invCity.toLowerCase();
       const matchesCity = cityFilter === 'all' || invCity.trim() === cityFilter;
-      const matchesSearch = !searchLower ||
-        inv.invoiceNumber.toLowerCase().includes(searchLower) ||
-        inv.clientName.toLowerCase().includes(searchLower) ||
-        invCityLower.includes(searchLower) ||
-        inv.items.some(item => item.name.toLowerCase().includes(searchLower));
+      const matchesSearch = !searchNorm ||
+        normalize(inv.invoiceNumber).includes(searchNorm) ||
+        normalize(inv.clientName).includes(searchNorm) ||
+        normalize(invCity).includes(searchNorm) ||
+        inv.items.some(item => normalize(item.name).includes(searchNorm));
 
       let matchesTime = true;
       if (filterMode === 'today' || filterMode === 'day') {
@@ -301,7 +308,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
             <tbody className="divide-y divide-slate-100 text-sm">
               {ready && filteredInvoices.slice(0, visibleCount).map(inv => {
                 const client = clientMap[inv.clientId];
-                const cd = clientDebtMap[inv.clientId];
+                const cd = clientDebtMap[getClientKey(inv)];
                 const absorbedStatus = getAbsorbedStatus(inv);
                 const isAbsorbedAny = absorbedStatus !== 'none';
 

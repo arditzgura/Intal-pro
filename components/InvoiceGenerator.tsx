@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Client, Item, Invoice, InvoiceItem } from '../types';
 import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock } from 'lucide-react';
-import { loadData, saveData, STORAGE_KEYS, clearData } from '../utils/storage';
+import { loadData, saveData, STORAGE_KEYS, clearData, normalize } from '../utils/storage';
 
 interface Props {
   clients: Client[];
@@ -176,11 +176,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const isSurplus = balanceDue < 0;
 
   const matchesFuzzy = (target: string, query: string) => {
-    const qRaw = query.toLowerCase().trim();
-    if (!qRaw) return true;
-    const targetLower = target.toLowerCase();
-    const queryParts = qRaw.split(/\s+/).filter(p => p.length > 0);
-    return queryParts.every(part => targetLower.includes(part));
+    const qNorm = normalize(query.trim());
+    if (!qNorm) return true;
+    const targetNorm = normalize(target);
+    return qNorm.split(/\s+/).filter(p => p.length > 0).every(part => targetNorm.includes(part));
   };
 
   // Shitjet totale për çdo artikull (për renditje)
@@ -189,7 +188,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     invoices.forEach(inv => {
       if (inv.status === 'Anuluar') return;
       inv.items.forEach(it => {
-        const key = it.name.trim().toLowerCase();
+        const key = normalize(it.name.trim());
         counts[key] = (counts[key] || 0) + Number(it.quantity);
       });
     });
@@ -200,9 +199,9 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     const seen = new Set<string>();
     return items
       .filter(i => matchesFuzzy(i.name, query))
-      .sort((a, b) => (itemSalesCount[b.name.trim().toLowerCase()] || 0) - (itemSalesCount[a.name.trim().toLowerCase()] || 0))
+      .sort((a, b) => (itemSalesCount[normalize(b.name.trim())] || 0) - (itemSalesCount[normalize(a.name.trim())] || 0))
       .filter(i => {
-        const key = i.name.trim().toLowerCase();
+        const key = normalize(i.name.trim());
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -541,7 +540,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                  <div key={idx} className={`grid grid-cols-12 px-4 py-3 md:px-6 items-center gap-4 relative transition-all group ${activeItemSearchIdx === idx ? 'z-[1000] bg-indigo-50/10' : 'z-0 hover:bg-slate-50/50'}`}>
                     <div className="col-span-6 relative">
                       {(() => {
-                        const isRegistered = !item.name.trim() || items.some(i => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+                        const isRegistered = !item.name.trim() || items.some(i => normalize(i.name.trim()) === normalize(item.name.trim()));
                         return (
                           <div className={`px-1 py-1 border-b-2 transition-all ${activeItemSearchIdx === idx ? 'border-indigo-600' : !isRegistered ? 'border-rose-400' : 'border-transparent'}`}>
                             <input

@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
+import { normalize } from '../utils/storage';
 import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -125,7 +126,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   const mergedItems = useMemo(() => {
     const map = new Map<string, Item>();
     items.forEach(item => {
-      const key = item.name.trim().toLowerCase();
+      const key = normalize(item.name.trim());
       if (!map.has(key)) {
         map.set(key, item);
       }
@@ -152,12 +153,12 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
 
     // Llogarit statistikat për çdo artikull unik (bashkon duplikatet me emrin e njëjtë)
     mergedItems.forEach(item => {
-      const nameLower = item.name.trim().toLowerCase();
+      const nameLower = normalize(item.name.trim());
       // Gjej të gjithë IDs me të njëjtin emër
-      const sameNameIds = new Set(items.filter(i => i.name.trim().toLowerCase() === nameLower).map(i => i.id));
+      const sameNameIds = new Set(items.filter(i => normalize(i.name.trim()) === nameLower).map(i => i.id));
 
       const totalIn = stockEntries.reduce((acc, entry) => {
-        const found = entry.items.find(it => sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower);
+        const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
         return acc + (found ? Number(found.quantity) : 0);
       }, 0);
 
@@ -166,7 +167,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         // shmang numërim të dyfishtë - merr vetëm njëherë për rreshtin
         let qty = 0;
         inv.items.forEach(it => {
-          if (sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower) qty += Number(it.quantity);
+          if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower) qty += Number(it.quantity);
         });
         return acc + qty;
       }, 0);
@@ -176,7 +177,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
       const qtySold = filteredInvoices.reduce((acc, inv) => {
         let qty = 0;
         inv.items.forEach(it => {
-          if (sameNameIds.has(it.itemId) || it.name.trim().toLowerCase() === nameLower) qty += Number(it.quantity);
+          if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower) qty += Number(it.quantity);
         });
         return acc + qty;
       }, 0);
@@ -188,11 +189,10 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   }, [mergedItems, items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const matchesFuzzy = (name: string, query: string) => {
-    const q = query.toLowerCase().trim();
+    const q = normalize(query.trim());
     if (!q) return true;
-    const parts = q.split(/\s+/).filter(p => p.length > 0);
-    const target = name.toLowerCase();
-    return parts.every(p => target.includes(p));
+    const target = normalize(name);
+    return q.split(/\s+/).filter(p => p.length > 0).every(p => target.includes(p));
   };
 
   const sortedAndFilteredItems = useMemo(() => {
@@ -216,7 +216,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
 
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return [];
-    return clients.filter(c => c.name.toLowerCase().includes(clientSearchQuery.toLowerCase())).slice(0, 5);
+    return clients.filter(c => normalize(c.name).includes(normalize(clientSearchQuery))).slice(0, 5);
   }, [clients, clientSearchQuery]);
 
   return (
