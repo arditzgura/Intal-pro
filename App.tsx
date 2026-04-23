@@ -235,23 +235,51 @@ const App: React.FC = () => {
   // ─── CRUD lokal ───────────────────────────────────────────────────────────
   const uid = session?.user.id ?? '';
 
+  // Çelës unik klienti (id reale ose manual|emër|qytet)
+  const getInvClientKey = (inv: Invoice): string =>
+    inv.clientId && inv.clientId !== 'manual'
+      ? inv.clientId
+      : `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+
+  // Rillogarit statuset e të gjitha faturave për një klient
+  const recalcClientStatuses = (clientKey: string, allInvoices: Invoice[]): Invoice[] => {
+    const getDebt = (inv: Invoice) => (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
+    const clientInvs = allInvoices
+      .filter(inv => getInvClientKey(inv) === clientKey && inv.status !== 'Anuluar')
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (clientInvs.length === 0) return allInvoices;
+
+    const latest = clientInvs[clientInvs.length - 1];
+    const latestDebt = getDebt(latest);
+    const map = new Map<string, Invoice['status']>();
+
+    if (latestDebt <= 0) {
+      clientInvs.forEach(inv => map.set(inv.id, 'E paguar'));
+    } else {
+      map.set(latest.id, 'Pa paguar');
+      clientInvs.slice(0, -1).forEach(inv =>
+        map.set(inv.id, getDebt(inv) > 0 ? 'Pasuar' : 'E paguar')
+      );
+    }
+    return allInvoices.map(inv => map.has(inv.id) ? { ...inv, status: map.get(inv.id)! } : inv);
+  };
+
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
     const target = invoices.find(inv => inv.id === id);
     if (!target) return;
     const today = new Date().toLocaleDateString('en-CA');
-    const updated = invoices.map(inv => {
-      if (status === 'E paguar') {
-        if (inv.clientId === target.clientId && (inv.id === id || inv.status === 'Pa paguar'))
-          return { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: inv.paymentDate || today };
-      } else if (status === 'Pa paguar') {
-        if (inv.id === id) return { ...inv, status, paymentDate: undefined };
-      } else {
-        if (inv.id === id) return { ...inv, status };
-      }
-      return inv;
+    // Vendos pagesën e plotë nëse shënohet si E paguar
+    const base = invoices.map(inv => {
+      if (inv.id !== id) return inv;
+      if (status === 'E paguar')
+        return { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: inv.paymentDate || today };
+      if (status === 'Pa paguar')
+        return { ...inv, status: 'Pa paguar' as const, paymentDate: undefined };
+      return { ...inv, status };
     });
-    setInvoices(updated);
-    local.setAll(uid, 'invoices', updated);
+    const recalced = recalcClientStatuses(getInvClientKey(target), base);
+    setInvoices(recalced);
+    local.setAll(uid, 'invoices', recalced);
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -306,17 +334,10 @@ const App: React.FC = () => {
     const today = new Date().toLocaleDateString('en-CA');
     if (final.status === 'E paguar' && !final.paymentDate) final.paymentDate = today;
 
-    let newInvoices: Invoice[];
-    if (final.status === 'E paguar') {
-      const base = editInvoice ? invoices.filter(inv => inv.id !== final.id) : invoices;
-      newInvoices = [final, ...base.map(inv =>
-        inv.clientId === final.clientId && inv.status === 'Pa paguar'
-          ? { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: inv.paymentDate || today }
-          : inv
-      )];
-    } else {
-      newInvoices = editInvoice ? invoices.map(inv => inv.id === final.id ? final : inv) : [final, ...invoices];
-    }
+    const base = editInvoice
+      ? invoices.map(inv => inv.id === final.id ? final : inv)
+      : [final, ...invoices];
+    const newInvoices = recalcClientStatuses(getInvClientKey(final), base);
     setInvoices(newInvoices);
     local.setAll(uid, 'invoices', newInvoices);
 
@@ -452,7 +473,7 @@ const App: React.FC = () => {
             {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid,'items',upd);}}/>}
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid,'stock_entries',upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const upd=invoices.filter(i=>i.id!==id);setInvoices(upd);local.setAll(uid,'invoices',upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
+            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid,'invoices',upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
             {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid,'clients',upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid,'clients',upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
             {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid,'items',upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);local.setAll(uid,'items',upd);}} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='admin'         && isAdmin && <AdminPanel />}

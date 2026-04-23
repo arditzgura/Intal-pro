@@ -57,7 +57,7 @@ export interface Invoice {
   amountPaid: number;
   amountPaidLabel?: string; // Etiketa e personalizuar
   total: number;
-  status: 'E paguar' | 'Pa paguar' | 'Anuluar';
+  status: 'E paguar' | 'Pa paguar' | 'Pasuar' | 'Anuluar';
   notes?: string; // Shënime shtesë
   paymentDate?: string; // Data kur faturë është paguar
   payments?: Payment[]; // Arketimet e pjesshme me datë

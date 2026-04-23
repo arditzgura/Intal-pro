@@ -260,6 +260,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
             <option value="all">Të Gjithë Statuset</option>
             <option value="E paguar">E Paguar</option>
             <option value="Pa paguar">Pa Paguar</option>
+            <option value="Pasuar">Pasuar</option>
           </select>
           <button onClick={() => exportInvoicesToExcel(filteredInvoices)}
             className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10">
@@ -326,27 +327,24 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
                 const globalBalance = cd?.balance ?? 0;
 
                 // Ngjyra rreshti
-                const rowBg = isArkëtuar           ? 'bg-emerald-50/40' :
-                              absorbedStatus === 'paguar' ? 'bg-teal-50/20' :
-                              absorbedStatus === 'pasuar' ? 'opacity-50' : '';
+                const isPasuar = inv.status === 'Pasuar';
+                const rowBg = isArkëtuar  ? 'bg-emerald-50/40' :
+                              isPasuar    ? 'opacity-60' : '';
 
-                // Status badge: statusi global i klientit (pa paguar/paguar/tepricë)
-                // Me override për rastet speciale: Pasuar, Paguar (absorbed), Arkëtuar
+                // Status badge — drejtpërdrejt nga statusi i ruajtur
                 const badgeClass =
-                  absorbedStatus === 'pasuar'  ? 'bg-indigo-100 text-indigo-500' :
-                  absorbedStatus === 'paguar'  ? 'bg-teal-100 text-teal-700' :
-                  isArkëtuar                   ? 'bg-yellow-100 text-yellow-700' :
-                  globalBalance > 0            ? 'bg-rose-100 text-rose-700' :
-                  globalBalance < 0            ? 'bg-amber-100 text-amber-700' :
-                                                 'bg-green-100 text-green-700';
+                  isPasuar       ? 'bg-indigo-100 text-indigo-600' :
+                  isArkëtuar     ? 'bg-yellow-100 text-yellow-700' :
+                  globalBalance > 0 ? 'bg-rose-100 text-rose-700' :
+                  globalBalance < 0 ? 'bg-amber-100 text-amber-700' :
+                                      'bg-green-100 text-green-700';
 
                 const badgeLabel =
-                  absorbedStatus === 'pasuar' ? 'Pasuar' :
-                  absorbedStatus === 'paguar' ? 'Paguar' :
-                  isArkëtuar                  ? 'Arkëtuar' :
-                  globalBalance > 0           ? 'Pa paguar' :
-                  globalBalance < 0           ? 'Me Tepricë' :
-                                                'E paguar';
+                  isPasuar       ? 'Pasuar' :
+                  isArkëtuar     ? 'Arkëtuar' :
+                  globalBalance > 0 ? 'Pa paguar' :
+                  globalBalance < 0 ? 'Me Tepricë' :
+                                      'E paguar';
 
                 const curr = cd?.currency ?? inv.currency;
                 const fmt = (v: number) => curr === 'EUR' ? (v * 100).toLocaleString() : v.toLocaleString();
@@ -421,7 +419,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
                     {/* Veprime */}
                     <td className="px-5 py-4 text-right">
                       <div className="flex justify-end gap-1">
-                        {inv.status === 'Pa paguar' && absorbedStatus === 'none' && onUpdateStatus && (
+                        {inv.status === 'Pa paguar' && onUpdateStatus && (
                           <button onClick={() => onUpdateStatus(inv.id, 'E paguar')}
                             className="p-2 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                             title="Marko si të paguar"><CheckCircle2 size={16} /></button>
