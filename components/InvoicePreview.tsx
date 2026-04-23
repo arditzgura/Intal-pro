@@ -461,12 +461,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           
           {/* FORMATI 80MM (PRINTER THERMAL) - Përditësuar me +2pt font dhe layout të ri */}
           <div className="roll-only" style={{ width: '100%', padding: '0', color: '#000', fontFamily: 'Inter, sans-serif' }}>
-             {/* Logo në krye për 80mm */}
-             {business.logoUrl && (
-                <div style={{ textAlign: 'center', marginBottom: '2px' }}>
-                  <img src={business.logoUrl} alt="Logo" style={{ maxWidth: '35mm', height: 'auto', margin: '0 auto', display: 'block', filter: 'grayscale(100%)' }} />
-                </div>
-             )}
 
              <div style={{ textAlign: 'center', marginBottom: '2px' }}>
                 <h2 style={{ fontSize: '18pt', margin: '0', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{business.name}</h2>
@@ -497,11 +491,13 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                     </div>
                 </div>
                 
-                {/* Djathtas: Pikët */}
+                {/* Djathtas: Pikët - vetëm për klientë të regjistruar */}
+                {client && invoice.clientId !== 'manual' && (
                 <div style={{ flex: '1', padding: '5px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', background: '#f8f8f8' }}>
                     <span style={{ fontSize: '8pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>PIKËT</span>
-                    <span style={{ fontSize: '16pt', fontWeight: '900', lineHeight: '1' }}>{client?.points || 0}</span>
+                    <span style={{ fontSize: '16pt', fontWeight: '900', lineHeight: '1' }}>{client.points || 0}</span>
                 </div>
+                )}
              </div>
              
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
