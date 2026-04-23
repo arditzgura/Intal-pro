@@ -5,7 +5,7 @@ import {
   Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
-import { clearData, STORAGE_KEYS } from './utils/storage';
+import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local } from './utils/localDb';
 import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
 
@@ -517,7 +517,24 @@ const App: React.FC = () => {
       {/* Overlays */}
       {previewInvoice  && <InvoicePreview invoice={previewInvoice} business={config} client={clients.find(c=>c.id===previewInvoice.clientId)} onClose={()=>setPreviewInvoice(null)} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}}/>}
       {previewStockEntry && <StockEntryPreview entry={previewStockEntry} business={config} onClose={()=>setPreviewStockEntry(null)} onEdit={e=>{setPreviewStockEntry(null);setEditStockEntry(e);setCurrentView('new-stock-entry');}}/>}
-      {selectedProfileClient && <ClientProfile client={selectedProfileClient} invoices={invoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>}
+      {selectedProfileClient && (() => {
+        const pc = selectedProfileClient;
+        // Klientë me të njëjtin emër por qytet të ndryshëm
+        const hasDupName = clients.some(c => c.id !== pc.id && normalize(c.name.trim()) === normalize(pc.name.trim()));
+        const pcCity = normalize(pc.city?.trim() || '');
+        const profileInvoices = invoices.filter(inv => {
+          // Përputhje sipas clientId ose manual+emër
+          const byId   = inv.clientId === pc.id;
+          const byName = inv.clientId === 'manual' && normalize(inv.clientName.trim()) === normalize(pc.name.trim());
+          if (!byId && !byName) return false;
+          // Kur ka klientë me të njëjtin emër, dallojmë sipas qytetit
+          if (hasDupName && inv.clientCity && pcCity) {
+            return normalize(inv.clientCity.trim()) === pcCity;
+          }
+          return true;
+        });
+        return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
+      })()}
       {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
     </div>
   );

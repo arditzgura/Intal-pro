@@ -155,8 +155,15 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
   useEffect(() => {
     if (selectedClientId && !initialData) {
+      const selClient = clients.find(c => c.id === selectedClientId);
+      const hasDupName = selClient ? clients.some(c => c.id !== selectedClientId && normalize(c.name.trim()) === normalize(selClient.name.trim())) : false;
+      const selCity = normalize(selClient?.city?.trim() || '');
       const clientInvoices = invoices
-        .filter(inv => inv.clientId === selectedClientId && inv.status !== 'Anuluar')
+        .filter(inv => {
+          if (inv.clientId !== selectedClientId || inv.status === 'Anuluar') return false;
+          if (hasDupName && inv.clientCity && selCity) return normalize(inv.clientCity.trim()) === selCity;
+          return true;
+        })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
       if (clientInvoices.length > 0) {
