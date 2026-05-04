@@ -8,7 +8,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local } from './utils/localDb';
 import { db } from './utils/db';
-import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
+import { getLocalSession, clearLocalSession, setLocalSession, syncSessionUser } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
 import ClientManager   from './components/ClientManager';
@@ -116,6 +116,8 @@ const App: React.FC = () => {
     const sess = getLocalSession();
     if (sess) {
       setSession({ user: { id: sess.user.id, username: sess.user.username } });
+      // Sinkronizo userin me Supabase (për cross-device login)
+      syncSessionUser(sess.user);
       loadAllData(sess.user.id);
     } else {
       setSession(null);

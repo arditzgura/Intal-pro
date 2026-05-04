@@ -101,6 +101,11 @@ export async function localRegisterAsync(username: string, password: string): Pr
   return newUser;
 }
 
+// ─── Sinkronizo userin aktual me Supabase (thirret gjatë session restore) ────
+export async function syncSessionUser(user: LocalUser): Promise<void> {
+  await supabaseSaveUser(user);
+}
+
 // ─── Compat: funksione sinkrone (për migrim) ─────────────────────────────────
 export function localLogin(username: string, password: string): LocalUser | null {
   const hash = simpleHash(password);
