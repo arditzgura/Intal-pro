@@ -1,9 +1,8 @@
 
 import React, { useState } from 'react';
 import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { supabase } from '../utils/supabase';
 
-// ─── Auth — me Supabase si backend (cross-device) ────────────────────────────
+// ─── Auth lokal — vetëm localStorage ─────────────────────────────────────────
 const LOCAL_USERS_KEY = 'intal_local_users';
 
 interface LocalUser { id: string; username: string; passwordHash: string; }
@@ -14,115 +13,25 @@ function simpleHash(str: string): string {
   return h.toString(36);
 }
 
-// ID deterministike bazuar në username (e njëjtë në çdo pajisje)
-function deterministicId(username: string): string {
-  let h = 5381;
-  const s = username.trim().toLowerCase();
-  for (let i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
-  return 'u' + Math.abs(h).toString(36);
-}
-
 function getUsers(): LocalUser[] {
   try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]'); } catch { return []; }
 }
 function saveUsers(users: LocalUser[]) {
   localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
 }
-
-// Lexo user nga Supabase
-export async function supabaseGetUser(username: string): Promise<LocalUser | null> {
-  try {
-    const { data } = await supabase
-      .from('users')
-      .select('user_id, password_hash, username')
-      .eq('username', username.trim().toLowerCase())
-      .maybeSingle();
-    if (!data) return null;
-    return { id: data.user_id, username: data.username, passwordHash: data.password_hash };
-  } catch { return null; }
-}
-
-// Ruaj user në Supabase
-async function supabaseSaveUser(user: LocalUser): Promise<void> {
-  try {
-    await supabase.from('users').upsert({
-      username: user.username.trim().toLowerCase(),
-      user_id: user.id,
-      password_hash: user.passwordHash,
-    });
-  } catch {}
-}
-
-// ─── Login (local-first, Supabase fallback, auto-create fallback) ────────────
-export async function localLoginAsync(username: string, password: string): Promise<LocalUser | null> {
-  const hash = simpleHash(password);
-  const uname = username.trim().toLowerCase();
-
-  // 1. Kërko lokalisht (fast path)
-  const users = getUsers();
-  const localUser = users.find(u => u.username.toLowerCase() === uname);
-  if (localUser) {
-    if (hash !== localUser.passwordHash) return null;
-    supabaseSaveUser(localUser);
-    return localUser;
-  }
-
-  // 2. Kërko në Supabase
-  const remote = await supabaseGetUser(uname);
-  if (remote) {
-    if (hash !== remote.passwordHash) return null;
-    saveUsers([...users, remote]);
-    return remote;
-  }
-
-  // 3. Nuk u gjet askund — nuk mund të logohemi
-  return null;
-}
-
-// ─── Regjistrim ──────────────────────────────────────────────────────────────
-export async function localRegisterAsync(username: string, password: string): Promise<LocalUser | 'exists'> {
-  const uname = username.trim().toLowerCase();
-  const users = getUsers();
-
-  // Kontroll lokal
-  if (users.find(u => u.username.toLowerCase() === uname)) return 'exists';
-
-  // Kontroll Supabase (nëse ka llogari nga pajisje tjetër)
-  const remote = await supabaseGetUser(uname);
-  if (remote) return 'exists';
-
-  const hash = simpleHash(password);
-  // Nëse user ekziston lokalisht me ID të vjetër, mbaj ID-në; përndryshe bëj deterministike
-  const existingLocal = getUsers().find(u => u.username.toLowerCase() === uname);
-  const id = existingLocal?.id || deterministicId(uname);
-
-  const newUser: LocalUser = { id, username: uname, passwordHash: hash };
-  saveUsers([...users, newUser]);
-  await supabaseSaveUser(newUser);
-  return newUser;
-}
-
-// ─── Sinkronizo userin aktual me Supabase (thirret gjatë session restore) ────
-export async function syncSessionUser(user: LocalUser): Promise<void> {
-  await supabaseSaveUser(user);
-}
-
-// ─── Compat: funksione sinkrone (për migrim) ─────────────────────────────────
 export function localLogin(username: string, password: string): LocalUser | null {
-  const hash = simpleHash(password);
   const users = getUsers();
   const u = users.find(u => u.username.toLowerCase() === username.toLowerCase());
   if (!u) return null;
-  return hash === u.passwordHash ? u : null;
+  return simpleHash(password) === u.passwordHash ? u : null;
 }
 export function localRegister(username: string, password: string): LocalUser | 'exists' {
   const users = getUsers();
   if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return 'exists';
-  const newUser: LocalUser = { id: deterministicId(username), username: username.trim().toLowerCase(), passwordHash: simpleHash(password) };
+  const newUser: LocalUser = { id: 'local-' + Date.now(), username, passwordHash: simpleHash(password) };
   saveUsers([...users, newUser]);
   return newUser;
 }
-
 export function setLocalSession(user: LocalUser) {
   localStorage.setItem('intal_session', JSON.stringify({ user, loggedAt: Date.now() }));
 }
@@ -146,7 +55,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setSuccess('');
 
@@ -156,9 +65,9 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     if (mode === 'register' && password !== password2) return setError('Fjalëkalimet nuk përputhen.');
 
     setLoading(true);
-    try {
+    setTimeout(() => {
       if (mode === 'register') {
-        const result = await localRegisterAsync(uname, password);
+        const result = localRegister(uname, password);
         if (result === 'exists') {
           setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
         } else {
@@ -166,7 +75,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           onAuth(result);
         }
       } else {
-        const user = await localLoginAsync(uname, password);
+        const user = localLogin(uname, password);
         if (!user) {
           setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
         } else {
@@ -174,10 +83,8 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           onAuth(user);
         }
       }
-    } catch {
-      setError('Problem me lidhjen. Kontrolloni internetin dhe provoni përsëri.');
-    }
-    setLoading(false);
+      setLoading(false);
+    }, 100);
   };
 
   return (
