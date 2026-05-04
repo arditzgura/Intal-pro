@@ -96,6 +96,13 @@ const App: React.FC = () => {
       }
     }
 
+    // Nëse cloud është bosh por localStorage ka të dhëna → ngjit në cloud
+    if (!cls.length)   { const lc = local.getAll<Client>(userId, 'clients');          if (lc.length)    { cls   = lc;    db.clients.upsertMany(userId, cls); } }
+    if (!itms.length)  { const li = local.getAll<Item>(userId, 'items');              if (li.length)    { itms  = li;   db.items.upsertMany(userId, itms); } }
+    if (!invs.length)  { const li = local.getAll<Invoice>(userId, 'invoices');        if (li.length)    { invs  = li;   db.invoices.upsertMany(userId, invs); } }
+    if (!stock.length) { const ls = local.getAll<StockEntry>(userId, 'stock_entries');if (ls.length)    { stock = ls;   db.stockEntries.upsertMany(userId, stock); } }
+    if (!cfg)          { const lc = local.getConfig(userId);                          if (lc)           { cfg   = lc;   db.config.save(userId, lc); } }
+
     setClients(cls);
     setItems(itms);
     setInvoices(invs);

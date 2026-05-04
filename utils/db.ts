@@ -22,8 +22,11 @@ async function fetchAll<T>(table: Table, userId: string): Promise<T[]> {
       .eq('user_id', userId);
     if (error) throw error;
     const result = (data ?? []).map(r => r.data as T);
-    // Sinkronizo localStorage me të dhënat cloud
-    local.setAll(userId, table, result);
+    // Sinkronizo localStorage vetëm kur cloud ka të dhëna
+    // (mos fshi localStorage nëse cloud është bosh)
+    if (result.length > 0) {
+      local.setAll(userId, table, result);
+    }
     return result;
   } catch (e: any) {
     emitSyncError(table, e?.message ?? 'fetch failed');
