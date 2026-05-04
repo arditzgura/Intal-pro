@@ -8,7 +8,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local } from './utils/localDb';
 import { db } from './utils/db';
-import { getLocalSession, clearLocalSession, setLocalSession, syncSessionUser } from './components/AuthScreen';
+import { getLocalSession, clearLocalSession, setLocalSession, supabaseGetUser } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
 import ClientManager   from './components/ClientManager';
@@ -115,10 +115,20 @@ const App: React.FC = () => {
   useEffect(() => {
     const sess = getLocalSession();
     if (sess) {
-      setSession({ user: { id: sess.user.id, username: sess.user.username } });
-      // Sinkronizo userin me Supabase (për cross-device login)
-      syncSessionUser(sess.user);
-      loadAllData(sess.user.id);
+      // Merr userId-n kanonik nga Supabase (mund të jetë ndryshuar nga migrimi)
+      supabaseGetUser(sess.user.username).then(remoteUser => {
+        const userId = remoteUser?.id ?? sess.user.id;
+        if (userId !== sess.user.id) {
+          // Përditëso sesionin lokal me ID-në e re
+          const updated = { ...sess.user, id: userId };
+          setLocalSession(updated);
+        }
+        setSession({ user: { id: userId, username: sess.user.username } });
+        loadAllData(userId);
+      }).catch(() => {
+        setSession({ user: { id: sess.user.id, username: sess.user.username } });
+        loadAllData(sess.user.id);
+      });
     } else {
       setSession(null);
       setDataReady(true);

@@ -30,7 +30,7 @@ function saveUsers(users: LocalUser[]) {
 }
 
 // Lexo user nga Supabase
-async function supabaseGetUser(username: string): Promise<LocalUser | null> {
+export async function supabaseGetUser(username: string): Promise<LocalUser | null> {
   try {
     const { data } = await supabase
       .from('users')
@@ -53,29 +53,30 @@ async function supabaseSaveUser(user: LocalUser): Promise<void> {
   } catch {}
 }
 
-// ─── Login (local-first, Supabase fallback) ──────────────────────────────────
+// ─── Login (local-first, Supabase fallback, auto-create fallback) ────────────
 export async function localLoginAsync(username: string, password: string): Promise<LocalUser | null> {
   const hash = simpleHash(password);
   const uname = username.trim().toLowerCase();
 
   // 1. Kërko lokalisht (fast path)
   const users = getUsers();
-  const local = users.find(u => u.username.toLowerCase() === uname);
-  if (local) {
-    if (hash !== local.passwordHash) return null;
-    // Sinkronizo me Supabase (fire-and-forget) për pajisjet e tjera
-    supabaseSaveUser(local);
-    return local;
+  const localUser = users.find(u => u.username.toLowerCase() === uname);
+  if (localUser) {
+    if (hash !== localUser.passwordHash) return null;
+    supabaseSaveUser(localUser);
+    return localUser;
   }
 
-  // 2. Kërko në Supabase (pajisje e re)
+  // 2. Kërko në Supabase
   const remote = await supabaseGetUser(uname);
-  if (!remote) return null;
-  if (hash !== remote.passwordHash) return null;
+  if (remote) {
+    if (hash !== remote.passwordHash) return null;
+    saveUsers([...users, remote]);
+    return remote;
+  }
 
-  // Ruaj lokalisht për herët e ardhshme
-  saveUsers([...users, remote]);
-  return remote;
+  // 3. Nuk u gjet askund — nuk mund të logohemi
+  return null;
 }
 
 // ─── Regjistrim ──────────────────────────────────────────────────────────────
