@@ -147,8 +147,20 @@ const App: React.FC = () => {
     if (!session || !clients.length) return;
     const userId = session.user.id;
     const updated = clients.map(client => {
+      const clientNameN = normalize(client.name.trim());
+      const clientCityN = normalize(client.city?.trim() || '');
+      const hasDupName  = clients.some(c => c.id !== client.id && normalize(c.name.trim()) === clientNameN);
       const pts = invoices
-        .filter(inv => inv.clientId === client.id && inv.status !== 'Anuluar')
+        .filter(inv => {
+          if (inv.status === 'Anuluar') return false;
+          // Kur ka emra duplikatë, dallo me qytet
+          if (hasDupName) {
+            if (normalize(inv.clientName.trim()) !== clientNameN) return false;
+            if (inv.clientCity && clientCityN) return normalize(inv.clientCity.trim()) === clientCityN;
+            return inv.clientId === client.id;
+          }
+          return inv.clientId === client.id;
+        })
         .reduce((s, inv) => s + (inv.currency === 'EUR'
           ? Math.floor(inv.subtotal || 0)
           : Math.floor((inv.subtotal || 0) / 100)), 0);
@@ -697,20 +709,23 @@ const App: React.FC = () => {
         const hasDupName = clients.some(c => c.id !== pc.id && normalize(c.name.trim()) === normalize(pc.name.trim()));
         const pcCity = normalize(pc.city?.trim() || '');
         const profileInvoices = invoices.filter(inv => {
-          // 1. Përputhje sipas ID — më e sigurt, nuk ka nevojë për kontroll tjetër
-          if (inv.clientId === pc.id) return true;
-          // 2. Përputhje sipas kodit të klientit
-          if (pc.code && inv.clientCode) return inv.clientCode === pc.code;
-          // 3. Nëse fatura ka kod por klienti nuk ka → skip
-          if (inv.clientCode) return false;
-          // 4. Faturat "manual" — përputhje sipas emrit
-          if (inv.clientId !== 'manual') return false;
-          if (normalize(inv.clientName.trim()) !== normalize(pc.name.trim())) return false;
-          // 5. Kur ka klientë me të njëjtin emër, dallohen sipas qytetit
-          if (hasDupName && inv.clientCity && pcCity) {
-            return normalize(inv.clientCity.trim()) === pcCity;
+          // Kur ka klientë me të njëjtin emër, qyteti është çelësi kryesor
+          // (clientId mund të tregojë klientin e gabuar për faturat e vjetra)
+          if (hasDupName) {
+            // Emri duhet të përputhet
+            if (normalize(inv.clientName.trim()) !== normalize(pc.name.trim())) return false;
+            // Nëse ka qytet në faturë dhe te klienti — dalloji me qytet
+            if (inv.clientCity && pcCity) return normalize(inv.clientCity.trim()) === pcCity;
+            // Pa qytet: fallback te ID ose kodi
+            if (pc.code && inv.clientCode) return inv.clientCode === pc.code;
+            return inv.clientId === pc.id;
           }
-          return true;
+          // Pa emra duplikatë: ID është çelësi kryesor
+          if (inv.clientId === pc.id) return true;
+          if (pc.code && inv.clientCode) return inv.clientCode === pc.code;
+          if (inv.clientCode) return false;
+          if (inv.clientId !== 'manual') return false;
+          return normalize(inv.clientName.trim()) === normalize(pc.name.trim());
         });
         return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
       })()}
