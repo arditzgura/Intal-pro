@@ -51,6 +51,7 @@ interface Props {
   onUpdate: (c: BusinessConfig) => void;
   onExport: () => void;
   onImport: (file: File) => Promise<boolean>;
+  onRestoreAutoBackup: () => boolean;
 }
 
 const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
@@ -306,7 +307,7 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport }) => {
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -552,6 +553,22 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport }
                     </span>
                   </div>
                </button>
+               <button
+                 onClick={() => {
+                   const ok = onRestoreAutoBackup();
+                   if (!ok) alert('❌ Nuk ka auto-backup të ruajtur.');
+                 }}
+                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-amber-700/40 hover:bg-slate-700 transition-all group col-span-1 sm:col-span-2"
+               >
+                  <span className="text-amber-400 text-2xl group-hover:scale-110 transition-transform">⚡</span>
+                  <div className="text-center">
+                    <span className="block font-bold text-amber-300">Rikthe nga Auto-Backup</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
+                      {(() => { try { const b = localStorage.getItem('intal_auto_backup'); if (!b) return 'Nuk ka backup'; const d = JSON.parse(b); return 'Ruajtur: ' + new Date(d.savedAt).toLocaleString('sq-AL'); } catch { return 'Nuk ka backup'; } })()}
+                    </span>
+                  </div>
+               </button>
+
                <input
                  type="file"
                  ref={fileInputRef}

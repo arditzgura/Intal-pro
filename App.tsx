@@ -171,6 +171,28 @@ const App: React.FC = () => {
     }, 800);
   }, [config]); // eslint-disable-line
 
+  // ─── Auto-backup në localStorage pas çdo veprimi ─────────────────────────
+  const autoBackupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!session || !dataReady) return;
+    if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
+    autoBackupTimer.current = setTimeout(() => {
+      const uid = session.user.id;
+      const snapshot = {
+        savedAt: new Date().toISOString(),
+        version: 1,
+        user: session.user.username,
+        invoices:      local.getAll(uid, 'invoices'),
+        clients:       local.getAll(uid, 'clients'),
+        items:         local.getAll(uid, 'items'),
+        stock_entries: local.getAll(uid, 'stock_entries'),
+        config:        local.getConfig(uid),
+      };
+      localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
+      console.log('[auto-backup] u ruajt:', new Date().toLocaleTimeString());
+    }, 2000); // 2 sekonda pas ndryshimit të fundit
+  }, [clients, items, invoices, stockEntries]); // eslint-disable-line
+
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   const doBackup = useCallback((isAuto = false) => {
     if (!session) return;
@@ -520,6 +542,25 @@ const App: React.FC = () => {
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
                 onExport={() => doBackup(false)}
+                onRestoreAutoBackup={() => {
+                  try {
+                    const raw = localStorage.getItem('intal_auto_backup');
+                    if (!raw) return false;
+                    const bk = JSON.parse(raw);
+                    const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
+                    const it  = Array.isArray(bk.items)          ? bk.items          : [];
+                    const inv = Array.isArray(bk.invoices)       ? bk.invoices       : [];
+                    const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries  : [];
+                    const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
+                    if (cl.length)  { setClients(cl);       local.setAll(uid, 'clients', cl); }
+                    if (it.length)  { setItems(it);         local.setAll(uid, 'items', it); }
+                    if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
+                    if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
+                    if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
+                    handleNavigate('dashboard');
+                    return true;
+                  } catch { return false; }
+                }}
                 onImport={async (file) => {
                   try {
                     const text = await file.text();
