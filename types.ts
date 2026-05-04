@@ -1,6 +1,7 @@
 
 export interface Client {
   id: string;
+  code?: string;   // Kodi unik i klientit p.sh. KL001
   name: string;
   city: string;
   address: string;
@@ -45,6 +46,7 @@ export interface Invoice {
   invoiceNumber: string;
   date: string;
   clientId: string;
+  clientCode?: string; // Kodi unik i klientit (për lidhje të sigurt)
   clientName: string;
   clientCity?: string; // Qyteti i ruajtur në momentin e faturimit
   clientPhone?: string;

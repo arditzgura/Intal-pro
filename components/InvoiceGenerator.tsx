@@ -25,6 +25,7 @@ const formatDateDisplay = (dateStr: string) => {
 const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber }) => {
   const [clientName, setClientName] = useState(initialData?.clientName || '');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(initialData?.clientId || null);
+  const [selectedClientCode, setSelectedClientCode] = useState<string | undefined>(initialData?.clientCode);
   const [clientCity, setClientCity] = useState(initialData?.clientCity || '');
   const [shipTo, setShipTo] = useState(initialData?.clientPhone || '');
   const [invoiceNumber, setInvoiceNumber] = useState(defaultInvoiceNumber || `5507`);
@@ -224,6 +225,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const selectClient = (client: Client) => {
     setClientName(client.name);
     setSelectedClientId(client.id);
+    setSelectedClientCode(client.code);
     setClientCity(client.city || '');
     setShipTo(client.address || client.city || '');
     setIsClientSearchActive(false);
@@ -378,6 +380,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       invoiceNumber,
       date: invoiceDate,
       clientId: selectedClientId || 'manual',
+      clientCode: selectedClientCode || undefined,
       clientName,
       clientCity,
       clientPhone: shipTo,
@@ -401,6 +404,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       clearData(STORAGE_KEYS.DRAFT); 
       setClientName('');
       setSelectedClientId(null);
+      setSelectedClientCode(undefined);
       setClientCity('');
       setShipTo('');
       setInvoiceItems([{ itemId: 'm-' + Date.now(), name: '', quantity: 0, price: 0, total: 0 }]);
@@ -480,7 +484,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                 className={`w-full p-4 border-2 rounded-xl outline-none h-20 md:h-24 resize-none text-sm font-bold transition-all ${selectedClientId ? 'border-emerald-100 bg-emerald-50/30' : 'border-slate-100 focus:border-indigo-500'}`} 
                 placeholder="Emri i klientit..." 
                 value={clientName} 
-                onChange={e => { setClientName(e.target.value); if (selectedClientId) setSelectedClientId(null); setIsClientSearchActive(true); }} 
+                onChange={e => { setClientName(e.target.value); if (selectedClientId) { setSelectedClientId(null); setSelectedClientCode(undefined); } setIsClientSearchActive(true); }}
                 onFocus={() => setIsClientSearchActive(true)}
                 onKeyDown={handleClientKeyDown}
               />

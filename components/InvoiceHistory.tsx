@@ -70,10 +70,11 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
   }, [invoices]);
 
   // Çelës unik për klient: ID reale ose emër+qytet për ato manuale
-  const getClientKey = (inv: Invoice): string =>
-    inv.clientId && inv.clientId !== 'manual'
-      ? inv.clientId
-      : `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+  const getClientKey = (inv: Invoice): string => {
+    if (inv.clientCode) return `code|${inv.clientCode}`;
+    if (inv.clientId && inv.clientId !== 'manual') return inv.clientId;
+    return `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+  };
 
   // Gjendja finale e çdo klienti nga fatura e tyre e fundit
   const clientDebtMap = useMemo(() => {

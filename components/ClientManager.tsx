@@ -97,8 +97,17 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const clientId = editingId || Date.now().toString();
-    if (editingId) onUpdate({ ...formData, id: editingId });
-    else onAdd({ ...formData, id: clientId });
+    if (editingId) {
+      const existing = clients.find(c => c.id === editingId);
+      onUpdate({ ...formData, id: editingId, code: existing?.code });
+    } else {
+      // Gjenero kod unik KL001, KL002...
+      const maxCode = clients
+        .map(c => parseInt((c.code || '').replace('KL', '')) || 0)
+        .reduce((a, b) => Math.max(a, b), 0);
+      const newCode = 'KL' + String(maxCode + 1).padStart(3, '0');
+      onAdd({ ...formData, id: clientId, code: newCode });
+    }
 
     const newItems = items.map(item => {
       const hasStaged = stagedItemPrices.hasOwnProperty(item.id);

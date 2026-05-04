@@ -65,14 +65,17 @@ async function upsertMany<T extends { id: string }>(
   if (!records.length) return;
   // Ruaj lokalisht menjëherë
   local.setAll(userId, table, records);
-  // Sinkronizo me cloud në background (pa pritur)
-  const rows = records.map(r => ({ id: r.id, user_id: userId, data: r }));
-  supabase.from(table).upsert(rows)
-    .then(({ error }) => {
-      if (error) emitSyncError(table, error.message);
-      else emitSyncOk();
-    })
-    .catch((e: any) => emitSyncError(table, e?.message ?? 'network error'));
+  // Sinkronizo me cloud në grupe prej 50
+  const BATCH = 50;
+  for (let i = 0; i < records.length; i += BATCH) {
+    const batch = records.slice(i, i + BATCH);
+    const rows = batch.map(r => ({ id: r.id, user_id: userId, data: r }));
+    console.log(`[sync] upsertMany ${table} batch ${i/BATCH+1}: ${rows.length} records`);
+    const { error } = await supabase.from(table).upsert(rows);
+    if (error) { emitSyncError(table, error.message); return; }
+  }
+  console.log(`[sync OK] upsertMany ${table} ${records.length} total`);
+  emitSyncOk();
 }
 
 // ─── Fshi një rekord ──────────────────────────────────────────────────────────

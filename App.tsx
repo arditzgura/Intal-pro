@@ -7,6 +7,7 @@ import {
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local } from './utils/localDb';
+import { db } from './utils/db';
 import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
@@ -57,15 +58,18 @@ const App: React.FC = () => {
   const mainRef         = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
 
-  // ─── Ngarko të dhënat nga localStorage (me migrim automatik) ────────────────
-  const loadAllData = useCallback((userId: string) => {
-    let invs  = local.getAll<Invoice>(userId, 'invoices');
-    let cls   = local.getAll<Client>(userId, 'clients');
-    let itms  = local.getAll<Item>(userId, 'items');
-    let stock = local.getAll<StockEntry>(userId, 'stock_entries');
-    let cfg   = local.getConfig(userId);
+  // ─── Ngarko të dhënat (cloud-first, fallback localStorage) ──────────────────
+  const loadAllData = useCallback(async (userId: string) => {
+    // Ngarko nga cloud (db.fetchAll fallback-on ke localStorage automatikisht)
+    let [cls, itms, invs, stock] = await Promise.all([
+      db.clients.fetchAll(userId),
+      db.items.fetchAll(userId),
+      db.invoices.fetchAll(userId),
+      db.stockEntries.fetchAll(userId),
+    ]);
+    let cfg = await db.config.fetch(userId);
 
-    // Migrim: nëse nuk ka të dhëna, kërko nën ID-të e vjetra (Supabase)
+    // Migrim: nëse nuk ka të dhëna cloud/local, kërko nën ID-të e vjetra
     if (!invs.length) {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i) || '';
@@ -74,17 +78,17 @@ const App: React.FC = () => {
           const oldId = m[1];
           const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
           if (oldInvs.length > 0) {
-            // Migro të dhënat nga ID e vjetër tek e reja
             cls   = local.getAll<Client>(oldId, 'clients');
             itms  = local.getAll<Item>(oldId, 'items');
             invs  = oldInvs;
             stock = local.getAll<StockEntry>(oldId, 'stock_entries');
             cfg   = local.getConfig(oldId) ?? cfg;
-            local.setAll(userId, 'clients',       cls);
-            local.setAll(userId, 'items',         itms);
-            local.setAll(userId, 'invoices',      invs);
-            local.setAll(userId, 'stock_entries', stock);
-            if (cfg) local.setConfig(userId, cfg);
+            // Migro tek userId i ri (cloud + local)
+            db.clients.upsertMany(userId, cls);
+            db.items.upsertMany(userId, itms);
+            db.invoices.upsertMany(userId, invs);
+            db.stockEntries.upsertMany(userId, stock);
+            if (cfg) db.config.save(userId, { ...DEFAULT_CONFIG, ...cfg });
             console.log(`[migrate] ${oldInvs.length} invoices nga ${oldId} → ${userId}`);
             break;
           }
@@ -112,6 +116,37 @@ const App: React.FC = () => {
     }
   }, [loadAllData]);
 
+  // ─── Migrim: cakto kode klientëve ekzistues pa kod ───────────────────────
+  useEffect(() => {
+    if (!session || !dataReady || !clients.length) return;
+    const needsCode = clients.some(c => !c.code);
+    if (!needsCode) return;
+    let counter = clients
+      .map(c => parseInt((c.code || '').replace('KL', '')) || 0)
+      .reduce((a, b) => Math.max(a, b), 0);
+    const updated = clients.map(c => {
+      if (c.code) return c;
+      counter++;
+      return { ...c, code: 'KL' + String(counter).padStart(3, '0') };
+    });
+    setClients(updated);
+    db.clients.upsertMany(session.user.id, updated);
+    // Gjithashtu lidh faturat ekzistuese me kodet e klientëve
+    const codeMap = new Map(updated.map(c => [c.id, c.code!]));
+    const updatedInvoices = invoices.map(inv => {
+      if (inv.clientCode) return inv; // tashmë ka kod
+      if (inv.clientId && inv.clientId !== 'manual' && codeMap.has(inv.clientId)) {
+        return { ...inv, clientCode: codeMap.get(inv.clientId) };
+      }
+      return inv;
+    });
+    const hasChange = updatedInvoices.some((inv, i) => inv !== invoices[i]);
+    if (hasChange) {
+      setInvoices(updatedInvoices);
+      db.invoices.upsertMany(session.user.id, updatedInvoices);
+    }
+  }, [dataReady]); // eslint-disable-line
+
   // ─── Pikët e klientëve ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!session || !clients.length) return;
@@ -127,7 +162,7 @@ const App: React.FC = () => {
     const changedC = updated.filter((u, i) => u !== clients[i]);
     if (changedC.length > 0) {
       setClients(updated);
-      local.setAll(userId, 'clients', updated);
+      db.clients.upsertMany(userId, updated);
     }
   }, [invoices]); // eslint-disable-line
 
@@ -137,7 +172,7 @@ const App: React.FC = () => {
     if (!session || !dataReady) return;
     if (configSaveTimer.current) clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(() => {
-      local.setConfig(session.user.id, config);
+      db.config.save(session.user.id, config);
     }, 800);
   }, [config]); // eslint-disable-line
 
@@ -235,11 +270,12 @@ const App: React.FC = () => {
   // ─── CRUD lokal ───────────────────────────────────────────────────────────
   const uid = session?.user.id ?? '';
 
-  // Çelës unik klienti (id reale ose manual|emër|qytet)
-  const getInvClientKey = (inv: Invoice): string =>
-    inv.clientId && inv.clientId !== 'manual'
-      ? inv.clientId
-      : `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+  // Çelës unik klienti: kod klienti (nëse ka) → id reale → manual|emër|qytet
+  const getInvClientKey = (inv: Invoice): string => {
+    if (inv.clientCode) return `code|${inv.clientCode}`;
+    if (inv.clientId && inv.clientId !== 'manual') return inv.clientId;
+    return `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+  };
 
   // Rillogarit statuset e të gjitha faturave për një klient
   const recalcClientStatuses = (clientKey: string, allInvoices: Invoice[]): Invoice[] => {
@@ -279,7 +315,7 @@ const App: React.FC = () => {
     });
     const recalced = recalcClientStatuses(getInvClientKey(target), base);
     setInvoices(recalced);
-    local.setAll(uid, 'invoices', recalced);
+    db.invoices.upsertMany(uid, recalced);
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -287,7 +323,7 @@ const App: React.FC = () => {
       ? stockEntries.map(e => e.id === entry.id ? entry : e)
       : [entry, ...stockEntries];
     setStockEntries(newEntries);
-    local.setAll(uid, 'stock_entries', newEntries);
+    db.stockEntries.upsertMany(uid, newEntries);
     setEditStockEntry(null);
 
     let updatedItems = [...items]; let changed = false;
@@ -301,7 +337,7 @@ const App: React.FC = () => {
         updatedItems.push(ni); changed = true;
       }
     });
-    if (changed) { setItems(updatedItems); local.setAll(uid, 'items', updatedItems); }
+    if (changed) { setItems(updatedItems); db.items.upsertMany(uid, updatedItems); }
     handleNavigate('stock-entries');
   };
 
@@ -313,9 +349,18 @@ const App: React.FC = () => {
     const cLow = invoice.clientName.trim().toLowerCase();
     const existing = updClients.find(c => c.name.toLowerCase() === cLow);
     if (!existing) {
-      const nc: Client = { id: Date.now().toString(), name: invoice.clientName.trim(), city: invoice.clientCity || '', address: '', phone: invoice.clientPhone || '', email: '', points: 0 };
-      updClients.push(nc); final.clientId = nc.id; cChanged = true;
-    } else { final.clientId = existing.id; }
+      // Gjenero kod unik KL001, KL002...
+      const maxCode = updClients
+        .map(c => parseInt((c.code || '').replace('KL', '')) || 0)
+        .reduce((a, b) => Math.max(a, b), 0);
+      const newCode = 'KL' + String(maxCode + 1).padStart(3, '0');
+      const nc: Client = { id: Date.now().toString(), code: newCode, name: invoice.clientName.trim(), city: invoice.clientCity || '', address: '', phone: invoice.clientPhone || '', email: '', points: 0 };
+      updClients.push(nc); final.clientId = nc.id; final.clientCode = newCode; cChanged = true;
+    } else {
+      final.clientId = existing.id;
+      // Nëse klienti ka kod, lidhe me faturën
+      if (existing.code) final.clientCode = existing.code;
+    }
 
     final.items = invoice.items.map(invItem => {
       const iLow = invItem.name.trim().toLowerCase();
@@ -328,8 +373,8 @@ const App: React.FC = () => {
       return { ...invItem, itemId: ex.id };
     });
 
-    if (cChanged) { setClients(updClients); local.setAll(uid, 'clients', updClients); }
-    if (iChanged) { setItems(updItems); local.setAll(uid, 'items', updItems); }
+    if (cChanged) { setClients(updClients); db.clients.upsertMany(uid, updClients); }
+    if (iChanged) { setItems(updItems); db.items.upsertMany(uid, updItems); }
 
     const today = new Date().toLocaleDateString('en-CA');
     if (final.status === 'E paguar' && !final.paymentDate) final.paymentDate = today;
@@ -339,7 +384,7 @@ const App: React.FC = () => {
       : [final, ...invoices];
     const newInvoices = recalcClientStatuses(getInvClientKey(final), base);
     setInvoices(newInvoices);
-    local.setAll(uid, 'invoices', newInvoices);
+    db.invoices.upsertMany(uid, newInvoices);
 
     setEditInvoice(null);
     clearData(STORAGE_KEYS.DRAFT);
@@ -470,12 +515,12 @@ const App: React.FC = () => {
             </div>
 
             {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries}/>}
-            {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid,'items',upd);}}/>}
-            {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid,'stock_entries',upd);}} onPreview={setPreviewStockEntry}/>}
+            {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);db.items.upsertMany(uid,upd);}}/>}
+            {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);db.stockEntries.upsertMany(uid,upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid,'invoices',upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
-            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid,'clients',upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid,'clients',upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
-            {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid,'items',upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);local.setAll(uid,'items',upd);}} onOpenProfile={setSelectedProfileItem}/>}
+            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);db.invoices.upsertMany(uid,upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
+            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);db.clients.upsertMany(uid,upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);db.clients.upsertMany(uid,upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);db.clients.upsertMany(uid,upd);}} onUpdateItems={ni=>{setItems(ni);db.items.upsertMany(uid,ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
+            {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);db.items.upsertMany(uid,upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);db.items.upsertMany(uid,upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);db.items.upsertMany(uid,upd);}} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
@@ -491,12 +536,12 @@ const App: React.FC = () => {
                     const inv = Array.isArray(bk.invoices)      ? bk.invoices      : [];
                     const se  = Array.isArray(bk.stockEntries)  ? bk.stockEntries  : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    // Ruaj vetëm lokalisht
-                    if (cl.length)  { local.setAll(uid,'clients',cl);       setClients(cl); }
-                    if (it.length)  { local.setAll(uid,'items',it);         setItems(it); }
-                    if (inv.length) { local.setAll(uid,'invoices',inv);     setInvoices(inv); }
-                    if (se.length)  { local.setAll(uid,'stock_entries',se); setStockEntries(se); }
-                    if (cf)         { local.setConfig(uid,cf);              setConfig(cf); }
+                    // Ruaj lokalisht + sinkronizo me cloud
+                    if (cl.length)  { setClients(cl);  db.clients.upsertMany(uid,cl); }
+                    if (it.length)  { setItems(it);    db.items.upsertMany(uid,it); }
+                    if (inv.length) { setInvoices(inv);db.invoices.upsertMany(uid,inv); }
+                    if (se.length)  { setStockEntries(se); db.stockEntries.upsertMany(uid,se); }
+                    if (cf)         { setConfig(cf);   db.config.save(uid,cf); }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
@@ -544,19 +589,23 @@ const App: React.FC = () => {
         const hasDupName = clients.some(c => c.id !== pc.id && normalize(c.name.trim()) === normalize(pc.name.trim()));
         const pcCity = normalize(pc.city?.trim() || '');
         const profileInvoices = invoices.filter(inv => {
-          // Përputhje sipas clientId ose manual+emër
+          // 1. Përputhje sipas kodit të klientit (më e sigurt)
+          if (pc.code && inv.clientCode && inv.clientCode === pc.code) return true;
+          // 2. Nëse fatura ka kod por klienti nuk përputhet → skip
+          if (inv.clientCode && pc.code && inv.clientCode !== pc.code) return false;
+          // 3. Përputhje sipas clientId ose manual+emër
           const byId   = inv.clientId === pc.id;
           const byName = inv.clientId === 'manual' && normalize(inv.clientName.trim()) === normalize(pc.name.trim());
           if (!byId && !byName) return false;
-          // Kur ka klientë me të njëjtin emër, dallojmë sipas qytetit
+          // 4. Kur ka klientë me të njëjtin emër, dallojmë sipas qytetit
           if (hasDupName && inv.clientCity && pcCity) {
             return normalize(inv.clientCity.trim()) === pcCity;
           }
           return true;
         });
-        return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid,'items',ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid,'clients',upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
+        return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);db.items.upsertMany(uid,ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);db.clients.upsertMany(uid,upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
       })()}
-      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid,'items',upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
+      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);db.items.upsertMany(uid,upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
     </div>
   );
 };

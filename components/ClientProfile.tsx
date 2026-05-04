@@ -32,7 +32,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
     reader.readAsDataURL(file);
   };
   const [activeTab, setActiveTab] = useState<'overview' | 'prices' | 'profile'>('overview');
-  const [profileForm, setProfileForm] = useState({ name: client.name, city: client.city || '', phone: client.phone || '', email: client.email || '', address: client.address || '' });
+  const [profileForm, setProfileForm] = useState({ code: client.code || '', name: client.name, city: client.city || '', phone: client.phone || '', email: client.email || '', address: client.address || '' });
   const [profileSaved, setProfileSaved] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('year');
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
@@ -228,6 +228,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
             <div>
               <div className="flex items-center gap-3">
                  <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase">{client.name}</h2>
+                 {client.code && <span className="px-2.5 py-1 bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-black tracking-widest uppercase">{client.code}</span>}
               </div>
               <p className="text-[10px] font-black text-slate-400 mt-1 flex items-center gap-4 uppercase"><MapPin size={12}/> {client.city} <Phone size={12}/> {client.phone}</p>
             </div>
@@ -463,6 +464,18 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
 
                   <div className="grid grid-cols-1 gap-5">
                     <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span> Kodi i Klientit
+                      </label>
+                      <input
+                        className="w-full px-4 py-3.5 bg-indigo-50 border border-indigo-200 rounded-xl outline-none text-sm font-black uppercase tracking-widest text-indigo-700 focus:border-indigo-500 transition-all"
+                        placeholder="p.sh. KL001"
+                        value={profileForm.code}
+                        onChange={e => setProfileForm(f => ({...f, code: e.target.value.toUpperCase()}))}
+                      />
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Kodi lidh klientin me historikun e faturave në mënyrë unike.</p>
+                    </div>
+                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Emri i Plotë</label>
                       <input className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-black uppercase focus:border-indigo-500 transition-all" value={profileForm.name} onChange={e => setProfileForm(f => ({...f, name: e.target.value}))} />
                     </div>
@@ -488,7 +501,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
 
                   <button
                     onClick={() => {
-                      onUpdateClient({ ...client, ...profileForm });
+                      onUpdateClient({ ...client, ...profileForm, code: profileForm.code.trim() || undefined });
                       setProfileSaved(true);
                       setTimeout(() => setProfileSaved(false), 2000);
                     }}
