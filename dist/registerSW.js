@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/Intal-pro/sw.js', { scope: '/Intal-pro/' })})}
