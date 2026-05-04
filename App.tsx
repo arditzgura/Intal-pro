@@ -592,7 +592,22 @@ const App: React.FC = () => {
             {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}}/>}
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid, 'stock_entries', upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
+            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
+  // 1. Gjej sipas ID direkt
+  let c = clients.find(cl => cl.id === inv.clientId);
+  // 2. Nëse ka dy klientë me të njëjtin emër, dalloji sipas qytetit
+  if (c) {
+    const hasDup = clients.some(cl => cl.id !== c!.id && normalize(cl.name.trim()) === normalize(c!.name.trim()));
+    if (hasDup && inv.clientCity) {
+      const byCity = clients.find(cl => normalize(cl.name.trim()) === normalize(c!.name.trim()) && normalize(cl.city?.trim()||'') === normalize(inv.clientCity!.trim()));
+      if (byCity) c = byCity;
+    }
+  }
+  // 3. Fallback: gjej sipas kodit ose emrit+qyteti
+  if (!c && inv.clientCode) c = clients.find(cl => cl.code === inv.clientCode);
+  if (!c && inv.clientName) c = clients.find(cl => normalize(cl.name.trim()) === normalize(inv.clientName.trim()) && (!inv.clientCity || normalize(cl.city?.trim()||'') === normalize(inv.clientCity.trim())));
+  if (c) setSelectedProfileClient(c);
+}}/>}
             {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient} onMerge={handleMergeClients}/>}
             {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid, 'items', upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);local.setAll(uid, 'items', upd);}} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='admin'         && isAdmin && <AdminPanel />}
@@ -682,15 +697,16 @@ const App: React.FC = () => {
         const hasDupName = clients.some(c => c.id !== pc.id && normalize(c.name.trim()) === normalize(pc.name.trim()));
         const pcCity = normalize(pc.city?.trim() || '');
         const profileInvoices = invoices.filter(inv => {
-          // 1. Përputhje sipas kodit të klientit (më e sigurt)
-          if (pc.code && inv.clientCode && inv.clientCode === pc.code) return true;
-          // 2. Nëse fatura ka kod por klienti nuk përputhet → skip
-          if (inv.clientCode && pc.code && inv.clientCode !== pc.code) return false;
-          // 3. Përputhje sipas clientId ose manual+emër
-          const byId   = inv.clientId === pc.id;
-          const byName = inv.clientId === 'manual' && normalize(inv.clientName.trim()) === normalize(pc.name.trim());
-          if (!byId && !byName) return false;
-          // 4. Kur ka klientë me të njëjtin emër, dallojmë sipas qytetit
+          // 1. Përputhje sipas ID — më e sigurt, nuk ka nevojë për kontroll tjetër
+          if (inv.clientId === pc.id) return true;
+          // 2. Përputhje sipas kodit të klientit
+          if (pc.code && inv.clientCode) return inv.clientCode === pc.code;
+          // 3. Nëse fatura ka kod por klienti nuk ka → skip
+          if (inv.clientCode) return false;
+          // 4. Faturat "manual" — përputhje sipas emrit
+          if (inv.clientId !== 'manual') return false;
+          if (normalize(inv.clientName.trim()) !== normalize(pc.name.trim())) return false;
+          // 5. Kur ka klientë me të njëjtin emër, dallohen sipas qytetit
           if (hasDupName && inv.clientCity && pcCity) {
             return normalize(inv.clientCity.trim()) === pcCity;
           }

@@ -13,7 +13,7 @@ interface Props {
   onPreview: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
   onUpdateStatus?: (id: string, status: Invoice['status']) => void;
-  onSelectClient: (clientId: string) => void;
+  onSelectClient: (inv: Invoice) => void;
 }
 
 const formatDateDisplay = (dateStr: string) => {
@@ -364,7 +364,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
                     </td>
 
                     <td className="px-5 py-4 truncate max-w-[160px]">
-                      <button onClick={e => { e.stopPropagation(); onSelectClient(inv.clientId); }}
+                      <button onClick={e => { e.stopPropagation(); onSelectClient(inv); }}
                         className="text-left hover:underline group/name block outline-none">
                         <div className="font-black text-blue-600 uppercase leading-none group-hover/name:text-blue-800 transition-colors">{inv.clientName}</div>
                       </button>
