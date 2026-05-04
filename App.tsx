@@ -317,6 +317,63 @@ const App: React.FC = () => {
     return allInvoices.map(inv => map.has(inv.id) ? { ...inv, status: map.get(inv.id)! } : inv);
   };
 
+  // ─── Bashko dy klientë në një ─────────────────────────────────────────────
+  // keepId = klienti që mbetet, removeId = klienti që fshihet
+  const handleMergeClients = (keepId: string, removeId: string) => {
+    const keep   = clients.find(c => c.id === keepId);
+    const remove = clients.find(c => c.id === removeId);
+    if (!keep || !remove) return;
+
+    // 1. Rindërtoj listën e klientëve — fshi klientin e dytë
+    const newClients = clients.filter(c => c.id !== removeId);
+
+    // 2. Riasigno të gjitha faturat e klientit të fshirë tek klienti kryesor
+    const newInvoices = invoices.map(inv => {
+      if (inv.clientId !== removeId) return inv;
+      return {
+        ...inv,
+        clientId:   keepId,
+        clientName: keep.name,
+        clientCity: keep.city || inv.clientCity,
+        clientCode: keep.code || inv.clientCode,
+      };
+    });
+
+    // 3. Riasigno stock entries
+    const newStock = stockEntries.map(se => {
+      if (se.clientId !== removeId) return se;
+      return { ...se, clientId: keepId, clientName: keep.name };
+    });
+
+    // 4. Bashko çmimet preferenciale të artikujve
+    const newItems = items.map(item => {
+      const keepPref   = item.preferentialPrices?.find(p => p.clientId === keepId);
+      const removePref = item.preferentialPrices?.find(p => p.clientId === removeId);
+      if (!removePref) return item;
+      if (keepPref) {
+        // Hiq çmimin e klientit të fshirë
+        return { ...item, preferentialPrices: item.preferentialPrices!.filter(p => p.clientId !== removeId) };
+      }
+      // Transfero çmimin tek klienti kryesor
+      return {
+        ...item,
+        preferentialPrices: item.preferentialPrices!.map(p =>
+          p.clientId === removeId ? { ...p, clientId: keepId } : p
+        ),
+      };
+    });
+
+    // 5. Ruaj gjithçka
+    setClients(newClients);
+    setInvoices(newInvoices);
+    setStockEntries(newStock);
+    setItems(newItems);
+    local.setAll(uid, 'clients',       newClients);
+    local.setAll(uid, 'invoices',      newInvoices);
+    local.setAll(uid, 'stock_entries', newStock);
+    local.setAll(uid, 'items',         newItems);
+  };
+
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
     const target = invoices.find(inv => inv.id === id);
     if (!target) return;
@@ -536,7 +593,7 @@ const App: React.FC = () => {
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid, 'stock_entries', upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
             {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={cid=>{const c=clients.find(cl=>cl.id===cid);if(c)setSelectedProfileClient(c);}}/>}
-            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient}/>}
+            {currentView==='clients'       && <ClientManager clients={clients} items={items} invoices={invoices} onAdd={c=>{const upd=[...clients,c];setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdate={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onDelete={id=>{const upd=clients.filter(c=>c.id!==id);setClients(upd);local.setAll(uid, 'clients', upd);}} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onPreviewInvoice={setPreviewInvoice} onOpenProfile={setSelectedProfileClient} onMerge={handleMergeClients}/>}
             {currentView==='items'         && <ItemManager items={items} clients={clients} invoices={invoices} stockEntries={stockEntries} onAdd={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}} onUpdate={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid, 'items', upd);}} onDelete={id=>{const upd=items.filter(i=>i.id!==id);setItems(upd);local.setAll(uid, 'items', upd);}} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (

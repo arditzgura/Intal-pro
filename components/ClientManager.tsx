@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Item, PreferentialPrice, Invoice } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3 } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3, Merge } from 'lucide-react';
 
 interface Props {
   clients: Client[];
@@ -15,14 +15,19 @@ interface Props {
   onUpdateItems: (items: Item[]) => void;
   onPreviewInvoice: (invoice: Invoice) => void;
   onOpenProfile: (client: Client) => void;
+  onMerge: (keepId: string, removeId: string) => void;
 }
 
 type SortOption = 'alphabetical' | 'most_billed' | 'highest_debt';
 
-const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpdate, onDelete, onUpdateItems, onPreviewInvoice, onOpenProfile }) => {
+const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpdate, onDelete, onUpdateItems, onPreviewInvoice, onOpenProfile, onMerge }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Merge state
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSelected, setMergeSelected] = useState<string[]>([]);
+  const [mergeConfirm, setMergeConfirm] = useState(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('alphabetical');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -192,9 +197,58 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             </div>
           </div>
         </div>
-        <button onClick={() => setIsAdding(true)} className="w-full bg-[#D81B60] text-white py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-[#AD1457] transition-all shadow-lg shadow-[#D81B60]/20 active:scale-95">
-          <Plus size={18} strokeWidth={3}/> Shto Klient të Ri
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setIsAdding(true)} className="flex-1 bg-[#D81B60] text-white py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-[#AD1457] transition-all shadow-lg shadow-[#D81B60]/20 active:scale-95">
+            <Plus size={18} strokeWidth={3}/> Shto Klient të Ri
+          </button>
+          <button onClick={() => { setMergeMode(!mergeMode); setMergeSelected([]); setMergeConfirm(false); }}
+            className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${mergeMode ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400 hover:text-amber-500'}`}>
+            <Merge size={16}/> Bashko
+          </button>
+        </div>
+
+        {/* Merge mode UI */}
+        {mergeMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
+              {mergeSelected.length === 0 ? 'Zgjidh klientin e PARË (ai që do të RUHET)' :
+               mergeSelected.length === 1 ? `✓ Zgjedhur: ${clients.find(c=>c.id===mergeSelected[0])?.name} — tani zgjidh klientin e DYTË (ai që do të FSHIHET)` :
+               'Konfirmo bashkimin'}
+            </p>
+            {mergeSelected.length === 2 && !mergeConfirm && (
+              <div className="space-y-2">
+                <p className="text-xs text-amber-600">
+                  <strong>{clients.find(c=>c.id===mergeSelected[0])?.name}</strong> do të ruajë të gjitha të dhënat e <strong>{clients.find(c=>c.id===mergeSelected[1])?.name}</strong>.
+                  Klienti i dytë do të fshihet.
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setMergeConfirm(true)}
+                    className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all">
+                    ✓ Konfirmo Bashkimin
+                  </button>
+                  <button onClick={() => { setMergeSelected([]); setMergeConfirm(false); }}
+                    className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
+                    Anullo
+                  </button>
+                </div>
+              </div>
+            )}
+            {mergeConfirm && (
+              <div className="flex gap-2">
+                <button onClick={() => {
+                  onMerge(mergeSelected[0], mergeSelected[1]);
+                  setMergeMode(false); setMergeSelected([]); setMergeConfirm(false);
+                }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">
+                  ⚡ Bashko Definitivisht
+                </button>
+                <button onClick={() => { setMergeSelected([]); setMergeConfirm(false); }}
+                  className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase text-slate-500 bg-white border border-slate-200">
+                  Anullo
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
@@ -212,10 +266,27 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             <tbody className="divide-y divide-slate-50 text-sm">
               {sortedAndFilteredClients.map(client => {
                 const fin = clientFinancials[client.id];
+                const isMergeSelected = mergeSelected.includes(client.id);
+                const mergeOrder = mergeSelected.indexOf(client.id);
                 return (
-                  <tr key={client.id} className="hover:bg-slate-50/70 transition-colors group">
+                  <tr key={client.id}
+                    className={`transition-colors group cursor-pointer ${mergeMode ? (isMergeSelected ? 'bg-amber-50 border-l-4 border-amber-400' : 'hover:bg-amber-50/40') : 'hover:bg-slate-50/70'}`}
+                    onClick={mergeMode ? () => {
+                      if (isMergeSelected) {
+                        setMergeSelected(mergeSelected.filter(id => id !== client.id));
+                        setMergeConfirm(false);
+                      } else if (mergeSelected.length < 2) {
+                        setMergeSelected([...mergeSelected, client.id]);
+                      }
+                    } : undefined}
+                  >
                     <td className="px-8 py-5">
-                      <button onClick={() => onOpenProfile(client)} className="flex items-center gap-4 text-left hover:opacity-80 transition-opacity">
+                      <button onClick={mergeMode ? undefined : () => onOpenProfile(client)} className="flex items-center gap-4 text-left hover:opacity-80 transition-opacity">
+                        {mergeMode && isMergeSelected && (
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 ${mergeOrder === 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                            {mergeOrder === 0 ? '✓' : '×'}
+                          </div>
+                        )}
                         <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all flex items-center justify-center shrink-0">
                           {client.photo
                             ? <img src={client.photo} alt={client.name} className="w-full h-full object-cover" />
