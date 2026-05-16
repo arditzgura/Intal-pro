@@ -318,14 +318,13 @@ const App: React.FC = () => {
     const latestDebt = getDebt(latest);
     const map = new Map<string, Invoice['status']>();
 
-    if (latestDebt <= 0) {
-      clientInvs.forEach(inv => map.set(inv.id, 'E paguar'));
-    } else {
-      map.set(latest.id, 'Pa paguar');
-      clientInvs.slice(0, -1).forEach(inv =>
-        map.set(inv.id, getDebt(inv) > 0 ? 'Pasuar' : 'E paguar')
-      );
-    }
+    // Fatura e fundit: E paguar nëse borxhi = 0, Pa paguar nëse ka borxh
+    map.set(latest.id, latestDebt <= 0 ? 'E paguar' : 'Pa paguar');
+    // Faturat e mëparshme: Pasuar nëse kishin borxh të trashëguar (mbetet Pasuar edhe kur paguan të fundit),
+    // E paguar vetëm nëse ato vetë u paguan drejtpërdrejt (borxhi individual = 0)
+    clientInvs.slice(0, -1).forEach(inv =>
+      map.set(inv.id, getDebt(inv) > 0 ? 'Pasuar' : 'E paguar')
+    );
     return allInvoices.map(inv => map.has(inv.id) ? { ...inv, status: map.get(inv.id)! } : inv);
   };
 
