@@ -39,6 +39,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [itemSortBy, setItemSortBy] = useState<'value' | 'qty' | 'profit'>('value');
+  const [itemFilter, setItemFilter] = useState('');
 
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [selectedItemForPref, setSelectedItemForPref] = useState<Item | null>(null);
@@ -133,12 +134,16 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
     });
 
     let result = Object.values(summaryMap);
+    if (itemFilter.trim()) {
+      const f = itemFilter.trim().toLowerCase();
+      result = result.filter((r: any) => r.name.toLowerCase().includes(f));
+    }
     return result.sort((a:any, b:any) => {
       if (itemSortBy === 'qty') return b.totalQty - a.totalQty;
       if (itemSortBy === 'profit') return b.totalProfit - a.totalProfit;
       return b.totalValue - a.totalValue;
     });
-  }, [filteredInvoices, items, itemSortBy]);
+  }, [filteredInvoices, items, itemSortBy, itemFilter]);
 
   const clientPreferentialPrices = useMemo(() => {
     return items.filter(i => i.preferentialPrices?.some(p => p.clientId === client.id))
@@ -304,6 +309,23 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
                           <button onClick={()=>setItemSortBy('profit')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${itemSortBy==='profit'?'bg-white text-slate-900 shadow-sm':'text-slate-400'}`}>Fitimi</button>
                           <button onClick={()=>setItemSortBy('value')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${itemSortBy==='value'?'bg-white text-slate-900 shadow-sm':'text-slate-400'}`}>Vlera</button>
                        </div>
+                    </div>
+                    <div className="px-6 pt-4 pb-2">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={itemFilter}
+                          onChange={e => setItemFilter(e.target.value)}
+                          placeholder="Kërko artikull..."
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none focus:border-indigo-400 transition-colors"
+                        />
+                        {itemFilter && (
+                          <button onClick={() => setItemFilter('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex-1 overflow-x-auto">
                        <table className="w-full text-left">
