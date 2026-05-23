@@ -38,7 +38,8 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [itemSortBy, setItemSortBy] = useState<'value' | 'qty' | 'profit'>('value');
+  const [itemSortBy, setItemSortBy] = useState<'value' | 'qty' | 'profit' | 'price'>('value');
+  const [itemSortDir, setItemSortDir] = useState<'desc' | 'asc'>('desc');
   const [itemFilter, setItemFilter] = useState('');
 
   const [itemSearchQuery, setItemSearchQuery] = useState('');
@@ -125,25 +126,32 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
         const profitPerUnit = sellPriceLek - purchasePrice;
 
         if (!summaryMap[itemPart.name]) {
-          summaryMap[itemPart.name] = { name: itemPart.name, totalQty: 0, totalValue: 0, totalProfit: 0 };
+          summaryMap[itemPart.name] = { name: itemPart.name, totalQty: 0, totalValue: 0, totalProfit: 0, totalPriceSum: 0, priceCount: 0 };
         }
         summaryMap[itemPart.name].totalQty += qty;
         summaryMap[itemPart.name].totalValue += getConvVal(itemPart.total, inv.currency);
         summaryMap[itemPart.name].totalProfit += (profitPerUnit * qty);
+        summaryMap[itemPart.name].totalPriceSum += sellPriceLek;
+        summaryMap[itemPart.name].priceCount += 1;
       });
     });
 
-    let result = Object.values(summaryMap);
+    let result = Object.values(summaryMap).map((r: any) => ({
+      ...r, avgPrice: r.priceCount > 0 ? Math.round(r.totalPriceSum / r.priceCount) : 0
+    }));
     if (itemFilter.trim()) {
       const f = itemFilter.trim().toLowerCase();
       result = result.filter((r: any) => r.name.toLowerCase().includes(f));
     }
     return result.sort((a:any, b:any) => {
-      if (itemSortBy === 'qty') return b.totalQty - a.totalQty;
-      if (itemSortBy === 'profit') return b.totalProfit - a.totalProfit;
-      return b.totalValue - a.totalValue;
+      let diff = 0;
+      if (itemSortBy === 'qty')    diff = b.totalQty - a.totalQty;
+      else if (itemSortBy === 'profit') diff = b.totalProfit - a.totalProfit;
+      else if (itemSortBy === 'price')  diff = b.avgPrice - a.avgPrice;
+      else diff = b.totalValue - a.totalValue;
+      return itemSortDir === 'desc' ? diff : -diff;
     });
-  }, [filteredInvoices, items, itemSortBy, itemFilter]);
+  }, [filteredInvoices, items, itemSortBy, itemSortDir, itemFilter]);
 
   const clientPreferentialPrices = useMemo(() => {
     return items.filter(i => i.preferentialPrices?.some(p => p.clientId === client.id))
@@ -304,11 +312,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
                        <h4 className="font-black text-[11px] uppercase text-slate-500 flex items-center gap-3">
                          <Package size={18} /> Analiza e Artikujve të Blerë
                        </h4>
-                       <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-                          <button onClick={()=>setItemSortBy('qty')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${itemSortBy==='qty'?'bg-white text-slate-900 shadow-sm':'text-slate-400'}`}>Sasia</button>
-                          <button onClick={()=>setItemSortBy('profit')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${itemSortBy==='profit'?'bg-white text-slate-900 shadow-sm':'text-slate-400'}`}>Fitimi</button>
-                          <button onClick={()=>setItemSortBy('value')} className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${itemSortBy==='value'?'bg-white text-slate-900 shadow-sm':'text-slate-400'}`}>Vlera</button>
-                       </div>
+                       <span className="text-[9px] text-slate-400 font-bold uppercase">Klik kolonën për të renditur</span>
                     </div>
                     <div className="px-6 pt-4 pb-2">
                       <div className="relative">
@@ -330,13 +334,29 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
                     <div className="flex-1 overflow-x-auto">
                        <table className="w-full text-left">
                           <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-slate-50/50 sticky top-0">
-                            <tr><th className="px-8 py-5">Artikulli</th><th className="px-6 py-5 text-center">Sasia Totale</th><th className="px-6 py-5 text-right">Vlera Totale</th><th className="px-8 py-5 text-right">Fitimi Neto</th></tr>
+                            <tr>
+                              <th className="px-8 py-5">Artikulli</th>
+                              {(['qty','price','value','profit'] as const).map(col => {
+                                const labels: Record<string,string> = {qty:'Sasia',price:'Çmimi Mes.',value:'Vlera Totale',profit:'Fitimi Neto'};
+                                const active = itemSortBy === col;
+                                return (
+                                  <th key={col} className={`px-6 py-5 text-right cursor-pointer select-none hover:text-indigo-500 transition-colors ${active?'text-indigo-600':''}`}
+                                    onClick={() => { if(active) setItemSortDir(d=>d==='desc'?'asc':'desc'); else {setItemSortBy(col);setItemSortDir('desc');} }}>
+                                    <span className="flex items-center justify-end gap-1">
+                                      {labels[col]}
+                                      {active ? (itemSortDir==='desc'?'↓':'↑') : <span className="opacity-30">↕</span>}
+                                    </span>
+                                  </th>
+                                );
+                              })}
+                            </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {itemSummary.map((r,i)=>(
                               <tr key={i} className="hover:bg-slate-50 transition-colors group">
                                 <td className="px-8 py-5 font-black text-slate-800 uppercase text-xs group-hover:text-indigo-600 transition-colors">{r.name}</td>
-                                <td className="px-6 py-5 text-center font-bold text-slate-600">{r.totalQty.toLocaleString()}</td>
+                                <td className="px-6 py-5 text-right font-bold text-slate-600">{r.totalQty.toLocaleString()}</td>
+                                <td className="px-6 py-5 text-right font-bold text-slate-500">{r.avgPrice.toLocaleString()} L</td>
                                 <td className="px-6 py-5 text-right font-black text-slate-900">{r.totalValue.toLocaleString()} L</td>
                                 <td className="px-8 py-5 text-right font-black text-emerald-600">+{r.totalProfit.toLocaleString()} L</td>
                               </tr>
