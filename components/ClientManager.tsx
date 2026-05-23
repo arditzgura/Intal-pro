@@ -18,7 +18,7 @@ interface Props {
   onMerge: (keepId: string, removeId: string) => void;
 }
 
-type SortOption = 'alphabetical' | 'most_billed' | 'highest_debt';
+type SortOption = 'alphabetical' | 'most_billed' | 'highest_debt' | 'profit';
 
 const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpdate, onDelete, onUpdateItems, onPreviewInvoice, onOpenProfile, onMerge }) => {
   const [isAdding, setIsAdding] = useState(false);
@@ -30,6 +30,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const [mergeConfirm, setMergeConfirm] = useState(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('alphabetical');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [cityFilter, setCityFilter] = useState<string>('all');
   
   const [formData, setFormData] = useState<Omit<Client, 'id'>>({
@@ -63,29 +64,40 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
     return Array.from(new Set(cities)).sort();
   }, [clients]);
 
-  // Llogaritja e detyrimit për çdo klient - Rolling Balance
+  // Llogaritja e financave për çdo klient
   const clientFinancials = useMemo(() => {
-    const financials: Record<string, { spent: number, paid: number, debt: number }> = {};
-    
+    const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
+    const financials: Record<string, { spent: number, paid: number, debt: number, profit: number }> = {};
+
     clients.forEach(c => {
       const clientInvoices = invoices.filter(inv => inv.clientId === c.id && inv.status !== 'Anuluar')
                                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      const spent = clientInvoices.reduce((s, i) => s + (i.currency === 'EUR' ? i.total * 100 : i.total), 0);
-      const paid = clientInvoices.reduce((s, i) => s + (i.currency === 'EUR' ? (i.amountPaid || 0) * 100 : (i.amountPaid || 0)), 0);
-      
+
+      const spent = clientInvoices.reduce((s, i) => s + getConvVal(i.total, i.currency), 0);
+      const paid  = clientInvoices.reduce((s, i) => s + getConvVal(i.amountPaid || 0, i.currency), 0);
+
+      // Fitimi neto nga të gjitha faturat
+      const profit = clientInvoices.reduce((s, inv) => {
+        return s + inv.items.reduce((si, it) => {
+          const globalItem = items.find((gi: Item) => gi.id === it.itemId || gi.name === it.name);
+          const purchasePrice = Number(globalItem?.purchasePrice || 0);
+          const sellPriceLek = getConvVal(Number(it.price), inv.currency);
+          return si + (sellPriceLek - purchasePrice) * Number(it.quantity);
+        }, 0);
+      }, 0);
+
       let debt = 0;
       if (clientInvoices.length > 0) {
         const latest = clientInvoices[0];
         const rawDebt = (latest.subtotal + (latest.previousBalance || 0)) - (latest.amountPaid || 0);
-        debt = latest.currency === 'EUR' ? rawDebt * 100 : rawDebt;
+        debt = getConvVal(rawDebt, latest.currency);
       }
-      
-      financials[c.id] = { spent, paid, debt };
+
+      financials[c.id] = { spent, paid, debt, profit };
     });
-    
+
     return financials;
-  }, [clients, invoices]);
+  }, [clients, invoices, items]);
 
   const totalGlobalDebt = useMemo(() => {
     const financialsArray = Object.values(clientFinancials) as { spent: number; paid: number; debt: number }[];
@@ -145,10 +157,11 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
 
     if (sortBy === 'alphabetical') {
       result.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortBy === 'most_billed') {
-      result.sort((a, b) => clientFinancials[b.id].spent - clientFinancials[a.id].spent);
-    } else if (sortBy === 'highest_debt') {
-      result.sort((a, b) => clientFinancials[b.id].debt - clientFinancials[a.id].debt);
+    } else {
+      const dir = sortDir === 'desc' ? 1 : -1;
+      if (sortBy === 'most_billed')  result.sort((a, b) => (clientFinancials[b.id].spent  - clientFinancials[a.id].spent)  * dir);
+      if (sortBy === 'highest_debt') result.sort((a, b) => (clientFinancials[b.id].debt   - clientFinancials[a.id].debt)   * dir);
+      if (sortBy === 'profit')       result.sort((a, b) => (clientFinancials[b.id].profit - clientFinancials[a.id].profit) * dir);
     }
     
     return result;
@@ -257,9 +270,17 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
               <tr>
                 <th className="px-8 py-5">Informacioni i Klientit</th>
-                <th className="px-6 py-5">Pikët Loyalty</th>
-                <th className="px-6 py-5">Totali Blerjeve</th>
-                <th className="px-6 py-5">Detyrimi</th>
+                {([['profit','Fitimi','emerald'],['most_billed','Totali Blerjeve','slate'],['highest_debt','Detyrimi','slate']] as const).map(([col, label, color]) => {
+                  const active = sortBy === col;
+                  return (
+                    <th key={col} className={`px-6 py-5 cursor-pointer select-none hover:text-indigo-500 transition-colors ${active ? 'text-indigo-600' : ''}`}
+                      onClick={() => { if (active) setSortDir(d => d==='desc'?'asc':'desc'); else { setSortBy(col); setSortDir('desc'); } }}>
+                      <span className="flex items-center gap-1">
+                        {label} {active ? (sortDir==='desc'?'↓':'↑') : <span className="opacity-30">↕</span>}
+                      </span>
+                    </th>
+                  );
+                })}
                 <th className="px-8 py-5 text-right">Veprime</th>
               </tr>
             </thead>
@@ -302,9 +323,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
                       </button>
                     </td>
                     <td className="px-6 py-5">
-                       <div className="flex items-center gap-2 font-black text-amber-600 bg-amber-50 px-3 py-1 rounded-full w-fit border border-amber-100">
-                          <Star size={12} fill="#d97706" /> {client.points || 0}
-                       </div>
+                       <div className="font-black text-emerald-600">+{Math.round(fin.profit).toLocaleString()} L</div>
                     </td>
                     <td className="px-6 py-5 font-black text-slate-900">{fin.spent.toLocaleString()} L</td>
                     <td className="px-6 py-5">
