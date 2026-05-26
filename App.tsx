@@ -146,7 +146,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!session || !dataReady || !invoices.length) return;
 
-    const getDebt = (inv: Invoice) => (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
+    const getDebt = (inv: Invoice) => (Number(inv.subtotal) + Number(inv.previousBalance || 0)) - Number(inv.amountPaid || 0);
     const normKey = (inv: Invoice) =>
       normalize(inv.clientName.trim()) + '|' + normalize((inv.clientCity || '').trim());
 
@@ -363,7 +363,7 @@ const App: React.FC = () => {
 
   // Rillogarit statuset e të gjitha faturave për një klient
   const recalcClientStatuses = (clientKey: string, allInvoices: Invoice[]): Invoice[] => {
-    const getDebt = (inv: Invoice) => (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
+    const getDebt = (inv: Invoice) => (Number(inv.subtotal) + Number(inv.previousBalance || 0)) - Number(inv.amountPaid || 0);
     const clientInvs = allInvoices
       .filter(inv => getInvClientKey(inv) === clientKey && inv.status !== 'Anuluar')
       .sort((a, b) => a.date.localeCompare(b.date));
