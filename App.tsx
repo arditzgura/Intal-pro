@@ -142,6 +142,21 @@ const App: React.FC = () => {
     }
   }, [dataReady]); // eslint-disable-line
 
+  // ─── Rillogarit statuset e të gjitha faturave pas ngarkimit ─────────────────
+  useEffect(() => {
+    if (!session || !dataReady || !invoices.length) return;
+    // Grumbullo çelësat unikë të klientëve
+    const clientKeys = Array.from(new Set<string>(invoices.map(inv => getInvClientKey(inv))));
+    let updated = [...invoices];
+    clientKeys.forEach(key => { updated = recalcClientStatuses(key, updated); });
+    // Ruaj vetëm nëse ka ndryshime
+    const hasChange = updated.some((inv, i) => inv.status !== invoices[i].status);
+    if (hasChange) {
+      setInvoices(updated);
+      local.setAll(session.user.id, 'invoices', updated);
+    }
+  }, [dataReady]); // eslint-disable-line
+
   // ─── Pikët e klientëve ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!session || !clients.length) return;
