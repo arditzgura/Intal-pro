@@ -145,11 +145,51 @@ const App: React.FC = () => {
   // ─── Rillogarit statuset e të gjitha faturave pas ngarkimit ─────────────────
   useEffect(() => {
     if (!session || !dataReady || !invoices.length) return;
-    // Grumbullo çelësat unikë të klientëve
-    const clientKeys = Array.from(new Set<string>(invoices.map(inv => getInvClientKey(inv))));
-    let updated = [...invoices];
-    clientKeys.forEach(key => { updated = recalcClientStatuses(key, updated); });
-    // Ruaj vetëm nëse ka ndryshime
+
+    const getDebt = (inv: Invoice) => (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
+    const normKey = (inv: Invoice) =>
+      normalize(inv.clientName.trim()) + '|' + normalize((inv.clientCity || '').trim());
+
+    // Grumbullo faturat sipas emrit+qyteti (pavarësisht clientId)
+    const groups: Record<string, Invoice[]> = {};
+    invoices.filter(inv => inv.status !== 'Anuluar').forEach(inv => {
+      const k = normKey(inv);
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(inv);
+    });
+
+    const statusMap = new Map<string, Invoice['status']>();
+
+    Object.values(groups).forEach(group => {
+      const sorted = [...group].sort((a, b) => a.date.localeCompare(b.date));
+      const latest = sorted[sorted.length - 1];
+      const latestDebt = getDebt(latest);
+
+      if (latestDebt <= 0) {
+        // Klienti pa borxh — të gjitha faturat E paguar
+        sorted.forEach(inv => statusMap.set(inv.id, 'E paguar'));
+      } else {
+        // Ka borxh — apliko zinxhirin
+        const n = sorted.length;
+        const isPaid = new Array(n).fill(false);
+        for (let i = n - 1; i >= 0; i--) {
+          if (getDebt(sorted[i]) <= 0) {
+            isPaid[i] = true;
+          } else if (i < n - 1 && isPaid[i + 1]) {
+            if ((sorted[i + 1].previousBalance || 0) >= getDebt(sorted[i])) isPaid[i] = true;
+          }
+        }
+        for (let i = 0; i < n; i++) {
+          if (isPaid[i]) statusMap.set(sorted[i].id, 'E paguar');
+          else if (i === n - 1) statusMap.set(sorted[i].id, 'Pa paguar');
+          else statusMap.set(sorted[i].id, getDebt(sorted[i]) > 0 ? 'Pasuar' : 'E paguar');
+        }
+      }
+    });
+
+    const updated = invoices.map(inv =>
+      statusMap.has(inv.id) ? { ...inv, status: statusMap.get(inv.id)! } : inv
+    );
     const hasChange = updated.some((inv, i) => inv.status !== invoices[i].status);
     if (hasChange) {
       setInvoices(updated);
