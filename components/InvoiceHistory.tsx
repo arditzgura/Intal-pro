@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Invoice, Client } from '../types';
+import { Invoice, Client, Item } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 import { exportInvoicesToExcel } from '../utils/exportUtils';
@@ -9,6 +9,7 @@ import { normalize } from '../utils/storage';
 interface Props {
   invoices: Invoice[];
   clients: Client[];
+  items: Item[];
   onDelete: (id: string) => void;
   onPreview: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
@@ -22,7 +23,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPreview, onEdit, onUpdateStatus, onSelectClient }) => {
+const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, onPreview, onEdit, onUpdateStatus, onSelectClient }) => {
   const [ready, setReady] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -166,6 +167,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
 
     let totalSales = 0;
     let totalCollected = 0;
+    let totalProfit = 0;
 
     invoices.forEach(inv => {
       if (inv.status === 'Anuluar') return;
@@ -179,7 +181,15 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
         filterMode === 'year' ? inv.date.slice(0, 4) === selectedYear :
         invDate === activeDayStr;
 
-      if (shitjetMatches) totalSales += getConvVal(inv.subtotal, inv.currency);
+        if (shitjetMatches) {
+        totalSales += getConvVal(inv.subtotal, inv.currency);
+        inv.items.forEach(it => {
+          const globalItem = items.find(gi => gi.id === it.itemId || gi.name === it.name);
+          const purchLek = Number(globalItem?.purchasePrice || 0);
+          const sellLek  = getConvVal(Number(it.price), inv.currency);
+          totalProfit += (sellLek - purchLek) * Number(it.quantity);
+        });
+      }
 
       // Arketimet: data e pagesës ka prioritet mbi datën e faturës
       const effectivePayDate = inv.paymentDate || inv.date.slice(0, 10);
@@ -192,7 +202,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
       if (arkëtimiMatches) totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
     });
 
-    return { sales: totalSales, collected: totalCollected };
+    return { sales: totalSales, collected: totalCollected, profit: totalProfit };
   }, [invoices, clientMap, clientDebtMap, cityFilter, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
   const getPeriodLabel = () => {
@@ -284,9 +294,13 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, onDelete, onPrevie
             <p className="text-[8px] font-black uppercase tracking-widest text-indigo-300 mb-1">Shitjet e Periudhës</p>
             <p className="text-lg font-black tracking-tight">{totals.sales.toLocaleString()} L</p>
           </div>
-          <div className="text-right pr-4">
+          <div className="text-right">
             <p className="text-[8px] font-black uppercase tracking-widest text-emerald-300 mb-1">Arketimet e Periudhës</p>
             <p className="text-lg font-black tracking-tight text-emerald-400">{totals.collected.toLocaleString()} L</p>
+          </div>
+          <div className="text-right pr-4">
+            <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mb-1">Fitimi i Periudhës</p>
+            <p className="text-lg font-black tracking-tight text-amber-400">+{Math.round(totals.profit).toLocaleString()} L</p>
           </div>
         </div>
       </div>
