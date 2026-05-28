@@ -637,8 +637,8 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                       />
                     </div>
 
-                    {/* Dot toggle: shfaq çmimin origjinal me vijë */}
-                    <div className="flex items-center justify-center" style={{ width: '20px', flexShrink: 0 }}>
+                    <div className="col-span-2 px-2 relative">
+                      {/* Dot toggle: shfaq çmimin origjinal me vijë - brenda cell çmimit, majtas */}
                       {(() => {
                         const catalogItem = items.find(i => i.id === item.itemId);
                         const prefPrice = catalogItem?.preferentialPrices?.find(p => p.clientId === selectedClientId);
@@ -656,32 +656,26 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                                 updateItem(idx, { originalPrice: catalogItem!.price });
                               }
                             }}
-                            className="transition-all duration-200 rounded-full focus:outline-none"
+                            className="transition-all duration-200 rounded-full focus:outline-none absolute left-0 top-1/2 -translate-y-1/2"
                             style={{
-                              width: '10px', height: '10px',
+                              width: '8px', height: '8px',
                               background: isActive ? '#4f46e5' : '#cbd5e1',
                               boxShadow: isActive ? '0 0 0 3px rgba(79,70,229,0.2)' : 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: 0,
-                              display: 'block'
+                              border: 'none', cursor: 'pointer', padding: 0, zIndex: 1
                             }}
                           />
                         );
                       })()}
-                    </div>
-
-                    <div className="col-span-2 px-2">
-                        <input
-                          ref={el => { priceInputRefs.current[idx] = el; }}
-                          type="number"
-                          className="w-full text-center font-black text-indigo-600 outline-none bg-indigo-50/50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
-                          value={item.price === 0 ? '' : item.price}
-                          onFocus={(e) => (e.target as HTMLInputElement).select()}
-                          onChange={e => updateItem(idx, { price: parseFloat(e.target.value) || 0 })}
-                          onKeyDown={(e) => handleNumericKeyDown(e, idx, 'price')}
-                          placeholder="0.00"
-                        />
+                      <input
+                        ref={el => { priceInputRefs.current[idx] = el; }}
+                        type="number"
+                        className="w-full text-center font-black text-indigo-600 outline-none bg-indigo-50/50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
+                        value={item.price === 0 ? '' : item.price}
+                        onFocus={(e) => (e.target as HTMLInputElement).select()}
+                        onChange={e => updateItem(idx, { price: parseFloat(e.target.value) || 0 })}
+                        onKeyDown={(e) => handleNumericKeyDown(e, idx, 'price')}
+                        placeholder="0.00"
+                      />
                     </div>
 
                     <div className="col-span-1.5 text-right font-black text-slate-900 text-sm flex-1">
