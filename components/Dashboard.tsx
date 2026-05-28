@@ -33,12 +33,9 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) 
   const globalStats = useMemo(() => {
     const validInvoices = invoices.filter(inv => inv.status !== 'Anuluar');
     
-    const totalSales = validInvoices.reduce((sum, inv) => sum + getConvVal(inv.total, inv.currency), 0);
+    const totalSales = validInvoices.reduce((sum, inv) => sum + getConvVal(inv.subtotal, inv.currency), 0);
     const totalCollected = validInvoices.reduce((sum, inv) => {
-      if (inv.status === 'E paguar') {
-        return sum + getConvVal(inv.amountPaid || 0, inv.currency);
-      }
-      return sum;
+      return sum + getConvVal(inv.amountPaid || 0, inv.currency);
     }, 0);
     
     const totalCOGS = validInvoices.reduce((acc, inv) => {
