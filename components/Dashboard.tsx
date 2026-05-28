@@ -90,7 +90,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) 
     const totalSales = invoices.reduce((sum, inv) => {
       if (inv.status === 'Anuluar') return sum;
       if (matches(inv.date.slice(0, 10))) {
-        return sum + getConvVal(inv.total, inv.currency);
+        return sum + getConvVal(inv.subtotal, inv.currency);
       }
       return sum;
     }, 0);

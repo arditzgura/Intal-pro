@@ -157,26 +157,56 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     }).sort((a, b) => b.date.localeCompare(a.date));
   }, [invoices, clientMap, clientDebtMap, search, statusFilter, cityFilter, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
-  // Totals: llogaritet direkt nga filteredInvoices (respekton statusFilter, cityFilter, filterMode, search)
+  // Totals: logjikë e ndarë për shitje (data faturë) dhe arkëtime (data pagesë)
+  // Të dyja respektojnë statusFilter dhe cityFilter
   const totals = useMemo(() => {
     const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
+    const cityOk = (inv: Invoice) => {
+      const city = inv.clientCity || clientMap[inv.clientId]?.city || '';
+      return cityFilter === 'all' || city.trim() === cityFilter;
+    };
+    const statusOk = (inv: Invoice) => statusFilter === 'all' || inv.status === statusFilter;
+
     let totalSales = 0;
     let totalCollected = 0;
     let totalProfit = 0;
 
-    filteredInvoices.forEach(inv => {
-      totalSales += getConvVal(inv.subtotal, inv.currency);
-      totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
-      inv.items.forEach(it => {
-        const globalItem = items.find(gi => gi.id === it.itemId || gi.name === it.name);
-        const purchLek = Number(globalItem?.purchasePrice || 0);
-        const sellLek  = getConvVal(Number(it.price), inv.currency);
-        totalProfit += (sellLek - purchLek) * Number(it.quantity);
-      });
+    invoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      if (!cityOk(inv)) return;
+      if (!statusOk(inv)) return;
+
+      // Shitjet & Fitimi: faturat e KRIJUARA në periudhë (sipas datës së faturës)
+      const invDate = inv.date.slice(0, 10);
+      const salesMatch =
+        filterMode === 'all' ? true :
+        filterMode === 'month' ? invDate.slice(0, 7) === selectedMonth :
+        filterMode === 'year'  ? invDate.slice(0, 4) === selectedYear :
+        invDate === activeDayStr;
+
+      if (salesMatch) {
+        totalSales += getConvVal(inv.subtotal, inv.currency);
+        inv.items.forEach(it => {
+          const globalItem = items.find(gi => gi.id === it.itemId || gi.name === it.name);
+          const purchLek = Number(globalItem?.purchasePrice || 0);
+          const sellLek  = getConvVal(Number(it.price), inv.currency);
+          totalProfit += (sellLek - purchLek) * Number(it.quantity);
+        });
+      }
+
+      // Arkëtimet: pagesat e BËRA në periudhë (sipas paymentDate ose datës faturë)
+      const effectivePayDate = inv.paymentDate || invDate;
+      const collectedMatch =
+        filterMode === 'all' ? true :
+        filterMode === 'month' ? effectivePayDate.slice(0, 7) === selectedMonth :
+        filterMode === 'year'  ? effectivePayDate.slice(0, 4) === selectedYear :
+        matchesDailyFilter(inv, activeDayStr);
+
+      if (collectedMatch) totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
     });
 
     return { sales: totalSales, collected: totalCollected, profit: totalProfit };
-  }, [filteredInvoices, items]);
+  }, [invoices, items, clientMap, statusFilter, cityFilter, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
