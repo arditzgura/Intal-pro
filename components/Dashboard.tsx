@@ -98,12 +98,12 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) 
       return sum;
     }, 0);
 
-    // Arketimet: Vetëm pagesat e BËRA në këtë periudhë (paymentDate)
+    // Arketimet: Të gjitha pagesat e BËRA në këtë periudhë (paymentDate), duke përfshirë edhe pagesat e pjesshme
     const totalCollected = invoices.reduce((sum, inv) => {
-      if (inv.status !== 'E paguar' || inv.status === 'Anuluar') return sum;
+      if (inv.status === 'Anuluar' || !inv.amountPaid) return sum;
       const pDate = (inv.paymentDate || inv.date).slice(0, 10);
       if (matches(pDate)) {
-        return sum + getConvVal(inv.amountPaid || 0, inv.currency);
+        return sum + getConvVal(inv.amountPaid, inv.currency);
       }
       return sum;
     }, 0);
