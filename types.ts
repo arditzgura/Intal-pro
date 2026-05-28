@@ -38,6 +38,7 @@ export interface InvoiceItem {
   description?: string;
   quantity: number;
   price: number;
+  originalPrice?: number; // Çmimi origjinal para zbritjes preferenciale
   total: number;
 }
 
@@ -63,6 +64,7 @@ export interface Invoice {
   notes?: string; // Shënime shtesë
   paymentDate?: string; // Data kur faturë është paguar
   payments?: Payment[]; // Arketimet e pjesshme me datë
+  showOriginalPrice?: boolean; // Shfaq çmimin origjinal të barritur me vijë
 }
 
 export interface StockEntryItem {

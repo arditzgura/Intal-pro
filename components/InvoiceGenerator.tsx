@@ -254,11 +254,15 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
   const selectItemForInvoice = (idx: number, item: Item) => {
     let price = item.price;
+    let originalPrice: number | undefined = undefined;
     if (selectedClientId) {
       const pref = item.preferentialPrices?.find(p => p.clientId === selectedClientId);
-      if (pref) price = pref.price;
+      if (pref && pref.price !== item.price) {
+        originalPrice = item.price; // çmimi pa ulje
+        price = pref.price;
+      }
     }
-    updateItem(idx, { itemId: item.id, name: item.name, price });
+    updateItem(idx, { itemId: item.id, name: item.name, price, originalPrice });
     setActiveItemSearchIdx(null);
     setTimeout(() => {
         qtyInputRefs.current[idx]?.focus();
@@ -621,26 +625,60 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                     </div>
 
                     <div className="col-span-2 px-2">
-                      <input 
+                      <input
                         ref={el => { qtyInputRefs.current[idx] = el; }}
-                        type="number" 
-                        className="w-full text-center font-black outline-none bg-slate-50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner" 
-                        value={item.quantity === 0 ? '' : item.quantity} 
+                        type="number"
+                        className="w-full text-center font-black outline-none bg-slate-50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
+                        value={item.quantity === 0 ? '' : item.quantity}
                         onFocus={(e) => (e.target as HTMLInputElement).select()}
-                        onChange={e => updateItem(idx, { quantity: parseFloat(e.target.value) || 0 })} 
+                        onChange={e => updateItem(idx, { quantity: parseFloat(e.target.value) || 0 })}
                         onKeyDown={(e) => handleNumericKeyDown(e, idx, 'qty')}
                         placeholder="0"
                       />
                     </div>
 
+                    {/* Dot toggle: shfaq çmimin origjinal me vijë */}
+                    <div className="flex items-center justify-center" style={{ width: '20px', flexShrink: 0 }}>
+                      {(() => {
+                        const catalogItem = items.find(i => i.id === item.itemId);
+                        const prefPrice = catalogItem?.preferentialPrices?.find(p => p.clientId === selectedClientId);
+                        const hasPref = prefPrice && prefPrice.price !== catalogItem?.price;
+                        if (!hasPref) return null;
+                        const isActive = !!(item.originalPrice && item.originalPrice !== item.price);
+                        return (
+                          <button
+                            type="button"
+                            title={isActive ? 'Çaktivizo çmimin origjinal' : 'Shfaq çmimin origjinal me vijë'}
+                            onClick={() => {
+                              if (isActive) {
+                                updateItem(idx, { originalPrice: undefined });
+                              } else {
+                                updateItem(idx, { originalPrice: catalogItem!.price });
+                              }
+                            }}
+                            className="transition-all duration-200 rounded-full focus:outline-none"
+                            style={{
+                              width: '10px', height: '10px',
+                              background: isActive ? '#4f46e5' : '#cbd5e1',
+                              boxShadow: isActive ? '0 0 0 3px rgba(79,70,229,0.2)' : 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'block'
+                            }}
+                          />
+                        );
+                      })()}
+                    </div>
+
                     <div className="col-span-2 px-2">
-                        <input 
+                        <input
                           ref={el => { priceInputRefs.current[idx] = el; }}
-                          type="number" 
-                          className="w-full text-center font-black text-indigo-600 outline-none bg-indigo-50/50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner" 
-                          value={item.price === 0 ? '' : item.price} 
+                          type="number"
+                          className="w-full text-center font-black text-indigo-600 outline-none bg-indigo-50/50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
+                          value={item.price === 0 ? '' : item.price}
                           onFocus={(e) => (e.target as HTMLInputElement).select()}
-                          onChange={e => updateItem(idx, { price: parseFloat(e.target.value) || 0 })} 
+                          onChange={e => updateItem(idx, { price: parseFloat(e.target.value) || 0 })}
                           onKeyDown={(e) => handleNumericKeyDown(e, idx, 'price')}
                           placeholder="0.00"
                         />
