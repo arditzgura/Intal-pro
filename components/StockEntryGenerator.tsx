@@ -7,6 +7,7 @@ import { normalize } from '../utils/storage';
 interface Props {
   items: Item[];
   invoices: Invoice[];
+  stockEntries?: StockEntry[];
   onSave: (entry: StockEntry, updateGlobalPrices: boolean) => void;
   onCancel: () => void;
   nextNumber: string;
@@ -19,10 +20,17 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const StockEntryGenerator: React.FC<Props> = ({ items, invoices, onSave, onCancel, nextNumber, initialData }) => {
+const StockEntryGenerator: React.FC<Props> = ({ items, invoices, stockEntries = [], onSave, onCancel, nextNumber, initialData }) => {
   const [entryNumber, setEntryNumber] = useState(nextNumber);
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [origin, setOrigin] = useState('MAGAZINA QENDRORE');
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+
+  const knownOrigins = useMemo(() => {
+    const defaults = ['MAGAZINA QENDRORE'];
+    const fromEntries = stockEntries.map(e => e.origin.toUpperCase()).filter(o => o && !defaults.includes(o));
+    return [...defaults, ...Array.from(new Set(fromEntries))];
+  }, [stockEntries]);
   const [entryItems, setEntryItems] = useState<StockEntryItem[]>([]);
   const [notes, setNotes] = useState('');
   const [updateGlobalPrices, setUpdateGlobalPrices] = useState(true);
@@ -215,17 +223,39 @@ const StockEntryGenerator: React.FC<Props> = ({ items, invoices, onSave, onCance
             onChange={e => setDate(e.target.value)}
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 relative">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
             <Truck size={14} /> Origjina / Furnitori
           </label>
-          <input 
-            type="text" 
-            placeholder="Psh: Magazina QENDRORE"
-            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-black outline-none focus:border-indigo-500 transition-all uppercase"
-            value={origin}
-            onChange={e => setOrigin(e.target.value)}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Psh: Magazina QENDRORE"
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-black outline-none focus:border-indigo-500 transition-all uppercase pr-10"
+              value={origin}
+              onChange={e => { setOrigin(e.target.value); setShowOriginDropdown(true); }}
+              onFocus={() => setShowOriginDropdown(true)}
+              onBlur={() => setTimeout(() => setShowOriginDropdown(false), 150)}
+            />
+            <button type="button" onMouseDown={() => setShowOriginDropdown(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+          {showOriginDropdown && (
+            <div className="absolute top-full left-0 right-0 bg-white border-2 border-indigo-500 rounded-2xl shadow-2xl z-50 overflow-hidden mt-1">
+              {knownOrigins.filter(o => o.includes(origin.toUpperCase()) || origin === '').map(o => (
+                <button key={o} type="button"
+                  onMouseDown={() => { setOrigin(o); setShowOriginDropdown(false); }}
+                  className={`w-full text-left px-5 py-3 text-sm font-black uppercase tracking-wide transition-all border-b border-slate-50 last:border-none hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-3 ${o === 'MAGAZINA QENDRORE' ? 'text-indigo-600' : 'text-slate-700'}`}
+                >
+                  <Truck size={14} className={o === 'MAGAZINA QENDRORE' ? 'text-indigo-400' : 'text-slate-400'} />
+                  {o}
+                  {o === 'MAGAZINA QENDRORE' && <span className="ml-auto text-[9px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-black">DEFAULT</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

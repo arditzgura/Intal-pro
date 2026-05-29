@@ -28,6 +28,7 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString()); // YYYY
   const [activeTab, setActiveTab] = useState<'entries' | 'analysis'>('entries');
   const [itemSortBy, setItemSortBy] = useState<'qty' | 'profit'>('qty');
+  const [originFilter, setOriginFilter] = useState<string>('all');
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -36,18 +37,23 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [entries]);
 
+  const availableOrigins = useMemo(() => {
+    const set = new Set<string>();
+    entries.forEach(e => { if (e.origin) set.add(e.origin.toUpperCase()); });
+    return Array.from(set).sort();
+  }, [entries]);
+
   const filtered = useMemo(() => {
     return entries.filter(e => {
       const entryDate = e.date;
-      const matchesPeriod = filterMode === 'month' 
-        ? entryDate.slice(0, 7) === selectedMonth 
+      const matchesPeriod = filterMode === 'month'
+        ? entryDate.slice(0, 7) === selectedMonth
         : entryDate.slice(0, 4) === selectedYear;
-      
       const matchesSearch = e.entryNumber.includes(search) || e.origin.toLowerCase().includes(search.toLowerCase());
-      
-      return matchesPeriod && matchesSearch;
+      const matchesOrigin = originFilter === 'all' || e.origin.toUpperCase() === originFilter;
+      return matchesPeriod && matchesSearch && matchesOrigin;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [entries, search, filterMode, selectedMonth, selectedYear]);
+  }, [entries, search, filterMode, selectedMonth, selectedYear, originFilter]);
 
   const itemAnalysis = useMemo(() => {
     const stats: Record<string, { qty: number, purchaseVal: number, sellingVal: number }> = {};
@@ -143,6 +149,31 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
                <p className="text-3xl font-black text-indigo-400 tracking-tighter">{(totals.selling - totals.purchase).toLocaleString()} <span className="text-sm opacity-30">L</span></p>
             </div>
           </div>
+
+          {/* Filter furnitorët */}
+          {availableOrigins.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Filter size={11}/> Furnitori:</span>
+              <button
+                onClick={() => setOriginFilter('all')}
+                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all ${originFilter === 'all' ? 'bg-white text-slate-900 shadow-md' : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}
+              >
+                Të Gjithë
+              </button>
+              {availableOrigins.map(o => {
+                const isMag = o === 'MAGAZINA QENDRORE';
+                const isActive = originFilter === o;
+                const cnt = entries.filter(e => e.origin.toUpperCase() === o && (filterMode === 'month' ? e.date.slice(0,7) === selectedMonth : e.date.slice(0,4) === selectedYear)).length;
+                return (
+                  <button key={o} onClick={() => setOriginFilter(isActive ? 'all' : o)}
+                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all flex items-center gap-2 ${isActive ? (isMag ? 'bg-indigo-600 text-white shadow-md' : 'bg-amber-500 text-white shadow-md') : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}
+                  >
+                    <Warehouse size={11}/> {o} <span className="opacity-60">({cnt})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -233,7 +264,12 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
                              {formatDateDisplay(entry.date)}
                            </span>
                         </div>
-                        <h4 className="text-lg font-black text-slate-800 uppercase tracking-tighter mt-1">{entry.origin}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <h4 className="text-lg font-black text-slate-800 uppercase tracking-tighter">{entry.origin}</h4>
+                          {entry.origin.toUpperCase() !== 'MAGAZINA QENDRORE' && (
+                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Furnitor i Tretë</span>
+                          )}
+                        </div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase">{entry.items.length} Artikuj të ndryshëm</p>
                      </div>
                   </div>
