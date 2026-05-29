@@ -17,12 +17,13 @@ interface Props {
 }
 
 type SortOption = 
-  | 'name_asc' 
-  | 'name_desc' 
-  | 'price_asc' 
-  | 'price_desc' 
-  | 'sales_desc' 
-  | 'stock_desc' 
+  | 'name_asc'
+  | 'name_desc'
+  | 'price_asc'
+  | 'price_desc'
+  | 'sales_desc'
+  | 'sales_asc'
+  | 'stock_desc'
   | 'stock_asc';
 
 const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, onAdd, onUpdate, onDelete, onOpenProfile }) => {
@@ -205,6 +206,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         case 'price_asc': return a.price - b.price;
         case 'price_desc': return b.price - a.price;
         case 'sales_desc': return itemStats.salesStats[b.id] - itemStats.salesStats[a.id];
+        case 'sales_asc':  return itemStats.salesStats[a.id] - itemStats.salesStats[b.id];
         case 'stock_desc': return itemStats.stockBalances[b.id] - itemStats.stockBalances[a.id];
         case 'stock_asc': return itemStats.stockBalances[a.id] - itemStats.stockBalances[b.id];
         default: return 0;
@@ -318,8 +320,20 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               <tr>
                 <th className="px-8 py-6">Artikulli</th>
                 <th className="px-6 py-6 text-center">Çmimi Standard</th>
-                <th className="px-6 py-6 text-center">Gjendja (Stock)</th>
-                <th className="px-6 py-6 text-center">Shitjet ({filterMode === 'all' ? 'Total' : 'Periudha'})</th>
+                <th className="px-6 py-6 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                  onClick={() => setSortBy(sortBy === 'stock_desc' ? 'stock_asc' : 'stock_desc')}>
+                  <span className="flex items-center justify-center gap-1">
+                    Gjendja (Stock)
+                    <span className="text-[11px]">{sortBy === 'stock_desc' ? '↓' : sortBy === 'stock_asc' ? '↑' : '↕'}</span>
+                  </span>
+                </th>
+                <th className="px-6 py-6 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                  onClick={() => setSortBy(sortBy === 'sales_desc' ? 'sales_asc' : 'sales_desc')}>
+                  <span className="flex items-center justify-center gap-1">
+                    Shitjet ({filterMode === 'all' ? 'Total' : 'Periudha'})
+                    <span className="text-[11px]">{sortBy === 'sales_desc' ? '↓' : sortBy === 'sales_asc' ? '↑' : '↕'}</span>
+                  </span>
+                </th>
                 <th className="px-8 py-6 text-right">Veprime</th>
               </tr>
             </thead>
