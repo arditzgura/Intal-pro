@@ -46,10 +46,20 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) 
       return acc + invoiceCost;
     }, 0);
 
+    // Detyrimet reale = borxhi aktual i papaguar (vetëm faturat Pa paguar = fatura e fundit me borxh)
+    const totalUnpaid = invoices
+      .filter(inv => inv.status === 'Pa paguar')
+      .reduce((sum, inv) => {
+        const debt = getConvVal(inv.subtotal, inv.currency)
+          + getConvVal(inv.previousBalance || 0, inv.currency)
+          - getConvVal(inv.amountPaid || 0, inv.currency);
+        return sum + Math.max(0, debt);
+      }, 0);
+
     return {
       sales: totalSales,
       collected: totalCollected,
-      unpaid: totalSales - totalCollected,
+      unpaid: totalUnpaid,
       profit: totalSales - totalCOGS,
       count: validInvoices.length
     };
