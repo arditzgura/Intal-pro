@@ -49,6 +49,7 @@ const App: React.FC = () => {
   const [previewInvoice,        setPreviewInvoice]        = useState<Invoice | null>(null);
   const [previewStockEntry,     setPreviewStockEntry]     = useState<StockEntry | null>(null);
   const [editInvoice,           setEditInvoice]           = useState<Invoice | null>(null);
+  const [invoicesInitialFilter, setInvoicesInitialFilter] = useState<string | undefined>(undefined);
   const [editStockEntry,        setEditStockEntry]        = useState<StockEntry | null>(null);
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
   const [selectedProfileItem,   setSelectedProfileItem]   = useState<Item | null>(null);
@@ -314,6 +315,7 @@ const App: React.FC = () => {
     if (view !== currentView) { setViewHistory(p => [...p, view]); setCurrentView(view); }
     setEditInvoice(null); setEditStockEntry(null);
     setSelectedProfileClient(null); setSelectedProfileItem(null);
+    setInvoicesInitialFilter(undefined);
     setIsMobileMenuOpen(false);
   };
 
@@ -677,11 +679,11 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries}/>}
+            {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries} onNavigateUnpaid={() => { setInvoicesInitialFilter('Pa paguar'); setCurrentView('invoices'); }}/>}
             {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}}/>}
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid, 'stock_entries', upd);}} onPreview={setPreviewStockEntry}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory invoices={invoices} clients={clients} items={items} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
+            {currentView==='invoices'      && <InvoiceHistory key={invoicesInitialFilter || 'default'} initialStatusFilter={invoicesInitialFilter} invoices={invoices} clients={clients} items={items} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
   // 1. Gjej sipas ID direkt
   let c = clients.find(cl => cl.id === inv.clientId);
   // 2. Nëse ka dy klientë me të njëjtin emër, dalloji sipas qytetit

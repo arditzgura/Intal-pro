@@ -15,6 +15,7 @@ interface Props {
   onEdit: (invoice: Invoice) => void;
   onUpdateStatus?: (id: string, status: Invoice['status']) => void;
   onSelectClient: (inv: Invoice) => void;
+  initialStatusFilter?: string;
 }
 
 const formatDateDisplay = (dateStr: string) => {
@@ -23,7 +24,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, onPreview, onEdit, onUpdateStatus, onSelectClient }) => {
+const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, onPreview, onEdit, onUpdateStatus, onSelectClient, initialStatusFilter }) => {
   const [ready, setReady] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -38,7 +39,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter || 'all');
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('all');
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));

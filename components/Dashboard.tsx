@@ -8,9 +8,10 @@ interface Props {
   clients: Client[];
   items: Item[];
   stockEntries: StockEntry[];
+  onNavigateUnpaid?: () => void;
 }
 
-const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) => {
+const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, onNavigateUnpaid }) => {
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('month');
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
@@ -177,10 +178,15 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries }) 
                  <p className="text-3xl font-black text-amber-400 tracking-tighter">{globalStats.collected.toLocaleString()}</p>
                  <p className="mt-4 text-[9px] text-slate-400 font-bold uppercase italic">Vlera monetare e futur në arkë</p>
               </div>
-              <div className="bg-[#D81B60]/20 backdrop-blur-sm p-6 rounded-3xl border border-[#D81B60]/30 hover:border-[#D81B60]/50 transition-all">
+              <div
+                onClick={onNavigateUnpaid}
+                className={`bg-[#D81B60]/20 backdrop-blur-sm p-6 rounded-3xl border border-[#D81B60]/30 hover:border-[#D81B60]/50 transition-all ${onNavigateUnpaid ? 'cursor-pointer hover:bg-[#D81B60]/30 active:scale-95' : ''}`}
+              >
                  <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Detyrime të Mbetura</p>
                  <p className="text-3xl font-black text-rose-400 tracking-tighter">{globalStats.unpaid.toLocaleString()}</p>
-                 <p className="mt-4 text-[9px] text-rose-300 font-black uppercase">Borxhi aktual jashtë</p>
+                 <p className="mt-4 text-[9px] text-rose-300 font-black uppercase flex items-center gap-1">
+                   Borxhi aktual jashtë {onNavigateUnpaid && <span className="opacity-60">→ shiko listën</span>}
+                 </p>
               </div>
            </div>
         </div>
