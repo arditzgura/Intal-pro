@@ -371,10 +371,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       {items.map((item, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '5px 12px', fontSize: fs, fontFamily: ff, fontWeight: 900, textTransform: 'uppercase', color: '#1e293b' }}>{item.name}</td>
-                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.quantity}</td>
+                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.quantity}</td>
                           {item.originalPrice && item.originalPrice !== item.price
-                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
-                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
+                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
+                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
                           }
                           <td style={{ padding: '5px 12px', textAlign: 'right', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#0f172a' }}>{item.total.toLocaleString()} {getCurrency('short')}</td>
                         </tr>
@@ -390,10 +390,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       {items.map((item, i) => (
                         <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
                           <td style={{ padding: '2px 8px', fontSize: fs, fontFamily: ff, fontWeight: 700, textTransform: 'uppercase', color: '#334155', lineHeight: 1.2 }}>{item.name}</td>
-                          <td style={{ padding: '2px 6px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 500, color: '#64748b' }}>{item.quantity}</td>
+                          <td style={{ padding: '2px 6px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 500, color: '#64748b' }}>{item.quantity}</td>
                           {item.originalPrice && item.originalPrice !== item.price
-                            ? <td style={{ padding: '2px 8px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 500, color: '#64748b' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:700}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
-                            : <td style={{ padding: '2px 8px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 500, color: '#64748b' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
+                            ? <td style={{ padding: '2px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 500, color: '#64748b' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:700}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
+                            : <td style={{ padding: '2px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 500, color: '#64748b' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
                           }
                           <td style={{ padding: '2px 8px', textAlign: 'right', fontSize: fs, fontFamily: ff, fontWeight: 700, color: '#0f172a' }}>{item.total.toLocaleString()} {getCurrency('short')}</td>
                         </tr>
@@ -408,7 +408,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <div key={i} style={{ borderBottom: '1px solid #f1f5f9', padding: '4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: fs, fontFamily: ff, fontWeight: 900, textTransform: 'uppercase', color: '#1e293b', lineHeight: 1.2 }}>{item.name}</div>
-                          <div style={{ fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#64748b', marginTop: '1px' }}>
+                          <div style={{ fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#64748b', marginTop: '1px' }}>
                             {item.quantity} × {item.originalPrice && item.originalPrice !== item.price
                               ? <><span style={{ textDecoration:'line-through', marginRight:'2px', color:'#94a3b8' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900,color:'#475569'}}>{item.price.toLocaleString()}</span></>
                               : item.price.toLocaleString()
@@ -428,10 +428,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       {items.map((item, i) => (
                         <tr key={i} style={{ background: i % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
                           <td style={{ padding: '5px 12px', fontSize: fs, fontFamily: ff, fontWeight: 900, textTransform: 'uppercase', color: '#1e293b' }}>{item.name}</td>
-                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.quantity}</td>
+                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.quantity}</td>
                           {item.originalPrice && item.originalPrice !== item.price
-                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
-                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
+                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}><span style={{ textDecoration:'line-through', color:'#94a3b8', marginRight:'3px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
+                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#475569' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
                           }
                           <td style={{ padding: '5px 12px', textAlign: 'right', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#0f172a' }}>{item.total.toLocaleString()} {getCurrency('short')}</td>
                         </tr>
@@ -447,7 +447,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #4f46e5', paddingLeft: '8px', marginBottom: '4px', gap: '8px' }}>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: fs, fontFamily: ff, fontWeight: 900, textTransform: 'uppercase', color: '#1e293b' }}>{item.name}</span>
-                          <span style={{ fontSize: fsSub, fontFamily: ff, fontWeight: 600, color: '#64748b', marginLeft: '6px' }}>
+                          <span style={{ fontSize: fs, fontFamily: ff, fontWeight: 600, color: '#64748b', marginLeft: '6px' }}>
                             {item.quantity} × {item.originalPrice && item.originalPrice !== item.price
                               ? <><span style={{ textDecoration:'line-through', marginRight:'2px' }}>{item.originalPrice.toLocaleString()}</span><span style={{fontWeight:900,color:'#4f46e5'}}>{item.price.toLocaleString()}</span></>
                               : item.price.toLocaleString()
