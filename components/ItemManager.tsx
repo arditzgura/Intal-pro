@@ -24,7 +24,9 @@ type SortOption =
   | 'sales_desc'
   | 'sales_asc'
   | 'stock_desc'
-  | 'stock_asc';
+  | 'stock_asc'
+  | 'profit_desc'
+  | 'profit_asc';
 
 const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, onAdd, onUpdate, onDelete, onOpenProfile }) => {
   const [isAdding, setIsAdding] = useState(false);
@@ -139,6 +141,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   const itemStats = useMemo(() => {
     const salesStats: Record<string, number> = {};
     const stockBalances: Record<string, number> = {};
+    const profitStats: Record<string, number> = {};
     let globalTotalUnitsSold = 0;
 
     const filteredInvoices = invoices.filter(inv => {
@@ -184,9 +187,23 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
       }, 0);
       salesStats[item.id] = qtySold;
       globalTotalUnitsSold += qtySold;
+
+      // Fitimi: (çmim shitje - kosto blerje) × sasi, vetëm për periudhën e filtruar
+      const profit = filteredInvoices.reduce((acc, inv) => {
+        const getConv = (v: number) => inv.currency === 'EUR' ? v * 100 : v;
+        inv.items.forEach(it => {
+          if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower) {
+            const sell = getConv(Number(it.price));
+            const cost = Number(item.purchasePrice || 0);
+            acc += (sell - cost) * Number(it.quantity);
+          }
+        });
+        return acc;
+      }, 0);
+      profitStats[item.id] = profit;
     });
 
-    return { salesStats, stockBalances, globalTotalUnitsSold };
+    return { salesStats, stockBalances, profitStats, globalTotalUnitsSold };
   }, [mergedItems, items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const matchesFuzzy = (name: string, query: string) => {
@@ -205,8 +222,10 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         case 'name_desc': return b.name.localeCompare(a.name);
         case 'price_asc': return a.price - b.price;
         case 'price_desc': return b.price - a.price;
-        case 'sales_desc': return itemStats.salesStats[b.id] - itemStats.salesStats[a.id];
-        case 'sales_asc':  return itemStats.salesStats[a.id] - itemStats.salesStats[b.id];
+        case 'sales_desc':  return itemStats.salesStats[b.id] - itemStats.salesStats[a.id];
+        case 'sales_asc':   return itemStats.salesStats[a.id] - itemStats.salesStats[b.id];
+        case 'profit_desc': return (itemStats.profitStats[b.id] || 0) - (itemStats.profitStats[a.id] || 0);
+        case 'profit_asc':  return (itemStats.profitStats[a.id] || 0) - (itemStats.profitStats[b.id] || 0);
         case 'stock_desc': return itemStats.stockBalances[b.id] - itemStats.stockBalances[a.id];
         case 'stock_asc': return itemStats.stockBalances[a.id] - itemStats.stockBalances[b.id];
         default: return 0;
@@ -318,61 +337,74 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
               <tr>
-                <th className="px-8 py-6">Artikulli</th>
-                <th className="px-6 py-6 text-center">Çmimi Standard</th>
-                <th className="px-6 py-6 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                <th className="px-6 py-4">Artikulli</th>
+                <th className="px-4 py-4 text-center">Çmimi Standard</th>
+                <th className="px-4 py-4 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
                   onClick={() => setSortBy(sortBy === 'stock_desc' ? 'stock_asc' : 'stock_desc')}>
                   <span className="flex items-center justify-center gap-1">
                     Gjendja (Stock)
                     <span className="text-[11px]">{sortBy === 'stock_desc' ? '↓' : sortBy === 'stock_asc' ? '↑' : '↕'}</span>
                   </span>
                 </th>
-                <th className="px-6 py-6 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                <th className="px-4 py-4 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
                   onClick={() => setSortBy(sortBy === 'sales_desc' ? 'sales_asc' : 'sales_desc')}>
                   <span className="flex items-center justify-center gap-1">
                     Shitjet ({filterMode === 'all' ? 'Total' : 'Periudha'})
                     <span className="text-[11px]">{sortBy === 'sales_desc' ? '↓' : sortBy === 'sales_asc' ? '↑' : '↕'}</span>
                   </span>
                 </th>
-                <th className="px-8 py-6 text-right">Veprime</th>
+                <th className="px-4 py-4 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                  onClick={() => setSortBy(sortBy === 'profit_desc' ? 'profit_asc' : 'profit_desc')}>
+                  <span className="flex items-center justify-center gap-1">
+                    Fitimi
+                    <span className="text-[11px]">{sortBy === 'profit_desc' ? '↓' : sortBy === 'profit_asc' ? '↑' : '↕'}</span>
+                  </span>
+                </th>
+                <th className="px-4 py-4 text-right">Veprime</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedAndFilteredItems.map(item => {
                 const totalSold = itemStats.salesStats[item.id];
                 const currentStock = itemStats.stockBalances[item.id];
+                const profit = itemStats.profitStats[item.id] || 0;
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group">
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-5">
-                        <button 
-                          onClick={() => onOpenProfile(item)} 
-                          className="bg-white border border-slate-200 p-3 rounded-2xl text-slate-400 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm group/btn"
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={() => onOpenProfile(item)}
+                          className="bg-white border border-slate-200 p-2.5 rounded-2xl text-slate-400 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm group/btn"
                           title="Hap Profilin Analitik"
                         >
-                          <Box size={24}/>
+                          <Box size={20}/>
                         </button>
                         <div>
-                           <p className="font-black text-slate-900 uppercase tracking-tighter text-sm leading-none mb-1">{item.name}</p>
+                           <p className="font-black text-slate-900 uppercase tracking-tighter text-sm leading-none mb-0.5">{item.name}</p>
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.unit}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-center font-black text-slate-900 text-sm">
+                    <td className="px-4 py-3 text-center font-black text-slate-900 text-sm">
                       {item.price.toLocaleString()} L
                     </td>
-                    <td className="px-6 py-5 text-center">
-                       <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-black ${currentStock <= 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                          {currentStock <= 0 && <AlertTriangle size={14} />}
+                    <td className="px-4 py-3 text-center">
+                       <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-sm font-black ${currentStock <= 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                          {currentStock <= 0 && <AlertTriangle size={13} />}
                           {currentStock.toLocaleString()} {item.unit}
                        </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-4 py-3 text-center">
                        <span className={`text-xl font-black tracking-tighter ${totalSold > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
                           {totalSold.toLocaleString()}
                        </span>
                     </td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-4 py-3 text-center">
+                       <span className={`text-base font-black tracking-tighter ${profit > 0 ? 'text-emerald-600' : profit < 0 ? 'text-rose-500' : 'text-slate-300'}`}>
+                          {profit > 0 ? '+' : ''}{Math.round(profit).toLocaleString()} L
+                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
                         <button onClick={() => handleEdit(item)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><Edit2 size={20}/></button>
                         <button onClick={() => setConfirmId(item.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={20}/></button>
