@@ -263,6 +263,10 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     return result;
   }, [items, search, sortBy, itemStats, itemsByOrigin]);
 
+  const totalProfit = useMemo(() =>
+    sortedAndFilteredItems.reduce((s, i) => s + (itemStats.profitStats[i.id] || 0), 0),
+  [sortedAndFilteredItems, itemStats]);
+
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return [];
     return clients.filter(c => normalize(c.name).includes(normalize(clientSearchQuery))).slice(0, 5);
@@ -396,10 +400,15 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                 </th>
                 <th className="px-4 py-4 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
                   onClick={() => setSortBy(sortBy === 'profit_desc' ? 'profit_asc' : 'profit_desc')}>
-                  <span className="flex items-center justify-center gap-1">
-                    Fitimi
-                    <span className="text-[11px]">{sortBy === 'profit_desc' ? '↓' : sortBy === 'profit_asc' ? '↑' : '↕'}</span>
-                  </span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="flex items-center gap-1">
+                      Fitimi
+                      <span className="text-[11px]">{sortBy === 'profit_desc' ? '↓' : sortBy === 'profit_asc' ? '↑' : '↕'}</span>
+                    </span>
+                    <span className="text-[9px] font-black text-emerald-500 normal-case tracking-normal">
+                      +{Math.round(totalProfit).toLocaleString()} L
+                    </span>
+                  </div>
                 </th>
                 <th className="px-4 py-4 text-right">Veprime</th>
               </tr>
