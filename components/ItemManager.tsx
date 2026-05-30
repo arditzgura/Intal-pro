@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, Warehouse } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck } from 'lucide-react';
 
 interface Props {
   items: Item[];
@@ -309,7 +309,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               ))}
            </div>
 
-           <div className="flex items-center gap-4 w-full xl:w-auto">
+           <div className="flex items-center gap-3 w-full xl:w-auto">
               {filterMode !== 'all' && filterMode !== 'today' && (
                 <div className="flex items-center gap-3 bg-slate-100/50 px-4 py-2 rounded-xl border border-slate-100 w-full xl:w-auto justify-center">
                   {filterMode === 'day' && (
@@ -325,32 +325,25 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                   )}
                 </div>
               )}
+              {availableOrigins.length > 1 && (
+                <div className="relative min-w-[180px]">
+                  <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <select
+                    value={originFilter}
+                    onChange={e => setOriginFilter(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[10px] font-black uppercase appearance-none cursor-pointer"
+                  >
+                    <option value="all">Të Gjithë Furnitorët</option>
+                    {availableOrigins.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="hidden sm:block text-right">
                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Periudha e Shitjeve</p>
                 <p className="text-[10px] font-black text-indigo-600 uppercase whitespace-nowrap">{getPeriodLabel()}</p>
               </div>
            </div>
         </div>
-
-        {/* Filtri i furnitorit */}
-        {availableOrigins.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-50">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Truck size={11} className="text-slate-400"/> Furnitori:
-            </span>
-            <button onClick={() => setOriginFilter('all')}
-              className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${originFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-              Të Gjithë
-            </button>
-            {availableOrigins.map(o => (
-              <button key={o} onClick={() => setOriginFilter(originFilter === o ? 'all' : o)}
-                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all flex items-center gap-1.5 ${originFilter === o ? (o === 'MAGAZINA QENDRORE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm') : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                {o === 'MAGAZINA QENDRORE' ? <Warehouse size={10}/> : <Truck size={10}/>}
-                {o}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="flex flex-col lg:flex-row gap-4 justify-between items-center pt-4 border-t border-slate-50">
           <div className="flex flex-1 flex-col sm:flex-row gap-4 w-full">
