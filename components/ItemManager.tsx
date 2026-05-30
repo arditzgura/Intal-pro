@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, Warehouse } from 'lucide-react';
 
 interface Props {
   items: Item[];
@@ -34,6 +34,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name_asc');
+  const [originFilter, setOriginFilter] = useState<string>('all');
   
   // Filtrat e kohës
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('all');
@@ -54,6 +55,27 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [selectedClientForPref, setSelectedClientForPref] = useState<Client | null>(null);
   const [prefPrice, setPrefPrice] = useState<number | ''>('');
+
+  // Furnitorët e disponueshëm (nga fletëhyrjet)
+  const availableOrigins = useMemo(() => {
+    const set = new Set<string>();
+    stockEntries.forEach(e => { if (e.origin) set.add(e.origin.toUpperCase()); });
+    return Array.from(set).sort();
+  }, [stockEntries]);
+
+  // Artikujt që kanë hyrë nga ky furnitor
+  const itemsByOrigin = useMemo(() => {
+    if (originFilter === 'all') return null; // null = pa filtrim
+    const itemIds = new Set<string>();
+    const itemNames = new Set<string>();
+    stockEntries
+      .filter(e => e.origin.toUpperCase() === originFilter)
+      .forEach(e => e.items.forEach(it => {
+        itemIds.add(it.itemId);
+        itemNames.add(normalize(it.name.trim()));
+      }));
+    return { itemIds, itemNames };
+  }, [stockEntries, originFilter]);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -214,7 +236,13 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   };
 
   const sortedAndFilteredItems = useMemo(() => {
-    let result = mergedItems.filter(i => matchesFuzzy(i.name, search));
+    let result = mergedItems.filter(i => {
+      if (!matchesFuzzy(i.name, search)) return false;
+      if (itemsByOrigin) {
+        return itemsByOrigin.itemIds.has(i.id) || itemsByOrigin.itemNames.has(normalize(i.name.trim()));
+      }
+      return true;
+    });
     
     result.sort((a, b) => {
       switch (sortBy) {
@@ -233,7 +261,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     });
 
     return result;
-  }, [items, search, sortBy, itemStats]);
+  }, [items, search, sortBy, itemStats, itemsByOrigin]);
 
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return [];
@@ -303,6 +331,26 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               </div>
            </div>
         </div>
+
+        {/* Filtri i furnitorit */}
+        {availableOrigins.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-50">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Truck size={11} className="text-slate-400"/> Furnitori:
+            </span>
+            <button onClick={() => setOriginFilter('all')}
+              className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${originFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+              Të Gjithë
+            </button>
+            {availableOrigins.map(o => (
+              <button key={o} onClick={() => setOriginFilter(originFilter === o ? 'all' : o)}
+                className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all flex items-center gap-1.5 ${originFilter === o ? (o === 'MAGAZINA QENDRORE' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm') : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                {o === 'MAGAZINA QENDRORE' ? <Warehouse size={10}/> : <Truck size={10}/>}
+                {o}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-col lg:flex-row gap-4 justify-between items-center pt-4 border-t border-slate-50">
           <div className="flex flex-1 flex-col sm:flex-row gap-4 w-full">
