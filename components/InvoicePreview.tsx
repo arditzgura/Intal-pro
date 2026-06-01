@@ -28,11 +28,11 @@ const formatTime = (dateStr: string) => {
   } catch (e) { return "00:00"; }
 };
 
-// Çmim me vizë absolute (html2canvas-compatible, pa text-decoration)
+// Çmim me vizë — pa transform (html2canvas nuk i renderron transform saktë)
 const StrikePrice = ({ orig, curr, style }: { orig: number; curr: string; style?: React.CSSProperties }) => (
-  <span style={{ position: 'relative', display: 'inline-block', color: '#94a3b8', marginRight: '4px', ...style }}>
+  <span style={{ position: 'relative', display: 'inline-block', color: '#94a3b8', marginRight: '4px', lineHeight: 1.3, ...style }}>
     {orig.toLocaleString()} {curr}
-    <span style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: '1.5px', background: '#94a3b8', display: 'block', transform: 'translateY(-50%)' }} />
+    <span style={{ position: 'absolute', left: 0, right: 0, top: '42%', height: '1.5px', background: '#94a3b8', display: 'block' }} />
   </span>
 );
 
@@ -205,22 +205,24 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
       backgroundColor: '#ffffff',
       logging: false,
       imageTimeout: 0,
-      // onclone: html2canvas klonon vetë dokumentin në iframe
-      // këtu heqim scale/transform nga wrapper BRENDA iframe-it
+      // windowWidth: 1280 → Tailwind aplikon lg:scale-100 (transform:scale(1) = asgjë)
+      windowWidth: 1280,
       onclone: (clonedDoc: Document) => {
-        // Hiq scale-in nga wrapper (klasa tailwind scale-[0.55] etj.)
         const el = clonedDoc.getElementById('invoice-printable');
         if (!el) return;
 
-        const wrap = el.parentElement;
-        if (wrap) {
-          wrap.className = '';
-          wrap.setAttribute('style', 'position:relative;margin:0;padding:0;transform:none;');
-        }
+        // Hiq vetëm transform/boxShadow inline — mos prek className (Tailwind duhet)
         el.style.transform = 'none';
         el.style.boxShadow = 'none';
 
-        // Siguro elementet A4 të jenë visible, 80mm të fshihen
+        // Wrapper: hiq vetëm transform inline, jo className
+        const wrap = el.parentElement;
+        if (wrap) {
+          wrap.style.transform = 'none';
+          wrap.style.margin = '0';
+        }
+
+        // A4 të jenë visible, 80mm të fshihen
         el.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
         el.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
       },
