@@ -330,15 +330,15 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
             <div className="flex-1 mt-1">
               {(() => {
                 const tpl = business.invoiceTemplate || 1;
-                const fsNum = business.itemFontSize || 10;
+                const fsNum = (business.itemFontSize || 10) + 3;
                 const fs = `${fsNum}px`;
-                const fsSub = `${fsNum - 1}px`; // sasia & çmimi: 1pt më e vogël, medium-bold
+                const fsSub = `${fsNum - 1}px`;
                 const ff = business.itemFont || 'Inter, sans-serif';
                 const items = invoice.items;
 
                 if (tpl === 1) return (
                   <table className="w-full border-collapse">
-                    <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}><th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th></tr></thead>
+                    <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}><th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th></tr></thead>
                     <tbody style={{ borderBottom: '1px solid #e2e8f0' }}>
                       {items.map((item, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -357,7 +357,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
                 if (tpl === 2) return (
                   <table className="w-full border-collapse">
-                    <thead><tr style={{ background: '#e2e8f0', fontSize: '7px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}><th style={{ padding: '3px 8px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '3px 6px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '3px 8px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '3px 8px', textAlign: 'right' }}>{lTot}</th></tr></thead>
+                    <thead><tr style={{ background: '#e2e8f0', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}><th style={{ padding: '3px 8px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '3px 6px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '3px 8px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '3px 8px', textAlign: 'right' }}>{lTot}</th></tr></thead>
                     <tbody>
                       {items.map((item, i) => (
                         <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
@@ -395,7 +395,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
                 if (tpl === 4) return (
                   <table className="w-full border-collapse">
-                    <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }}><th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th></tr></thead>
+                    <thead><tr style={{ background: '#0F172A', color: '#fff', fontSize: '11px', fontWeight: 900, textTransform: 'uppercase' }}><th style={{ padding: '5px 12px', textAlign: 'left', width: '50%' }}>{lArt}</th><th style={{ padding: '5px 8px', textAlign: 'center' }}>{lSas}</th><th style={{ padding: '5px 12px', textAlign: 'center' }}>{lCmi}</th><th style={{ padding: '5px 12px', textAlign: 'right' }}>{lTot}</th></tr></thead>
                     <tbody>
                       {items.map((item, i) => (
                         <tr key={i} style={{ background: i % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
