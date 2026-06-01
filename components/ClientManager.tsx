@@ -70,8 +70,24 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
     const financials: Record<string, { spent: number, paid: number, debt: number, profit: number }> = {};
 
     clients.forEach(c => {
-      const clientInvoices = invoices.filter(inv => inv.clientId === c.id && inv.status !== 'Anuluar')
-                                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const cNameN = normalize(c.name.trim());
+      const cCityN = normalize(c.city?.trim() || '');
+      const hasDupName = clients.some(o => o.id !== c.id && normalize(o.name.trim()) === cNameN);
+
+      const clientInvoices = invoices.filter(inv => {
+        if (inv.status === 'Anuluar') return false;
+        if (hasDupName) {
+          if (normalize(inv.clientName.trim()) !== cNameN) return false;
+          if (inv.clientCity && cCityN) return normalize(inv.clientCity.trim()) === cCityN;
+          if (c.code && inv.clientCode) return inv.clientCode === c.code;
+          return inv.clientId === c.id;
+        }
+        if (inv.clientId === c.id) return true;
+        if (c.code && inv.clientCode) return inv.clientCode === c.code;
+        if (inv.clientCode) return false;
+        if (inv.clientId !== 'manual') return false;
+        return normalize(inv.clientName.trim()) === cNameN;
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       const spent = clientInvoices.reduce((s, i) => s + getConvVal(i.total, i.currency), 0);
       const paid  = clientInvoices.reduce((s, i) => s + getConvVal(i.amountPaid || 0, i.currency), 0);
