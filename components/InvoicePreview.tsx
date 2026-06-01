@@ -194,60 +194,46 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     const source = document.getElementById('invoice-printable');
     if (!source) return null;
 
-    // Ruaj gjendjen origjinale
-    const wrapper = source.parentElement as HTMLElement | null;
-    const savedWrapperClass  = wrapper?.getAttribute('class') ?? '';
-    const savedWrapperStyle  = wrapper?.getAttribute('style') ?? '';
-    const savedSourceStyle   = source.getAttribute('style') ?? '';
+    // Klono elementin dhe vendose jashtë ekranit — pa asnjë transform/scale
+    const clone = source.cloneNode(true) as HTMLElement;
+    clone.style.cssText = [
+      'position:fixed',
+      'top:0',
+      'left:-9999px',
+      'width:794px',       // 210mm @ 96dpi
+      'min-height:1123px', // 297mm @ 96dpi
+      'background:#fff',
+      'transform:none',
+      'box-shadow:none',
+      'box-sizing:border-box',
+      'overflow:visible',
+      'z-index:-1',
+    ].join(';');
 
-    // Fshih elementet 80mm, shfaq A4
-    const rollOnly = source.querySelectorAll<HTMLElement>('.roll-only');
-    const rollHide = source.querySelectorAll<HTMLElement>('.roll-hide');
-    rollOnly.forEach(el => (el.style.display = 'none'));
-    rollHide.forEach(el => (el.style.display = 'flex'));
+    // Fshih 80mm, shfaq A4
+    clone.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
+    clone.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
 
-    // Hiq çdo scale/transform nga wrapper dhe source
-    if (wrapper) {
-      wrapper.setAttribute('class', 'print:mt-0');   // hiq scale-* classes
-      wrapper.setAttribute('style', 'margin-top:0;position:relative;');
-    }
-    source.style.transform    = 'none';
-    source.style.boxShadow    = 'none';
-    source.style.marginBottom = '0';
+    document.body.appendChild(clone);
 
-    // Prit 3 frames për DOM reflow
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Prit dy frames për reflow të plotë
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     try {
       // @ts-ignore
-      const canvas = await html2canvas(source, {
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
         imageTimeout: 0,
-        onclone: (doc: Document) => {
-          const el = doc.getElementById('invoice-printable');
-          if (el) {
-            el.style.transform = 'none';
-            el.style.boxShadow = 'none';
-            // Siguro A4 elements të jenë visible
-            el.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
-            el.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
-          }
-        },
+        width: 794,
+        windowWidth: 794,
       });
       return await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
     } finally {
-      // Rikthe gjendjen origjinale
-      if (wrapper) {
-        wrapper.setAttribute('class', savedWrapperClass);
-        wrapper.setAttribute('style', savedWrapperStyle);
-      }
-      source.setAttribute('style', savedSourceStyle);
-      rollOnly.forEach(el => el.style.removeProperty('display'));
-      rollHide.forEach(el => el.style.removeProperty('display'));
+      document.body.removeChild(clone);
     }
   };
 
