@@ -57,6 +57,12 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
 
   const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
 
+  // clientInvoices = të gjitha faturat e këtij klienti (App.tsx i filtron saktë me city-based logic)
+  const clientInvoices = useMemo(() =>
+    invoices.filter(inv => inv.status !== 'Anuluar')
+            .sort((a, b) => b.date.localeCompare(a.date)),
+  [invoices]);
+
   const filteredInvoices = useMemo(() => {
     const todayStr = new Date().toLocaleDateString('en-CA');
     const checkPeriod = (date: string) => {
@@ -67,53 +73,42 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
       if (filterMode === 'month') return date.slice(0, 7) === selectedMonth;
       return date.slice(0, 4) === selectedYear;
     };
-    return invoices.filter(inv => inv.clientId === client.id && inv.status !== 'Anuluar' && checkPeriod(inv.date))
-                   .sort((a, b) => b.date.localeCompare(a.date));
-  }, [invoices, client.id, filterMode, selectedDay, selectedMonth, selectedYear]);
+    return clientInvoices.filter(inv => checkPeriod(inv.date));
+  }, [clientInvoices, filterMode, selectedDay, selectedMonth, selectedYear]);
 
   const periodStats = useMemo(() => {
     const spent = filteredInvoices.reduce((sum, inv) => sum + getConvVal(inv.total, inv.currency), 0);
-    
-    // Arketimet llogariten sipas datës së pagesës (paymentDate)
-    const paid = invoices.reduce((sum, inv) => {
-      if (inv.clientId !== client.id || inv.status !== 'E paguar' || inv.status === 'Anuluar') return sum;
-      
+    const todayStr = new Date().toLocaleDateString('en-CA');
+
+    const paid = clientInvoices.reduce((sum, inv) => {
+      if (inv.status !== 'E paguar') return sum;
       const pDate = (inv.paymentDate || inv.date).slice(0, 10);
-      const todayStr = new Date().toLocaleDateString('en-CA');
-      let isInPeriod = false;
-
-      if (filterMode === 'all') isInPeriod = true;
-      else if (filterMode === 'today') isInPeriod = pDate === todayStr;
-      else if (filterMode === 'day') isInPeriod = pDate === selectedDay;
-      else if (filterMode === 'month') isInPeriod = pDate.slice(0, 7) === selectedMonth;
-      else if (filterMode === 'year') isInPeriod = pDate.slice(0, 4) === selectedYear;
-
-      if (isInPeriod) {
-        return sum + getConvVal(inv.amountPaid || 0, inv.currency);
-      }
-      return sum;
+      let ok = false;
+      if (filterMode === 'all') ok = true;
+      else if (filterMode === 'today') ok = pDate === todayStr;
+      else if (filterMode === 'day') ok = pDate === selectedDay;
+      else if (filterMode === 'month') ok = pDate.slice(0, 7) === selectedMonth;
+      else if (filterMode === 'year') ok = pDate.slice(0, 4) === selectedYear;
+      return ok ? sum + getConvVal(inv.amountPaid || 0, inv.currency) : sum;
     }, 0);
 
     return { spent, paid, balance: spent - paid };
-  }, [filteredInvoices, invoices, client.id, filterMode, selectedDay, selectedMonth, selectedYear]);
+  }, [filteredInvoices, clientInvoices, filterMode, selectedDay, selectedMonth, selectedYear]);
 
   const globalStats = useMemo(() => {
-    const clientInvoices = invoices.filter(inv => inv.clientId === client.id && inv.status !== 'Anuluar')
-                                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    const totalSpent = clientInvoices.reduce((sum, inv) => sum + getConvVal(inv.total, inv.currency), 0);
-    const totalPaid = clientInvoices.reduce((sum, inv) => sum + getConvVal(inv.amountPaid || 0, inv.currency), 0);
-    
-    // Logjika e re: Detyrimi mbetur merret vetem nga fatura e fundit ( Rolling Balance )
+    const sorted = [...clientInvoices].sort((a, b) => a.date.localeCompare(b.date));
+    const totalSpent = sorted.reduce((sum, inv) => sum + getConvVal(inv.total, inv.currency), 0);
+    const totalPaid  = sorted.reduce((sum, inv) => sum + getConvVal(inv.amountPaid || 0, inv.currency), 0);
+
     let balance = 0;
-    if (clientInvoices.length > 0) {
-      const latest = clientInvoices[0];
+    if (sorted.length > 0) {
+      const latest = sorted[sorted.length - 1];
       const balDue = (latest.subtotal + (latest.previousBalance || 0)) - (latest.amountPaid || 0);
       balance = getConvVal(balDue, latest.currency);
     }
 
     return { totalSpent, totalPaid, balance };
-  }, [invoices, client.id]);
+  }, [clientInvoices]);
 
   const itemSummary = useMemo(() => {
     const summaryMap: Record<string, any> = {};
