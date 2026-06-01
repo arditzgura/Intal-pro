@@ -20,14 +20,6 @@ const formatDate = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-// Çmim me vizë absolute (html2canvas-compatible, pa text-decoration)
-const StrikePrice = ({ orig, curr, style }: { orig: number; curr: string; style?: React.CSSProperties }) => (
-  <span style={{ position: 'relative', display: 'inline-block', color: '#94a3b8', marginRight: '4px', ...style }}>
-    {orig.toLocaleString()} {curr}
-    <span style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: '1.5px', background: '#94a3b8', display: 'block', transform: 'translateY(-50%)' }} />
-  </span>
-);
-
 const formatTime = (dateStr: string) => {
   if (!dateStr || !dateStr.includes('T')) return new Date().toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' });
   try {
