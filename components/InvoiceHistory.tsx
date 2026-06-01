@@ -289,7 +289,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           </div>
           <div className="text-right pr-4">
             <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mb-1">Fitimi i Periudhës</p>
-            <p className="text-lg font-black tracking-tight text-amber-400">+{Math.round(totals.profit).toLocaleString()} L</p>
+            <p className="text-xl font-black tracking-tight text-amber-400">+{Math.round(totals.profit).toLocaleString()} L</p>
           </div>
         </div>
       </div>
