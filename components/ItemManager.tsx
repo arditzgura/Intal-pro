@@ -405,7 +405,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                       Fitimi
                       <span className="text-[11px]">{sortBy === 'profit_desc' ? '↓' : sortBy === 'profit_asc' ? '↑' : '↕'}</span>
                     </span>
-                    <span className="text-[9px] font-black text-emerald-500 normal-case tracking-normal">
+                    <span className="text-[11px] font-black text-emerald-500 normal-case tracking-normal">
                       +{Math.round(totalProfit).toLocaleString()} L
                     </span>
                   </div>
