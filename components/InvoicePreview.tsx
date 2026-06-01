@@ -194,47 +194,39 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     const source = document.getElementById('invoice-printable');
     if (!source) return null;
 
-    // Klono elementin dhe vendose jashtë ekranit — pa asnjë transform/scale
-    const clone = source.cloneNode(true) as HTMLElement;
-    clone.style.cssText = [
-      'position:fixed',
-      'top:0',
-      'left:-9999px',
-      'width:794px',       // 210mm @ 96dpi
-      'min-height:1123px', // 297mm @ 96dpi
-      'background:#fff',
-      'transform:none',
-      'box-shadow:none',
-      'box-sizing:border-box',
-      'overflow:visible',
-      'z-index:-1',
-    ].join(';');
+    // Prit font-et të ngarkohen plotësisht
+    await document.fonts.ready;
 
-    // Fshih 80mm, shfaq A4
-    clone.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
-    clone.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
+    // @ts-ignore
+    const canvas = await html2canvas(source, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      imageTimeout: 0,
+      // onclone: html2canvas klonon vetë dokumentin në iframe
+      // këtu heqim scale/transform nga wrapper BRENDA iframe-it
+      onclone: (clonedDoc: Document) => {
+        // Hiq scale-in nga wrapper (klasa tailwind scale-[0.55] etj.)
+        const el = clonedDoc.getElementById('invoice-printable');
+        if (!el) return;
 
-    document.body.appendChild(clone);
+        const wrap = el.parentElement;
+        if (wrap) {
+          wrap.className = '';
+          wrap.setAttribute('style', 'position:relative;margin:0;padding:0;transform:none;');
+        }
+        el.style.transform = 'none';
+        el.style.boxShadow = 'none';
 
-    // Prit dy frames për reflow të plotë
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // Siguro elementet A4 të jenë visible, 80mm të fshihen
+        el.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
+        el.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
+      },
+    });
 
-    try {
-      // @ts-ignore
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        imageTimeout: 0,
-        width: 794,
-        windowWidth: 794,
-      });
-      return await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
-    } finally {
-      document.body.removeChild(clone);
-    }
+    return new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
   };
 
   const displayCity = invoice.clientCity || client?.city || 'TIRANË';
