@@ -7,6 +7,8 @@ import {
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local } from './utils/localDb';
+import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, CLOUD_ENABLED } from './utils/cloudSync';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
@@ -242,7 +244,9 @@ const App: React.FC = () => {
   }, [config]); // eslint-disable-line
 
   // ─── Auto-backup në localStorage pas çdo veprimi ─────────────────────────
-  const autoBackupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoBackupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudSyncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudChannelRef  = useRef<RealtimeChannel | null>(null);
   useEffect(() => {
     if (!session || !dataReady) return;
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
@@ -259,9 +263,46 @@ const App: React.FC = () => {
         config:        local.getConfig(uid),
       };
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
-      console.log('[auto-backup] u ruajt:', new Date().toLocaleTimeString());
-    }, 2000); // 2 sekonda pas ndryshimit të fundit
+
+      // ─── Cloud sync: ruaj edhe në Supabase ───────────────────────
+      if (CLOUD_ENABLED) {
+        if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+        cloudSyncTimer.current = setTimeout(async () => {
+          await cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices'));
+          await cloudSave(uid, 'clients',       local.getAll(uid, 'clients'));
+          await cloudSave(uid, 'items',         local.getAll(uid, 'items'));
+          await cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries'));
+          await cloudSaveConfig(uid,            local.getConfig(uid));
+        }, 500);
+      }
+    }, 2000);
   }, [clients, items, invoices, stockEntries]); // eslint-disable-line
+
+  // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
+  useEffect(() => {
+    if (!session || !dataReady || !CLOUD_ENABLED) return;
+    const uid = session.user.id;
+
+    // Ngarko të dhënat nga cloud kur hapet app-i (sinkronizon nëse ka ndryshime)
+    cloudLoadAll(uid).then(remote => {
+      if (remote.invoices?.length)      { setInvoices(remote.invoices);         local.setAll(uid, 'invoices',      remote.invoices); }
+      if (remote.clients?.length)       { setClients(remote.clients);           local.setAll(uid, 'clients',       remote.clients); }
+      if (remote.items?.length)         { setItems(remote.items);               local.setAll(uid, 'items',         remote.items); }
+      if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries);local.setAll(uid, 'stock_entries', remote.stock_entries); }
+      if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, {...remote.config[0]}); }
+    });
+
+    // Subscribe për ndryshime real-time nga pajisje të tjera
+    cloudChannelRef.current = cloudSubscribe(uid, (tableName, data) => {
+      if (tableName === 'invoices')      { setInvoices(data);      local.setAll(uid, 'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);       local.setAll(uid, 'clients',       data); }
+      if (tableName === 'items')         { setItems(data);         local.setAll(uid, 'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data);  local.setAll(uid, 'stock_entries', data); }
+      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
+    });
+
+    return () => { cloudUnsubscribe(cloudChannelRef.current); };
+  }, [dataReady]); // eslint-disable-line
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   const doBackup = useCallback((isAuto = false) => {
