@@ -247,6 +247,7 @@ const App: React.FC = () => {
   const autoBackupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudSyncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudChannelRef  = useRef<RealtimeChannel | null>(null);
+  const importLockUntil  = useRef<number>(0); // bllokon cloud overwrite pas importit
   useEffect(() => {
     if (!session || !dataReady) return;
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
@@ -285,17 +286,21 @@ const App: React.FC = () => {
     const uid      = session.user.id;                                   // local storage key
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
-    // Ngarko të dhënat nga cloud kur hapet app-i (sinkronizon nëse ka ndryshime)
-    cloudLoadAll(cloudId).then(remote => {
-      if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
-      if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
-      if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
-      if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
-      if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
-    });
+    // Ngarko të dhënat nga cloud kur hapet app-i — vetëm nëse nuk jemi duke importuar
+    if (Date.now() > importLockUntil.current) {
+      cloudLoadAll(cloudId).then(remote => {
+        if (Date.now() <= importLockUntil.current) return; // import ndodhi ndërkohë
+        if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
+        if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
+        if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
+        if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
+        if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
+      });
+    }
 
-    // Subscribe për ndryshime real-time nga pajisje të tjera
+    // Subscribe për ndryshime real-time nga pajisje të tjera — injoron nëse import është aktiv
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
+      if (Date.now() <= importLockUntil.current) return; // injoron gjatë importit
       if (tableName === 'invoices')      { setInvoices(data);       local.setAll(uid,'invoices',      data); }
       if (tableName === 'clients')       { setClients(data);        local.setAll(uid,'clients',       data); }
       if (tableName === 'items')         { setItems(data);          local.setAll(uid,'items',         data); }
@@ -756,15 +761,28 @@ const App: React.FC = () => {
                     if (!raw) return false;
                     const bk = JSON.parse(raw);
                     const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
-                    const it  = Array.isArray(bk.items)          ? bk.items          : [];
-                    const inv = Array.isArray(bk.invoices)       ? bk.invoices       : [];
-                    const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries  : [];
+                    const it  = Array.isArray(bk.items)          ? bk.items         : [];
+                    const inv = Array.isArray(bk.invoices)       ? bk.invoices      : [];
+                    const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
+                    // Bllokon cloud override për 30 sekonda
+                    importLockUntil.current = Date.now() + 30000;
                     if (cl.length)  { setClients(cl);       local.setAll(uid, 'clients', cl); }
                     if (it.length)  { setItems(it);         local.setAll(uid, 'items', it); }
                     if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
                     if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
                     if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
+                    // Push menjëherë në cloud me të dhënat e reja
+                    if (CLOUD_ENABLED) {
+                      const cid = session?.user.username.toLowerCase().trim() || uid;
+                      Promise.all([
+                        cl.length  ? cloudSave(cid,'clients',cl)         : Promise.resolve(),
+                        it.length  ? cloudSave(cid,'items',it)           : Promise.resolve(),
+                        inv.length ? cloudSave(cid,'invoices',inv)       : Promise.resolve(),
+                        se.length  ? cloudSave(cid,'stock_entries',se)   : Promise.resolve(),
+                        cf         ? cloudSaveConfig(cid,cf)             : Promise.resolve(),
+                      ]);
+                    }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
@@ -774,18 +792,29 @@ const App: React.FC = () => {
                     const text = await file.text();
                     const bk = JSON.parse(text);
                     if (!bk || typeof bk !== 'object') return false;
-                    // Mbështet version 1 (i vjetër) dhe version 2
                     const cl  = Array.isArray(bk.clients)      ? bk.clients      : [];
-                    const it  = Array.isArray(bk.items)         ? bk.items         : [];
-                    const inv = Array.isArray(bk.invoices)      ? bk.invoices      : [];
-                    const se  = Array.isArray(bk.stockEntries)  ? bk.stockEntries  : [];
+                    const it  = Array.isArray(bk.items)         ? bk.items        : [];
+                    const inv = Array.isArray(bk.invoices)      ? bk.invoices     : [];
+                    const se  = Array.isArray(bk.stockEntries || bk.stock_entries) ? (bk.stockEntries || bk.stock_entries) : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    // Ruaj lokalisht + sinkronizo me cloud
-                    if (cl.length)  { setClients(cl);  local.setAll(uid, 'clients', cl); }
-                    if (it.length)  { setItems(it);    local.setAll(uid, 'items', it); }
-                    if (inv.length) { setInvoices(inv);local.setAll(uid, 'invoices', inv); }
-                    if (se.length)  { setStockEntries(se); local.setAll(uid, 'stock_entries', se); }
-                    if (cf)         { setConfig(cf);   local.setConfig(uid, cf); }
+                    // Bllokon cloud override për 30 sekonda
+                    importLockUntil.current = Date.now() + 30000;
+                    if (cl.length)  { setClients(cl);       local.setAll(uid, 'clients', cl); }
+                    if (it.length)  { setItems(it);         local.setAll(uid, 'items', it); }
+                    if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
+                    if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
+                    if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
+                    // Push menjëherë në cloud me të dhënat e reja
+                    if (CLOUD_ENABLED) {
+                      const cid = session?.user.username.toLowerCase().trim() || uid;
+                      Promise.all([
+                        cl.length  ? cloudSave(cid,'clients',cl)       : Promise.resolve(),
+                        it.length  ? cloudSave(cid,'items',it)         : Promise.resolve(),
+                        inv.length ? cloudSave(cid,'invoices',inv)     : Promise.resolve(),
+                        se.length  ? cloudSave(cid,'stock_entries',se) : Promise.resolve(),
+                        cf         ? cloudSaveConfig(cid,cf)           : Promise.resolve(),
+                      ]);
+                    }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
