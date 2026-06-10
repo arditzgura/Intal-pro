@@ -286,16 +286,30 @@ const App: React.FC = () => {
     const uid      = session.user.id;                                   // local storage key
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
-    // Ngarko të dhënat nga cloud kur hapet app-i — vetëm nëse nuk jemi duke importuar
-    if (Date.now() > importLockUntil.current) {
+    // Ngarko nga cloud VETËM nëse pajisja nuk ka të dhëna lokale (pajisje e re / mobile i ri)
+    // Nëse ka të dhëna lokale, ato janë burimi i vërtetë — mos i mbishkruaj
+    const hasLocalData = local.getAll(uid, 'invoices').length > 0 ||
+                         local.getAll(uid, 'clients').length  > 0;
+
+    if (!hasLocalData) {
       cloudLoadAll(cloudId).then(remote => {
-        if (Date.now() <= importLockUntil.current) return; // import ndodhi ndërkohë
+        if (Date.now() <= importLockUntil.current) return;
         if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
         if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
         if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
         if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
         if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
       });
+    } else {
+      // Ka të dhëna lokale — push-o ato në cloud për t'i mbajtur të sinkronizuara
+      setTimeout(async () => {
+        await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
+        await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
+        await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
+        await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
+        const cfg = local.getConfig(uid);
+        if (cfg) await cloudSaveConfig(cloudId, cfg);
+      }, 1000);
     }
 
     // Subscribe për ndryshime real-time nga pajisje të tjera — injoron nëse import është aktiv
