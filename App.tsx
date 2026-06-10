@@ -264,15 +264,16 @@ const App: React.FC = () => {
       };
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
 
-      // ─── Cloud sync: ruaj edhe në Supabase ───────────────────────
-      if (CLOUD_ENABLED) {
+      // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
+      if (CLOUD_ENABLED && session) {
+        const cloudId = session.user.username.toLowerCase().trim();
         if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
         cloudSyncTimer.current = setTimeout(async () => {
-          await cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices'));
-          await cloudSave(uid, 'clients',       local.getAll(uid, 'clients'));
-          await cloudSave(uid, 'items',         local.getAll(uid, 'items'));
-          await cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries'));
-          await cloudSaveConfig(uid,            local.getConfig(uid));
+          await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
+          await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
+          await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
+          await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
+          await cloudSaveConfig(cloudId,            local.getConfig(uid));
         }, 500);
       }
     }, 2000);
@@ -281,23 +282,24 @@ const App: React.FC = () => {
   // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
   useEffect(() => {
     if (!session || !dataReady || !CLOUD_ENABLED) return;
-    const uid = session.user.id;
+    const uid      = session.user.id;                                   // local storage key
+    const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
     // Ngarko të dhënat nga cloud kur hapet app-i (sinkronizon nëse ka ndryshime)
-    cloudLoadAll(uid).then(remote => {
-      if (remote.invoices?.length)      { setInvoices(remote.invoices);         local.setAll(uid, 'invoices',      remote.invoices); }
-      if (remote.clients?.length)       { setClients(remote.clients);           local.setAll(uid, 'clients',       remote.clients); }
-      if (remote.items?.length)         { setItems(remote.items);               local.setAll(uid, 'items',         remote.items); }
-      if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries);local.setAll(uid, 'stock_entries', remote.stock_entries); }
-      if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, {...remote.config[0]}); }
+    cloudLoadAll(cloudId).then(remote => {
+      if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
+      if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
+      if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
+      if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
+      if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
     });
 
     // Subscribe për ndryshime real-time nga pajisje të tjera
-    cloudChannelRef.current = cloudSubscribe(uid, (tableName, data) => {
-      if (tableName === 'invoices')      { setInvoices(data);      local.setAll(uid, 'invoices',      data); }
-      if (tableName === 'clients')       { setClients(data);       local.setAll(uid, 'clients',       data); }
-      if (tableName === 'items')         { setItems(data);         local.setAll(uid, 'items',         data); }
-      if (tableName === 'stock_entries') { setStockEntries(data);  local.setAll(uid, 'stock_entries', data); }
+    cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
+      if (tableName === 'invoices')      { setInvoices(data);       local.setAll(uid,'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);        local.setAll(uid,'clients',       data); }
+      if (tableName === 'items')         { setItems(data);          local.setAll(uid,'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data);   local.setAll(uid,'stock_entries', data); }
       if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
     });
 
