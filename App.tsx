@@ -372,35 +372,34 @@ const App: React.FC = () => {
     if (clientInvs.length === 0) return allInvoices;
 
     const n = clientInvs.length;
+    const latest = clientInvs[n - 1];
+    const map = new Map<string, Invoice['status']>();
 
-    // Për çdo faturë, llogarit nëse borxhi i saj u mbulua (drejtpërdrejt ose nëpërmjet zinxhirit)
-    // Shembull: A ka borxh 10,000 → B ka previousBalance=10,000 dhe paguan 15,000 → A është paguar
+    // Rregulli kryesor: nëse fatura e fundit është paguar (borxh=0) → TË GJITHA bëhen E paguar
+    if (getDebt(latest) <= 0) {
+      clientInvs.forEach(inv => map.set(inv.id, 'E paguar'));
+      return allInvoices.map(inv => map.has(inv.id) ? { ...inv, status: map.get(inv.id)! } : inv);
+    }
+
+    // Përndryshe: zinxhir — shiko nëse borxhi i faturës u mbulua nga fatura pasardhëse
     const isPaid = new Array(n).fill(false);
     for (let i = n - 1; i >= 0; i--) {
       const inv = clientInvs[i];
       if (getDebt(inv) <= 0) {
-        // U pagua drejtpërdrejt
         isPaid[i] = true;
       } else if (i < n - 1 && isPaid[i + 1]) {
-        // Fatura pasardhëse është paguar — kontrollo nëse ajo kishte absorbu borxhin e kësaj
         const next = clientInvs[i + 1];
-        if ((next.previousBalance || 0) >= getDebt(inv)) {
-          isPaid[i] = true;
-        }
+        if ((next.previousBalance || 0) >= getDebt(inv)) isPaid[i] = true;
       }
     }
 
-    const map = new Map<string, Invoice['status']>();
     for (let i = 0; i < n; i++) {
       const inv = clientInvs[i];
       if (isPaid[i]) {
-        // E paguar — borxhi u mbulua (drejtpërdrejt ose nëpërmjet faturës pasardhëse)
         map.set(inv.id, 'E paguar');
       } else if (i === n - 1) {
-        // Fatura e fundit me borxh të hapur
         map.set(inv.id, 'Pa paguar');
       } else {
-        // Fatura e mëparshme me borxh të trashëguar
         map.set(inv.id, getDebt(inv) > 0 ? 'Pasuar' : 'E paguar');
       }
     }
