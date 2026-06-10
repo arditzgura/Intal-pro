@@ -322,7 +322,18 @@ const App: React.FC = () => {
       if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
     });
 
-    return () => { cloudUnsubscribe(cloudChannelRef.current); };
+    // Polling fallback: çdo 30s kontrollo cloud për ndryshime (backup nëse real-time nuk funksionon)
+    const pollInterval = setInterval(async () => {
+      if (Date.now() <= importLockUntil.current) return;
+      const remote = await cloudLoadAll(cloudId);
+      if (!remote) return;
+      if (remote.invoices?.length)      setInvoices(prev => remote.invoices.length !== prev.length || JSON.stringify(remote.invoices) !== JSON.stringify(prev) ? (local.setAll(uid,'invoices',remote.invoices), remote.invoices) : prev);
+      if (remote.clients?.length)       setClients(prev  => remote.clients.length  !== prev.length || JSON.stringify(remote.clients)  !== JSON.stringify(prev) ? (local.setAll(uid,'clients', remote.clients),  remote.clients)  : prev);
+      if (remote.items?.length)         setItems(prev    => remote.items.length    !== prev.length || JSON.stringify(remote.items)    !== JSON.stringify(prev) ? (local.setAll(uid,'items',   remote.items),    remote.items)    : prev);
+      if (remote.stock_entries?.length) setStockEntries(prev => remote.stock_entries.length !== prev.length || JSON.stringify(remote.stock_entries) !== JSON.stringify(prev) ? (local.setAll(uid,'stock_entries',remote.stock_entries), remote.stock_entries) : prev);
+    }, 30000);
+
+    return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
   }, [dataReady]); // eslint-disable-line
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────

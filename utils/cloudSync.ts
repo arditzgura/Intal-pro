@@ -61,30 +61,49 @@ export async function cloudLoadAll(userId: string): Promise<Record<string, any[]
   }
 }
 
-/** Subscribe për ndryshime real-time */
+/** Subscribe për ndryshime real-time me polling fallback */
 export function cloudSubscribe(
   userId: string,
   onChange: (tableName: string, data: any[]) => void
 ): RealtimeChannel | null {
   if (!supabase) return null;
+
   const channel = supabase
-    .channel(`sync_${userId}`)
+    .channel(`sync_${userId}_${Date.now()}`)
     .on(
       'postgres_changes',
       {
-        event: '*',
+        event: 'UPDATE',
         schema: 'public',
         table: TABLE,
-        filter: `user_id=eq.${userId}`,
       },
       (payload: any) => {
         const row = payload.new;
+        if (row?.user_id !== userId) return; // filtro manualisht
         if (row?.table_name && Array.isArray(row?.data)) {
           onChange(row.table_name, row.data);
         }
       }
     )
-    .subscribe();
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: TABLE,
+      },
+      (payload: any) => {
+        const row = payload.new;
+        if (row?.user_id !== userId) return;
+        if (row?.table_name && Array.isArray(row?.data)) {
+          onChange(row.table_name, row.data);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('[cloudSync] subscription status:', status);
+    });
+
   return channel;
 }
 
