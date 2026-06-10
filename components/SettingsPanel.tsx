@@ -52,6 +52,7 @@ interface Props {
   onExport: () => void;
   onImport: (file: File) => Promise<boolean>;
   onRestoreAutoBackup: () => boolean;
+  onQRSync: () => void;
 }
 
 const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
@@ -307,7 +308,7 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup }) => {
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -558,7 +559,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                    const ok = onRestoreAutoBackup();
                    if (!ok) alert('❌ Nuk ka auto-backup të ruajtur.');
                  }}
-                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-amber-700/40 hover:bg-slate-700 transition-all group col-span-1 sm:col-span-2"
+                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-amber-700/40 hover:bg-slate-700 transition-all group"
                >
                   <span className="text-amber-400 text-2xl group-hover:scale-110 transition-transform">⚡</span>
                   <div className="text-center">
@@ -566,6 +567,17 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                     <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
                       {(() => { try { const b = localStorage.getItem('intal_auto_backup'); if (!b) return 'Nuk ka backup'; const d = JSON.parse(b); return 'Ruajtur: ' + new Date(d.savedAt).toLocaleString('sq-AL'); } catch { return 'Nuk ka backup'; } })()}
                     </span>
+                  </div>
+               </button>
+
+               <button
+                 onClick={onQRSync}
+                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-indigo-700/40 hover:bg-slate-700 transition-all group"
+               >
+                  <span className="text-indigo-400 text-2xl group-hover:scale-110 transition-transform">📱</span>
+                  <div className="text-center">
+                    <span className="block font-bold text-indigo-300">QR Sinkronizim</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Desktop ↔ Mobil</span>
                   </div>
                </button>
 

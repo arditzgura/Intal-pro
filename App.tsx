@@ -23,6 +23,7 @@ import ItemProfile     from './components/ItemProfile';
 import StockEntryPreview from './components/StockEntryPreview';
 import AuthScreen      from './components/AuthScreen';
 import AdminPanel      from './components/AdminPanel';
+import QRSyncModal    from './components/QRSyncModal';
 
 const DEFAULT_CONFIG: BusinessConfig = {
   name: 'INTAL ALBANIA', nipt: 'L12345678X',
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const [previewStockEntry,     setPreviewStockEntry]     = useState<StockEntry | null>(null);
   const [editInvoice,           setEditInvoice]           = useState<Invoice | null>(null);
   const [invoicesInitialFilter, setInvoicesInitialFilter] = useState<string | undefined>(undefined);
+  const [showQRSync, setShowQRSync] = useState(false);
   const [editStockEntry,        setEditStockEntry]        = useState<StockEntry | null>(null);
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
   const [selectedProfileItem,   setSelectedProfileItem]   = useState<Item | null>(null);
@@ -703,6 +705,7 @@ const App: React.FC = () => {
             {currentView==='admin'         && isAdmin && <AdminPanel />}
             {currentView==='settings'      && (
               <SettingsPanel config={config} onUpdate={setConfig}
+                onQRSync={() => setShowQRSync(true)}
                 onExport={() => doBackup(false)}
                 onRestoreAutoBackup={() => {
                   try {
@@ -776,6 +779,25 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* QR Sync Modal */}
+      {showQRSync && session && (
+        <QRSyncModal
+          backupData={{
+            invoices, clients, items, stock_entries: stockEntries,
+            config: local.getConfig(session.user.id)
+          }}
+          onClose={() => setShowQRSync(false)}
+          onRestoreData={(data) => {
+            const uid = session.user.id;
+            if (Array.isArray(data.clients)       && data.clients.length)       { setClients(data.clients);           local.setAll(uid,'clients',data.clients); }
+            if (Array.isArray(data.items)          && data.items.length)         { setItems(data.items);               local.setAll(uid,'items',data.items); }
+            if (Array.isArray(data.invoices)       && data.invoices.length)      { setInvoices(data.invoices);         local.setAll(uid,'invoices',data.invoices); }
+            if (Array.isArray(data.stock_entries)  && data.stock_entries.length) { setStockEntries(data.stock_entries);local.setAll(uid,'stock_entries',data.stock_entries); }
+            if (data.config && typeof data.config === 'object')                  { setConfig({...DEFAULT_CONFIG,...data.config}); local.setConfig(uid,{...DEFAULT_CONFIG,...data.config}); }
+          }}
+        />
       )}
 
       {/* Overlays */}
