@@ -322,17 +322,22 @@ const App: React.FC = () => {
   const doBackup = useCallback((isAuto = false) => {
     if (!session) return;
     const uid = session.user.id;
+    const inv = local.getAll(uid, 'invoices');
+    const cl  = local.getAll(uid, 'clients');
+    const it  = local.getAll(uid, 'items');
+    const se  = local.getAll(uid, 'stock_entries');
+    const cfg = local.getConfig(uid);
     const data = {
-      exportedAt: new Date().toISOString(),
-      version: 1,
-      user: session.user.username,
-      invoices:      local.getAll(uid, 'invoices'),
-      clients:       local.getAll(uid, 'clients'),
-      items:         local.getAll(uid, 'items'),
-      stock_entries: local.getAll(uid, 'stock_entries'),
-      config:        local.getConfig(uid),
+      exportedAt:    new Date().toISOString(),
+      version:       2,
+      user:          session.user.username,
+      invoices:      inv,
+      clients:       cl,
+      items:         it,
+      stock_entries: se,
+      config:        cfg,
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     const date = new Date().toLocaleDateString('en-CA');
@@ -341,7 +346,13 @@ const App: React.FC = () => {
     a.click();
     URL.revokeObjectURL(url);
     localStorage.setItem('intal_last_backup', Date.now().toString());
-    if (!isAuto) alert(`✅ Backup u ruajt:\nintal-backup-${date}.json\n\nFaturat: ${(data.invoices as any[]).length} | Klientët: ${(data.clients as any[]).length} | Artikujt: ${(data.items as any[]).length}`);
+    if (!isAuto) alert(
+      `✅ Backup u ruajt: intal-backup-${date}.json\n\n` +
+      `📄 Faturat:     ${(inv as any[]).length}\n` +
+      `👥 Klientët:   ${(cl  as any[]).length}\n` +
+      `📦 Artikujt:   ${(it  as any[]).length}\n` +
+      `🏭 Fletëhyrjet: ${(se  as any[]).length}`
+    );
   }, [session]);
 
   // Auto-backup çdo 24 orë kur hapet app-i
@@ -799,29 +810,33 @@ const App: React.FC = () => {
                     const text = await file.text();
                     const bk = JSON.parse(text);
                     if (!bk || typeof bk !== 'object') return false;
-                    const cl  = Array.isArray(bk.clients)      ? bk.clients      : [];
-                    const it  = Array.isArray(bk.items)         ? bk.items        : [];
-                    const inv = Array.isArray(bk.invoices)      ? bk.invoices     : [];
-                    const se  = Array.isArray(bk.stockEntries || bk.stock_entries) ? (bk.stockEntries || bk.stock_entries) : [];
+                    const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
+                    const it  = Array.isArray(bk.items)          ? bk.items         : [];
+                    const inv = Array.isArray(bk.invoices)       ? bk.invoices      : [];
+                    const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries
+                              : Array.isArray(bk.stockEntries)   ? bk.stockEntries  : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    // Bllokon cloud override për 30 sekonda
-                    importLockUntil.current = Date.now() + 30000;
-                    if (cl.length)  { setClients(cl);       local.setAll(uid, 'clients', cl); }
-                    if (it.length)  { setItems(it);         local.setAll(uid, 'items', it); }
-                    if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
-                    if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
-                    if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
-                    // Push menjëherë në cloud me të dhënat e reja
+                    if (!cl.length && !it.length && !inv.length) return false; // skedar i pavlefshëm
+                    // Blloko cloud override 60 sekonda
+                    importLockUntil.current = Date.now() + 60000;
+                    // Ruaj gjithmonë (edhe nëse lista bosh — rishkruaj)
+                    setClients(cl);       local.setAll(uid, 'clients', cl);
+                    setItems(it);         local.setAll(uid, 'items', it);
+                    setInvoices(inv);     local.setAll(uid, 'invoices', inv);
+                    setStockEntries(se);  local.setAll(uid, 'stock_entries', se);
+                    if (cf) { setConfig(cf); local.setConfig(uid, cf); }
+                    // Push await në cloud — sinkronizon para navigimit
                     if (CLOUD_ENABLED) {
                       const cid = session?.user.username.toLowerCase().trim() || uid;
-                      Promise.all([
-                        cl.length  ? cloudSave(cid,'clients',cl)       : Promise.resolve(),
-                        it.length  ? cloudSave(cid,'items',it)         : Promise.resolve(),
-                        inv.length ? cloudSave(cid,'invoices',inv)     : Promise.resolve(),
-                        se.length  ? cloudSave(cid,'stock_entries',se) : Promise.resolve(),
-                        cf         ? cloudSaveConfig(cid,cf)           : Promise.resolve(),
+                      await Promise.all([
+                        cloudSave(cid,'clients',       cl),
+                        cloudSave(cid,'items',         it),
+                        cloudSave(cid,'invoices',      inv),
+                        cloudSave(cid,'stock_entries', se),
+                        cf ? cloudSaveConfig(cid,cf) : Promise.resolve(),
                       ]);
                     }
+                    alert(`✅ Import u krye:\n📄 Faturat: ${inv.length} | 👥 Klientët: ${cl.length} | 📦 Artikujt: ${it.length} | 🏭 Fletëhyrjet: ${se.length}`);
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
