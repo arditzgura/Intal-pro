@@ -546,6 +546,7 @@ const App: React.FC = () => {
       return { ...inv, status };
     });
     const recalced = recalcClientStatuses(getInvClientKey(target), base);
+    importLockUntil.current = Date.now() + 10000;
     setInvoices(recalced);
     local.setAll(uid, 'invoices', recalced);
   };
@@ -615,6 +616,8 @@ const App: React.FC = () => {
       ? invoices.map(inv => inv.id === final.id ? final : inv)
       : [final, ...invoices];
     const newInvoices = recalcClientStatuses(getInvClientKey(final), base);
+    // Bllokon cloud nga mbishkrimi për 10s pas ruajtjes lokale
+    importLockUntil.current = Date.now() + 10000;
     setInvoices(newInvoices);
     local.setAll(uid, 'invoices', newInvoices);
 
