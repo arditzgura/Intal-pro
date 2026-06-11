@@ -43,17 +43,21 @@ export async function cloudSaveConfig(userId: string, config: any): Promise<void
   }
 }
 
-/** Ngarko të gjitha tabelat nga cloud për një user */
-export async function cloudLoadAll(userId: string): Promise<Record<string, any[] | null>> {
+export interface CloudRow { data: any[]; updatedAt: string; }
+
+/** Ngarko të gjitha tabelat nga cloud për një user — kthe dhe updated_at */
+export async function cloudLoadAll(userId: string): Promise<Record<string, CloudRow>> {
   if (!supabase) return {};
   try {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('table_name, data')
+      .select('table_name, data, updated_at')
       .eq('user_id', userId);
     if (error || !data) return {};
-    const result: Record<string, any[]> = {};
-    data.forEach((row: any) => { result[row.table_name] = row.data; });
+    const result: Record<string, CloudRow> = {};
+    data.forEach((row: any) => {
+      result[row.table_name] = { data: row.data, updatedAt: row.updated_at };
+    });
     return result;
   } catch (e) {
     console.warn('[cloudSync] loadAll error:', e);
