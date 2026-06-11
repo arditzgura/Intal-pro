@@ -286,52 +286,34 @@ const App: React.FC = () => {
     const uid      = session.user.id;                                   // local storage key
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
-    // Ngarko nga cloud VETËM nëse pajisja nuk ka të dhëna lokale (pajisje e re / mobile i ri)
-    // Nëse ka të dhëna lokale, ato janë burimi i vërtetë — mos i mbishkruaj
-    const hasLocalData = local.getAll(uid, 'invoices').length > 0 ||
-                         local.getAll(uid, 'clients').length  > 0;
+    const applyRemote = (remote: Record<string, any[]>) => {
+      if (Date.now() <= importLockUntil.current) return;
+      if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
+      if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
+      if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
+      if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
+      if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
+    };
 
-    if (!hasLocalData) {
-      cloudLoadAll(cloudId).then(remote => {
-        if (Date.now() <= importLockUntil.current) return;
-        if (remote.invoices?.length)      { setInvoices(remote.invoices);          local.setAll(uid,'invoices',      remote.invoices); }
-        if (remote.clients?.length)       { setClients(remote.clients);            local.setAll(uid,'clients',       remote.clients); }
-        if (remote.items?.length)         { setItems(remote.items);                local.setAll(uid,'items',         remote.items); }
-        if (remote.stock_entries?.length) { setStockEntries(remote.stock_entries); local.setAll(uid,'stock_entries', remote.stock_entries); }
-        if (remote.config?.[0])           { setConfig(c => ({...c,...remote.config[0]})); local.setConfig(uid, remote.config[0]); }
-      });
-    } else {
-      // Ka të dhëna lokale — push-o ato në cloud për t'i mbajtur të sinkronizuara
-      setTimeout(async () => {
-        await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
-        await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
-        await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
-        await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
-        const cfg = local.getConfig(uid);
-        if (cfg) await cloudSaveConfig(cloudId, cfg);
-      }, 1000);
-    }
+    // Ngarko gjithmonë nga cloud — cloud është burimi i vërtetë i përbashkët
+    // importLockUntil bën guard kundër rishkrimit pas importit lokal
+    cloudLoadAll(cloudId).then(applyRemote);
 
-    // Subscribe për ndryshime real-time nga pajisje të tjera — injoron nëse import është aktiv
+    // Real-time: merr ndryshimet menjëherë kur desktop bën ndryshim
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
-      if (Date.now() <= importLockUntil.current) return; // injoron gjatë importit
-      if (tableName === 'invoices')      { setInvoices(data);       local.setAll(uid,'invoices',      data); }
-      if (tableName === 'clients')       { setClients(data);        local.setAll(uid,'clients',       data); }
-      if (tableName === 'items')         { setItems(data);          local.setAll(uid,'items',         data); }
-      if (tableName === 'stock_entries') { setStockEntries(data);   local.setAll(uid,'stock_entries', data); }
+      if (Date.now() <= importLockUntil.current) return;
+      if (tableName === 'invoices')      { setInvoices(data);      local.setAll(uid,'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);       local.setAll(uid,'clients',       data); }
+      if (tableName === 'items')         { setItems(data);         local.setAll(uid,'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data);  local.setAll(uid,'stock_entries', data); }
       if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
     });
 
-    // Polling fallback: çdo 30s kontrollo cloud për ndryshime (backup nëse real-time nuk funksionon)
-    const pollInterval = setInterval(async () => {
+    // Polling fallback: çdo 15s — sinkronizon edhe nëse real-time nuk funksionon
+    const pollInterval = setInterval(() => {
       if (Date.now() <= importLockUntil.current) return;
-      const remote = await cloudLoadAll(cloudId);
-      if (!remote) return;
-      if (remote.invoices?.length)      setInvoices(prev => remote.invoices.length !== prev.length || JSON.stringify(remote.invoices) !== JSON.stringify(prev) ? (local.setAll(uid,'invoices',remote.invoices), remote.invoices) : prev);
-      if (remote.clients?.length)       setClients(prev  => remote.clients.length  !== prev.length || JSON.stringify(remote.clients)  !== JSON.stringify(prev) ? (local.setAll(uid,'clients', remote.clients),  remote.clients)  : prev);
-      if (remote.items?.length)         setItems(prev    => remote.items.length    !== prev.length || JSON.stringify(remote.items)    !== JSON.stringify(prev) ? (local.setAll(uid,'items',   remote.items),    remote.items)    : prev);
-      if (remote.stock_entries?.length) setStockEntries(prev => remote.stock_entries.length !== prev.length || JSON.stringify(remote.stock_entries) !== JSON.stringify(prev) ? (local.setAll(uid,'stock_entries',remote.stock_entries), remote.stock_entries) : prev);
-    }, 30000);
+      cloudLoadAll(cloudId).then(applyRemote);
+    }, 15000);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
   }, [dataReady]); // eslint-disable-line
@@ -797,10 +779,10 @@ const App: React.FC = () => {
                     if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
                     if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
                     if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
-                    // Push menjëherë në cloud me të dhënat e reja
+                    // Push AWAIT në cloud — navigon vetëm pasi cloud ka të dhënat e reja
                     if (CLOUD_ENABLED) {
                       const cid = session?.user.username.toLowerCase().trim() || uid;
-                      Promise.all([
+                      await Promise.all([
                         cl.length  ? cloudSave(cid,'clients',cl)         : Promise.resolve(),
                         it.length  ? cloudSave(cid,'items',it)           : Promise.resolve(),
                         inv.length ? cloudSave(cid,'invoices',inv)       : Promise.resolve(),
