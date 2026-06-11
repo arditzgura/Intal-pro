@@ -260,6 +260,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!session || !dataReady) return;
+    const uid = session.user.id;
+
+    // LocalStorage-first: çdo ndryshim lokal bllokон cloud 30s dhe shënon timestamp
+    // Kjo mbulon TË GJITHA veprimet (inline callbacks, handlers, etj.)
+    importLockUntil.current = Date.now() + 30000;
+    markLocalModified(uid);
+
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
     autoBackupTimer.current = setTimeout(() => {
       const uid = session.user.id;
