@@ -779,10 +779,10 @@ const App: React.FC = () => {
                     if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
                     if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
                     if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
-                    // Push AWAIT në cloud — navigon vetëm pasi cloud ka të dhënat e reja
+                    // Push në cloud pa await (onRestoreAutoBackup nuk është async)
                     if (CLOUD_ENABLED) {
                       const cid = session?.user.username.toLowerCase().trim() || uid;
-                      await Promise.all([
+                      Promise.all([
                         cl.length  ? cloudSave(cid,'clients',cl)         : Promise.resolve(),
                         it.length  ? cloudSave(cid,'items',it)           : Promise.resolve(),
                         inv.length ? cloudSave(cid,'invoices',inv)       : Promise.resolve(),
