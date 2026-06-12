@@ -317,12 +317,11 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                 const absorbedStatus = getAbsorbedStatus(inv);
                 const isAbsorbedAny = absorbedStatus !== 'none';
 
-                // Fatura e fundit e paguar në datë tjetër, shfaqet si arkëtim i ditës
-                const isArkëtuar = isDailyMode
-                  && cd?.latestId === inv.id
-                  && inv.status === 'E paguar'
-                  && inv.date.slice(0, 10) !== activeDayStr
-                  && cd?.latestPaymentDate === activeDayStr;
+                // Arkëtuar = paguar në datë tjetër nga data e krijimit
+                const payDate = inv.paymentDate?.slice(0, 10);
+                const isArkëtuar = inv.status === 'E paguar'
+                  && !!payDate
+                  && payDate !== inv.date.slice(0, 10);
 
                 // Vlerat e kolonave
                 const vleraFature = inv.subtotal;
@@ -361,7 +360,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                       {formatDateDisplay(inv.date.slice(0, 10))}
                       {isArkëtuar && (
                         <div className="text-[9px] font-black text-emerald-600 uppercase mt-0.5">
-                          ↳ Paguar {formatDateDisplay(activeDayStr)}
+                          ↳ Paguar {formatDateDisplay(payDate!)}
                         </div>
                       )}
                     </td>
