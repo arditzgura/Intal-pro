@@ -331,23 +331,26 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
                 // Ngjyra rreshti
                 const isPasuar = inv.status === 'Pasuar';
-                const rowBg = isArkëtuar  ? 'bg-emerald-50/40' :
-                              isPasuar    ? 'opacity-60' : '';
+                const isPaguar = inv.status === 'E paguar';
+                const rowBg = isArkëtuar ? 'bg-emerald-50/40' :
+                              isPasuar   ? 'opacity-60' : '';
 
-                // Status badge — drejtpërdrejt nga statusi i ruajtur
+                // Status badge — bazuar mbi inv.status (vendoset nga recalcClientStatuses)
+                // globalBalance përdoret vetëm kur statusi është Pa paguar dhe është fatura e fundit
                 const badgeClass =
-                  isPasuar       ? 'bg-indigo-100 text-indigo-600' :
-                  isArkëtuar     ? 'bg-yellow-100 text-yellow-700' :
-                  globalBalance > 0 ? 'bg-rose-100 text-rose-700' :
+                  isArkëtuar ? 'bg-yellow-100 text-yellow-700' :
+                  isPaguar   ? 'bg-green-100 text-green-700' :
+                  isPasuar   ? 'bg-indigo-100 text-indigo-600' :
+                  // Pa paguar — fatura e fundit e klientit
                   globalBalance < 0 ? 'bg-amber-100 text-amber-700' :
-                                      'bg-green-100 text-green-700';
+                                      'bg-rose-100 text-rose-700';
 
                 const badgeLabel =
-                  isPasuar       ? 'Pasuar' :
-                  isArkëtuar     ? 'Arkëtuar' :
-                  globalBalance > 0 ? 'Pa paguar' :
+                  isArkëtuar ? 'Arkëtuar' :
+                  isPaguar   ? 'E paguar' :
+                  isPasuar   ? 'Pasuar' :
                   globalBalance < 0 ? 'Me Tepricë' :
-                                      'E paguar';
+                                      'Pa paguar';
 
                 const curr = cd?.currency ?? inv.currency;
                 const fmt = (v: number) => curr === 'EUR' ? (v * 100).toLocaleString() : v.toLocaleString();
