@@ -2,9 +2,15 @@
 
 const k = (userId: string, table: string) => `intal_${userId}_${table}`;
 
-// Çdo shkrim lokal shënon menjëherë timestamp-in — localStorage është gjithmonë primar
+// Timestamp i fundit i shkrimit lokal — vendoset SINKRONISHT para çdo async operacioni
+// Kjo garanton që cloud kurrë nuk mbishkruan pas një shkrimit lokal
+let _lastLocalWrite = 0;
+export const getLastLocalWrite = () => _lastLocalWrite;
+
 const touch = (userId: string) => {
-  localStorage.setItem(`intal_${userId}_last_modified`, new Date().toISOString());
+  const now = new Date().toISOString();
+  localStorage.setItem(`intal_${userId}_last_modified`, now);
+  _lastLocalWrite = Date.now(); // sinkron — pa pritur React render
 };
 
 export const local = {
@@ -22,12 +28,12 @@ export const local = {
     const all = local.getAll<T>(userId, table);
     const idx = all.findIndex(r => r.id === record.id);
     if (idx >= 0) all[idx] = record; else all.push(record);
-    local.setAll(userId, table, all); // touch thirret nga setAll
+    local.setAll(userId, table, all);
   },
 
   remove: <T extends { id: string }>(userId: string, table: string, id: string): void => {
     const filtered = local.getAll<T>(userId, table).filter((r: any) => r.id !== id);
-    local.setAll(userId, table, filtered); // touch thirret nga setAll
+    local.setAll(userId, table, filtered);
   },
 
   clear: (userId: string, table: string): void => {

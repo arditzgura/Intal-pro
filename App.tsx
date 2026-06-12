@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
-import { local } from './utils/localDb';
+import { local, getLastLocalWrite } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow } from './utils/cloudSync';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -295,9 +295,17 @@ const App: React.FC = () => {
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
     // Apliko të dhënat nga cloud VETËM nëse janë më të reja se localStorage
-    // local.setAll() e përditëson last_modified menjëherë — nuk ka dritare boshe
+    // getLastLocalWrite() është SINKRON — vendoset menjëherë nga local.setAll()
+    // pa pritur React render ose useEffect, duke eliminuar çdo dritare race
+    const canApplyRemote = (): boolean => {
+      // Blloko nëse: (1) import lock aktiv, ose (2) ka pasur shkrim lokal në 30s e fundit
+      if (Date.now() <= importLockUntil.current) return false;
+      if (Date.now() - getLastLocalWrite() < 30000) return false;
+      return true;
+    };
+
     const applyRemote = (remote: Record<string, CloudRow>) => {
-      if (Date.now() <= importLockUntil.current) return;
+      if (!canApplyRemote()) return;
       const localMod = local.getLastModified(uid);
       const cloudMod = Object.values(remote)
         .map(r => r?.updatedAt || '1970-01-01T00:00:00.000Z')
@@ -313,9 +321,9 @@ const App: React.FC = () => {
 
     cloudLoadAll(cloudId).then(applyRemote);
 
-    // Real-time: merr ndryshimet nga pajisja tjetër — importLock mbron ndaj echo-it lokal
+    // Real-time: merr ndryshimet nga pajisja tjetër — dy kushte mbrojtëse
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
-      if (Date.now() <= importLockUntil.current) return;
+      if (!canApplyRemote()) return;
       if (tableName === 'invoices')      { setInvoices(data);     local.setAll(uid,'invoices',      data); }
       if (tableName === 'clients')       { setClients(data);      local.setAll(uid,'clients',       data); }
       if (tableName === 'items')         { setItems(data);        local.setAll(uid,'items',         data); }
