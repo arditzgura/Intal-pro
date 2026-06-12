@@ -2,6 +2,11 @@
 
 const k = (userId: string, table: string) => `intal_${userId}_${table}`;
 
+// Çdo shkrim lokal shënon menjëherë timestamp-in — localStorage është gjithmonë primar
+const touch = (userId: string) => {
+  localStorage.setItem(`intal_${userId}_last_modified`, new Date().toISOString());
+};
+
 export const local = {
   getAll: <T>(userId: string, table: string): T[] => {
     try { return JSON.parse(localStorage.getItem(k(userId, table)) || '[]'); }
@@ -10,18 +15,19 @@ export const local = {
 
   setAll: <T>(userId: string, table: string, data: T[]): void => {
     localStorage.setItem(k(userId, table), JSON.stringify(data));
+    touch(userId);
   },
 
   upsert: <T extends { id: string }>(userId: string, table: string, record: T): void => {
     const all = local.getAll<T>(userId, table);
     const idx = all.findIndex(r => r.id === record.id);
     if (idx >= 0) all[idx] = record; else all.push(record);
-    local.setAll(userId, table, all);
+    local.setAll(userId, table, all); // touch thirret nga setAll
   },
 
   remove: <T extends { id: string }>(userId: string, table: string, id: string): void => {
     const filtered = local.getAll<T>(userId, table).filter((r: any) => r.id !== id);
-    local.setAll(userId, table, filtered);
+    local.setAll(userId, table, filtered); // touch thirret nga setAll
   },
 
   clear: (userId: string, table: string): void => {
@@ -35,5 +41,10 @@ export const local = {
 
   setConfig: (userId: string, config: any): void => {
     localStorage.setItem(`intal_${userId}_config`, JSON.stringify(config));
+    touch(userId);
+  },
+
+  getLastModified: (userId: string): string => {
+    return localStorage.getItem(`intal_${userId}_last_modified`) || '1970-01-01T00:00:00.000Z';
   },
 };

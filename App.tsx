@@ -250,22 +250,13 @@ const App: React.FC = () => {
   const cloudChannelRef  = useRef<RealtimeChannel | null>(null);
   const importLockUntil  = useRef<number>(0); // bllokon cloud overwrite pas importit
 
-  // ─── LocalStorage-first: ruaj timestamp pas çdo veprimi lokal ───────────────
-  const markLocalModified = useCallback((userId: string) => {
-    localStorage.setItem(`intal_${userId}_last_modified`, new Date().toISOString());
-  }, []);
-  const getLocalModified = useCallback((userId: string): string => {
-    return localStorage.getItem(`intal_${userId}_last_modified`) || '1970-01-01T00:00:00.000Z';
-  }, []);
-
   useEffect(() => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
 
-    // LocalStorage-first: çdo ndryshim lokal bllokон cloud 30s dhe shënon timestamp
-    // Kjo mbulon TË GJITHA veprimet (inline callbacks, handlers, etj.)
+    // LocalStorage-first: çdo ndryshim shteti vendos lock 30s kundër cloud overwrite
+    // local.setAll/setConfig e shënojnë menjëherë last_modified brenda localDb
     importLockUntil.current = Date.now() + 30000;
-    markLocalModified(uid);
 
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
     autoBackupTimer.current = setTimeout(() => {
@@ -303,47 +294,33 @@ const App: React.FC = () => {
     const uid      = session.user.id;                                   // local storage key
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 
-    // Apliko të dhënat nga cloud VETËM nëse janë më të reja se ato lokale
+    // Apliko të dhënat nga cloud VETËM nëse janë më të reja se localStorage
+    // local.setAll() e përditëson last_modified menjëherë — nuk ka dritare boshe
     const applyRemote = (remote: Record<string, CloudRow>) => {
       if (Date.now() <= importLockUntil.current) return;
-      const localMod = getLocalModified(uid);
-
-      // Merr updated_at-in më të ri nga cloud (ndonjë tabelë)
+      const localMod = local.getLastModified(uid);
       const cloudMod = Object.values(remote)
         .map(r => r?.updatedAt || '1970-01-01T00:00:00.000Z')
         .reduce((a, b) => (a > b ? a : b), '1970-01-01T00:00:00.000Z');
-
-      // Nëse të dhënat lokale janë më të reja (ose të njëjta), mos mbishkruaj
-      if (localMod >= cloudMod) {
-        console.log('[cloudSync] local is newer, skip remote apply', { localMod, cloudMod });
-        return;
-      }
-
-      console.log('[cloudSync] applying remote (cloud is newer)', { localMod, cloudMod });
+      if (localMod >= cloudMod) return; // localStorage është më i ri — mos mbishkruaj
       const r = (key: string) => remote[key]?.data;
-      if (r('invoices')?.length)      { setInvoices(r('invoices')!);           local.setAll(uid,'invoices',      r('invoices')!); }
-      if (r('clients')?.length)       { setClients(r('clients')!);             local.setAll(uid,'clients',       r('clients')!); }
-      if (r('items')?.length)         { setItems(r('items')!);                 local.setAll(uid,'items',         r('items')!); }
-      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!);  local.setAll(uid,'stock_entries', r('stock_entries')!); }
+      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
+      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
+      if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
+      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
       if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfig(uid, r('config')![0]); }
-      // Ruaj timestamp-in e cloud si të modifikuar lokal (pas sinkronizimit)
-      markLocalModified(uid);
     };
 
-    // Ngarko gjithmonë nga cloud — cloud është burimi i vërtetë i përbashkët
-    // importLockUntil bën guard kundër rishkrimit pas importit lokal
     cloudLoadAll(cloudId).then(applyRemote);
 
-    // Real-time: merr ndryshimet menjëherë kur pajisja tjetër bën ndryshim
-    // Real-time nuk ka updated_at direkt — krahaso me localMod (cloud është gjithmonë 2.5s pas lokal)
+    // Real-time: merr ndryshimet nga pajisja tjetër — importLock mbron ndaj echo-it lokal
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
       if (Date.now() <= importLockUntil.current) return;
-      // Real-time trigger = pajisja tjetër bëri ndryshim → apliko gjithmonë
-      if (tableName === 'invoices')      { setInvoices(data);      local.setAll(uid,'invoices',      data); markLocalModified(uid); }
-      if (tableName === 'clients')       { setClients(data);       local.setAll(uid,'clients',       data); markLocalModified(uid); }
-      if (tableName === 'items')         { setItems(data);         local.setAll(uid,'items',         data); markLocalModified(uid); }
-      if (tableName === 'stock_entries') { setStockEntries(data);  local.setAll(uid,'stock_entries', data); markLocalModified(uid); }
-      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); markLocalModified(uid); }
+      if (tableName === 'invoices')      { setInvoices(data);     local.setAll(uid,'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);      local.setAll(uid,'clients',       data); }
+      if (tableName === 'items')         { setItems(data);        local.setAll(uid,'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data); local.setAll(uid,'stock_entries', data); }
+      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
     });
 
     // Polling fallback: çdo 15s — sinkronizon edhe nëse real-time nuk funksionon
@@ -567,7 +544,6 @@ const App: React.FC = () => {
     local.setAll(uid, 'invoices',      newInvoices);
     local.setAll(uid, 'stock_entries', newStock);
     local.setAll(uid, 'items',         newItems);
-    markLocalModified(uid);
   };
 
   const handleUpdateInvoiceStatus = (id: string, status: Invoice['status']) => {
@@ -587,7 +563,6 @@ const App: React.FC = () => {
     importLockUntil.current = Date.now() + 10000;
     setInvoices(recalced);
     local.setAll(uid, 'invoices', recalced);
-    markLocalModified(uid);
   };
 
   const handleAddStockEntry = (entry: StockEntry, updatePrices: boolean) => {
@@ -596,7 +571,6 @@ const App: React.FC = () => {
       : [entry, ...stockEntries];
     setStockEntries(newEntries);
     local.setAll(uid, 'stock_entries', newEntries);
-    markLocalModified(uid);
     setEditStockEntry(null);
 
     let updatedItems = [...items]; let changed = false;
@@ -659,7 +633,6 @@ const App: React.FC = () => {
     importLockUntil.current = Date.now() + 10000;
     setInvoices(newInvoices);
     local.setAll(uid, 'invoices', newInvoices);
-    markLocalModified(uid);
 
     setEditInvoice(null);
     clearData(STORAGE_KEYS.DRAFT);
