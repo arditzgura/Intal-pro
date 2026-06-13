@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice, Client, Item } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
-import { exportInvoicesToExcel } from '../utils/exportUtils';
+import { exportPeriodReport } from '../utils/exportUtils';
 import { normalize } from '../utils/storage';
 
 interface Props {
@@ -262,9 +262,12 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             <option value="Pa paguar">Pa Paguar</option>
             <option value="Pasuar">Pasuar</option>
           </select>
-          <button onClick={() => exportInvoicesToExcel(filteredInvoices)}
+          <button onClick={() => exportPeriodReport(
+              filteredInvoices, items, filterMode, getPeriodLabel(),
+              selectedMonth, selectedYear, activeDayStr
+            )}
             className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10">
-            <FileSpreadsheet size={16} /> Eksporto
+            <FileSpreadsheet size={16} /> Raport
           </button>
         </div>
       </div>

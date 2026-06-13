@@ -101,6 +101,86 @@ export const exportClientAnalysisToExcel = (client: Client, invoices: Invoice[],
   XLSX.writeFile(wb, `Analiza_${client.name}.xlsx`);
 };
 
+/** Raport periodik: xhiro ditore / mujore, arketime, fitimi */
+export const exportPeriodReport = (
+  invoices: Invoice[],
+  items: Item[],
+  filterMode: 'all' | 'today' | 'day' | 'month' | 'year',
+  periodLabel: string,
+  selectedMonth: string,
+  selectedYear: string,
+  activeDayStr: string,
+) => {
+  const getConv = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
+  const calcProfit = (inv: Invoice) => {
+    let p = 0;
+    inv.items.forEach(it => {
+      const gi = items.find(i => i.id === it.itemId || i.name === it.name);
+      const buy = Number(gi?.purchasePrice || 0);
+      const sell = getConv(Number(it.price), inv.currency);
+      p += (sell - buy) * Number(it.quantity);
+    });
+    return p;
+  };
+
+  // Mblidh të dhënat për çdo interval (ditë ose muaj)
+  type Row = { xhiro: number; arketime: number; fitimi: number };
+  const map: Record<string, Row> = {};
+  const add = (key: string) => { if (!map[key]) map[key] = { xhiro: 0, arketime: 0, fitimi: 0 }; };
+
+  invoices.forEach(inv => {
+    if (inv.status === 'Anuluar') return;
+    const invDay   = inv.date.slice(0, 10);
+    const invMonth = invDay.slice(0, 7);
+    const payDay   = (inv.paymentDate || inv.date).slice(0, 10);
+    const payMonth = payDay.slice(0, 7);
+
+    // Xhiro & Fitimi — sipas datës së krijimit
+    const xhiroKey = filterMode === 'year' || filterMode === 'all' ? invMonth : invDay;
+    add(xhiroKey);
+    map[xhiroKey].xhiro   += getConv(inv.subtotal, inv.currency);
+    map[xhiroKey].fitimi  += calcProfit(inv);
+
+    // Arketime — sipas datës së pagesës
+    const arkKey = filterMode === 'year' || filterMode === 'all' ? payMonth : payDay;
+    add(arkKey);
+    map[arkKey].arketime += getConv(inv.amountPaid || 0, inv.currency);
+  });
+
+  // Formatimi i çelësit për display
+  const mn: Record<string, string> = {
+    '01':'Janar','02':'Shkurt','03':'Mars','04':'Prill','05':'Maj','06':'Qershor',
+    '07':'Korrik','08':'Gusht','09':'Shtator','10':'Tetor','11':'Nëntor','12':'Dhjetor',
+  };
+  const fmtKey = (k: string) => {
+    if (k.length === 7) { const [y, m] = k.split('-'); return `${mn[m] || m} ${y}`; }
+    const [y, m, d] = k.split('-'); return `${d}/${m}/${y}`;
+  };
+
+  const rows = Object.keys(map).sort().map(k => ({
+    'Data': fmtKey(k),
+    'Xhiro (Lek)': Math.round(map[k].xhiro),
+    'Arketime (Lek)': Math.round(map[k].arketime),
+    'Fitimi (Lek)': Math.round(map[k].fitimi),
+  }));
+
+  // Rreshti total
+  rows.push({
+    'Data': 'TOTALI',
+    'Xhiro (Lek)': rows.reduce((s, r) => s + r['Xhiro (Lek)'], 0),
+    'Arketime (Lek)': rows.reduce((s, r) => s + r['Arketime (Lek)'], 0),
+    'Fitimi (Lek)': rows.reduce((s, r) => s + r['Fitimi (Lek)'], 0),
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Gjerësia kolonave
+  ws['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Raport');
+  XLSX.writeFile(wb, `Raport_${periodLabel.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+};
+
 export const exportClientsToExcel = (clients: Client[]) => {
   const worksheet = XLSX.utils.json_to_sheet(clients);
   const workbook = XLSX.utils.book_new();
