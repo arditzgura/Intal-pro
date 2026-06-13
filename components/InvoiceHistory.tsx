@@ -247,7 +247,11 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       }
     });
 
-    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+    // Garantoj që shfaqen vetëm ditët/muajt e periudhës së zgjedhur
+    const prefix = reportMode === 'month' ? reportMonth : reportYear;
+    return Object.values(map)
+      .filter(r => r.key.startsWith(prefix))
+      .sort((a, b) => a.key.localeCompare(b.key));
   }, [invoices, items, reportMode, reportMonth, reportYear]);
 
   const fmtReportKey = (k: string) => {
