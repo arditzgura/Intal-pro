@@ -211,40 +211,21 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       const invDay = inv.date.slice(0, 10);
       const payDay = (inv.paymentDate || inv.date).slice(0, 10);
 
-      if (reportMode === 'month') {
-        // Shitje/Fitimi — vetëm faturat e krijuara në këtë muaj
-        if (invDay.slice(0, 7) === reportMonth) {
-          if (!map[invDay]) map[invDay] = { key: invDay, shitje: 0, arketime: 0, fitimi: 0 };
-          map[invDay].shitje += getConv(inv.subtotal, inv.currency);
-          inv.items.forEach(it => {
-            const gi = items.find(i => i.id === it.itemId || i.name === it.name);
-            map[invDay].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
-          });
-        }
-        // Arketime — vetëm pagesat e bëra në këtë muaj
-        if (payDay.slice(0, 7) === reportMonth && (inv.amountPaid || 0) > 0) {
-          if (!map[payDay]) map[payDay] = { key: payDay, shitje: 0, arketime: 0, fitimi: 0 };
-          map[payDay].arketime += getConv(inv.amountPaid || 0, inv.currency);
-        }
-      } else {
-        // Viti: grupim mujor
-        const inYear = invDay.slice(0, 4) === reportYear || payDay.slice(0, 4) === reportYear;
-        if (!inYear) return;
-        const xKey = invDay.slice(0, 7);
-        const pKey = payDay.slice(0, 7);
-        if (invDay.slice(0, 4) === reportYear) {
-          if (!map[xKey]) map[xKey] = { key: xKey, shitje: 0, arketime: 0, fitimi: 0 };
-          map[xKey].shitje += getConv(inv.subtotal, inv.currency);
-          inv.items.forEach(it => {
-            const gi = items.find(i => i.id === it.itemId || i.name === it.name);
-            map[xKey].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
-          });
-        }
-        if (payDay.slice(0, 4) === reportYear && (inv.amountPaid || 0) > 0) {
-          if (!map[pKey]) map[pKey] = { key: pKey, shitje: 0, arketime: 0, fitimi: 0 };
-          map[pKey].arketime += getConv(inv.amountPaid || 0, inv.currency);
-        }
-      }
+      // Grupimi bazuar në datën e KRIJIMIT të faturës (jo paymentDate)
+      // Arketime = shuma e paguar e faturave të krijuara atë ditë/muaj (konsistent me listën)
+      const periodKey = reportMode === 'month' ? invDay : invDay.slice(0, 7);
+      const inPeriod  = reportMode === 'month'
+        ? invDay.slice(0, 7) === reportMonth
+        : invDay.slice(0, 4) === reportYear;
+      if (!inPeriod) return;
+
+      if (!map[periodKey]) map[periodKey] = { key: periodKey, shitje: 0, arketime: 0, fitimi: 0 };
+      map[periodKey].shitje   += getConv(inv.subtotal, inv.currency);
+      map[periodKey].arketime += getConv(inv.amountPaid || 0, inv.currency);
+      inv.items.forEach(it => {
+        const gi = items.find(i => i.id === it.itemId || i.name === it.name);
+        map[periodKey].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
+      });
     });
 
     // Garantoj që shfaqen vetëm ditët/muajt e periudhës së zgjedhur
