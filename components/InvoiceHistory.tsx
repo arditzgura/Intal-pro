@@ -195,27 +195,37 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     return { sales: totalSales, collected: totalCollected, profit: totalProfit };
   }, [filteredInvoices, items, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
-  // Rreshtat e raportit — të grupuara sipas ditës ose muajit
+  // ─── Filtrat e pavarur të raportit ───────────────────────────────────────────
+  const [reportMode, setReportMode] = useState<'month' | 'year'>('month');
+  const [reportMonth, setReportMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
+  const [reportYear,  setReportYear]  = useState(new Date().getFullYear().toString());
+
+  const MN: Record<string,string> = {'01':'Janar','02':'Shkurt','03':'Mars','04':'Prill','05':'Maj','06':'Qershor','07':'Korrik','08':'Gusht','09':'Shtator','10':'Tetor','11':'Nëntor','12':'Dhjetor'};
+
   const reportRows = useMemo(() => {
     const getConv = (v: number, c?: string) => c === 'EUR' ? v * 100 : v;
     type Row = { key: string; shitje: number; arketime: number; fitimi: number };
     const map: Record<string, Row> = {};
-    const byMonth = filterMode === 'year' || filterMode === 'all';
 
-    filteredInvoices.forEach(inv => {
-      if (inv.status === 'Anuluar') return;
-      const xKey = byMonth ? inv.date.slice(0, 7) : inv.date.slice(0, 10);
-      const pKey = byMonth
-        ? (inv.paymentDate || inv.date).slice(0, 7)
-        : (inv.paymentDate || inv.date).slice(0, 10);
+    invoices.filter(inv => inv.status !== 'Anuluar').forEach(inv => {
+      const invDay = inv.date.slice(0, 10);
+      const payDay = (inv.paymentDate || inv.date).slice(0, 10);
+
+      // Filtro sipas periudhës së zgjedhur
+      const inPeriod = reportMode === 'month'
+        ? invDay.slice(0, 7) === reportMonth || payDay.slice(0, 7) === reportMonth
+        : invDay.slice(0, 4) === reportYear  || payDay.slice(0, 4) === reportYear;
+      if (!inPeriod) return;
+
+      // Çelësi i grupimit: ditë (muaj) ose muaj (vit)
+      const xKey = reportMode === 'month' ? invDay  : invDay.slice(0, 7);
+      const pKey = reportMode === 'month' ? payDay  : payDay.slice(0, 7);
 
       if (!map[xKey]) map[xKey] = { key: xKey, shitje: 0, arketime: 0, fitimi: 0 };
       map[xKey].shitje += getConv(inv.subtotal, inv.currency);
       inv.items.forEach(it => {
         const gi = items.find(i => i.id === it.itemId || i.name === it.name);
-        const buy = Number(gi?.purchasePrice || 0);
-        const sell = getConv(Number(it.price), inv.currency);
-        map[xKey].fitimi += (sell - buy) * Number(it.quantity);
+        map[xKey].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
       });
 
       if (!map[pKey]) map[pKey] = { key: pKey, shitje: 0, arketime: 0, fitimi: 0 };
@@ -223,13 +233,16 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     });
 
     return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
-  }, [filteredInvoices, items, filterMode]);
+  }, [invoices, items, reportMode, reportMonth, reportYear]);
 
   const fmtReportKey = (k: string) => {
-    const mn: Record<string,string> = {'01':'Janar','02':'Shkurt','03':'Mars','04':'Prill','05':'Maj','06':'Qershor','07':'Korrik','08':'Gusht','09':'Shtator','10':'Tetor','11':'Nëntor','12':'Dhjetor'};
-    if (k.length === 7) { const [y, m] = k.split('-'); return `${mn[m] || m} ${y}`; }
-    const [y, m, d] = k.split('-'); return `${d}/${m}/${y}`;
+    if (k.length === 7) { const [y, m] = k.split('-'); return `${MN[m] || m} ${y}`; }
+    const [, m, d] = k.split('-'); return `${d} ${MN[m] || m}`;
   };
+
+  const reportTitle = reportMode === 'month'
+    ? (() => { const [y, m] = reportMonth.split('-'); return `${MN[m]} ${y}`; })()
+    : `Viti ${reportYear}`;
 
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
@@ -332,10 +345,34 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       </div>
 
       {/* ─── PAMJA E RAPORTIT ─── */}
-      {showReport && (
+      {showReport && (<>
+        {/* Filtrat e raportit */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-4">
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            {(['month','year'] as const).map(m => (
+              <button key={m} onClick={() => setReportMode(m)}
+                className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${reportMode === m ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                {m === 'month' ? 'Muaji' : 'Viti'}
+              </button>
+            ))}
+          </div>
+          {reportMode === 'month' && (
+            <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)}
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none cursor-pointer" />
+          )}
+          {reportMode === 'year' && (
+            <select value={reportYear} onChange={e => setReportYear(e.target.value)}
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none cursor-pointer appearance-none">
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
+          <span className="text-xs font-black text-indigo-600 uppercase tracking-widest ml-auto">{reportTitle}</span>
+        </div>
+
+        {/* Tabela e raportit */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto scrollbar-hide">
-            <table className="w-full text-left min-w-[560px]">
+            <table className="w-full text-left min-w-[520px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] uppercase font-bold tracking-widest">
                 <tr>
                   <th className="px-6 py-4">Data</th>
@@ -345,9 +382,12 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
+                {reportRows.length === 0 && (
+                  <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-400 text-xs font-bold">Nuk ka të dhëna për periudhën e zgjedhur</td></tr>
+                )}
                 {reportRows.map(row => (
                   <tr key={row.key} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-3 font-black text-slate-700">{fmtReportKey(row.key)}</td>
+                    <td className="px-6 py-3 font-black text-slate-700 w-40">{fmtReportKey(row.key)}</td>
                     <td className="px-6 py-3 text-right font-black text-slate-800">{Math.round(row.shitje).toLocaleString()}</td>
                     <td className="px-6 py-3 text-right font-black text-emerald-700">{Math.round(row.arketime).toLocaleString()}</td>
                     <td className={`px-6 py-3 text-right font-black ${row.fitimi >= 0 ? 'text-amber-600' : 'text-rose-600'}`}>
@@ -356,24 +396,26 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t-2 border-slate-200 bg-indigo-900 text-white">
-                <tr>
-                  <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Totali</td>
-                  <td className="px-6 py-4 text-right font-black text-lg">
-                    {Math.round(reportRows.reduce((s,r) => s+r.shitje, 0)).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-right font-black text-lg text-emerald-300">
-                    {Math.round(reportRows.reduce((s,r) => s+r.arketime, 0)).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-right font-black text-lg text-amber-300">
-                    +{Math.round(reportRows.reduce((s,r) => s+r.fitimi, 0)).toLocaleString()}
-                  </td>
-                </tr>
-              </tfoot>
+              {reportRows.length > 0 && (
+                <tfoot>
+                  <tr className="bg-indigo-900 text-white">
+                    <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Totali</td>
+                    <td className="px-6 py-4 text-right font-black text-base">
+                      {Math.round(reportRows.reduce((s,r) => s+r.shitje, 0)).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-base text-emerald-300">
+                      {Math.round(reportRows.reduce((s,r) => s+r.arketime, 0)).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-right font-black text-base text-amber-300">
+                      +{Math.round(reportRows.reduce((s,r) => s+r.fitimi, 0)).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
-      )}
+      </>)}
 
       {/* ─── LISTA E FATURAVE ─── */}
       {!showReport && <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
