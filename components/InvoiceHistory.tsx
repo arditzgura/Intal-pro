@@ -161,7 +161,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
   // Totals: nga filteredInvoices (respekton statusFilter, cityFilter, search, periudhën)
   // Shitjet/Fitimi: vetëm faturat e krijuara në periudhë (inv.date)
-  // Arkëtimet: të gjitha pagesat e bëra në periudhë (paymentDate ose inv.date)
+  // Arkëtimet: sipas datës kur u KRY pagesa (paymentDate ose inv.date nëse s'ka paymentDate)
   const totals = useMemo(() => {
     const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
     let totalSales = 0;
@@ -170,6 +170,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
     filteredInvoices.forEach(inv => {
       const invDate = inv.date.slice(0, 10);
+      const payDateStr = (inv.paymentDate || inv.date).slice(0, 10);
 
       // Shitjet & Fitimi: vetëm nëse fatura u KRIjUA në periudhë
       const createdInPeriod =
@@ -180,13 +181,24 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
       if (createdInPeriod) {
         totalSales += getConvVal(inv.subtotal, inv.currency);
-        totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
         inv.items.forEach(it => {
           const globalItem = items.find(gi => gi.id === it.itemId || gi.name === it.name);
           const purchLek = Number(globalItem?.purchasePrice || 0);
           const sellLek  = getConvVal(Number(it.price), inv.currency);
           totalProfit += (sellLek - purchLek) * Number(it.quantity);
         });
+      }
+
+      // Arkëtimet: sipas datës së PAGESËS (jo krijimit)
+      const paidInPeriod = (inv.amountPaid || 0) > 0 && (
+        filterMode === 'all'   ? true :
+        filterMode === 'month' ? payDateStr.slice(0, 7) === selectedMonth :
+        filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear :
+        payDateStr === activeDayStr
+      );
+
+      if (paidInPeriod) {
+        totalCollected += getConvVal(inv.amountPaid!, inv.currency);
       }
     });
 
@@ -204,29 +216,41 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     const getConv = (v: number, c?: string) => c === 'EUR' ? v * 100 : v;
     type Row = { key: string; shitje: number; arketime: number; fitimi: number };
     const map: Record<string, Row> = {};
+    const ensure = (key: string) => { if (!map[key]) map[key] = { key, shitje: 0, arketime: 0, fitimi: 0 }; };
 
     invoices.filter(inv => inv.status !== 'Anuluar').forEach(inv => {
       const invDay = inv.date.slice(0, 10);
       const payDay = (inv.paymentDate || inv.date).slice(0, 10);
 
-      // Grupimi bazuar në datën e KRIJIMIT të faturës (jo paymentDate)
-      // Arketime = shuma e paguar e faturave të krijuara atë ditë/muaj (konsistent me listën)
-      const periodKey = reportMode === 'month' ? invDay : invDay.slice(0, 7);
-      const inPeriod  = reportMode === 'month'
+      // Shitje & Fitimi — sipas datës së KRIJIMIT
+      const shitjeKey = reportMode === 'month' ? invDay : invDay.slice(0, 7);
+      const inShitjePeriod = reportMode === 'month'
         ? invDay.slice(0, 7) === reportMonth
         : invDay.slice(0, 4) === reportYear;
-      if (!inPeriod) return;
 
-      if (!map[periodKey]) map[periodKey] = { key: periodKey, shitje: 0, arketime: 0, fitimi: 0 };
-      map[periodKey].shitje   += getConv(inv.subtotal, inv.currency);
-      map[periodKey].arketime += getConv(inv.amountPaid || 0, inv.currency);
-      inv.items.forEach(it => {
-        const gi = items.find(i => i.id === it.itemId || i.name === it.name);
-        map[periodKey].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
-      });
+      if (inShitjePeriod) {
+        ensure(shitjeKey);
+        map[shitjeKey].shitje += getConv(inv.subtotal, inv.currency);
+        inv.items.forEach(it => {
+          const gi = items.find(i => i.id === it.itemId || i.name === it.name);
+          map[shitjeKey].fitimi += (getConv(Number(it.price), inv.currency) - Number(gi?.purchasePrice || 0)) * Number(it.quantity);
+        });
+      }
+
+      // Arketime — sipas datës së PAGESËS
+      if ((inv.amountPaid || 0) > 0) {
+        const arketimeKey = reportMode === 'month' ? payDay : payDay.slice(0, 7);
+        const inArketimePeriod = reportMode === 'month'
+          ? payDay.slice(0, 7) === reportMonth
+          : payDay.slice(0, 4) === reportYear;
+
+        if (inArketimePeriod) {
+          ensure(arketimeKey);
+          map[arketimeKey].arketime += getConv(inv.amountPaid!, inv.currency);
+        }
+      }
     });
 
-    // Garantoj që shfaqen vetëm ditët/muajt e periudhës së zgjedhur
     const prefix = reportMode === 'month' ? reportMonth : reportYear;
     return Object.values(map)
       .filter(r => r.key.startsWith(prefix))
