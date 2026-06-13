@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice, Client, Item } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
-import { exportPeriodReport } from '../utils/exportUtils';
+import { BarChart2, ArrowLeft as BackIcon } from 'lucide-react';
 import { normalize } from '../utils/storage';
 
 interface Props {
@@ -37,6 +37,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     return () => { cancelAnimationFrame(id); cancelAnimationFrame(id2); };
   }, [invoices.length]);
 
+  const [showReport, setShowReport] = useState(false);
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter || 'all');
@@ -194,6 +195,42 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     return { sales: totalSales, collected: totalCollected, profit: totalProfit };
   }, [filteredInvoices, items, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
+  // Rreshtat e raportit — të grupuara sipas ditës ose muajit
+  const reportRows = useMemo(() => {
+    const getConv = (v: number, c?: string) => c === 'EUR' ? v * 100 : v;
+    type Row = { key: string; shitje: number; arketime: number; fitimi: number };
+    const map: Record<string, Row> = {};
+    const byMonth = filterMode === 'year' || filterMode === 'all';
+
+    filteredInvoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      const xKey = byMonth ? inv.date.slice(0, 7) : inv.date.slice(0, 10);
+      const pKey = byMonth
+        ? (inv.paymentDate || inv.date).slice(0, 7)
+        : (inv.paymentDate || inv.date).slice(0, 10);
+
+      if (!map[xKey]) map[xKey] = { key: xKey, shitje: 0, arketime: 0, fitimi: 0 };
+      map[xKey].shitje += getConv(inv.subtotal, inv.currency);
+      inv.items.forEach(it => {
+        const gi = items.find(i => i.id === it.itemId || i.name === it.name);
+        const buy = Number(gi?.purchasePrice || 0);
+        const sell = getConv(Number(it.price), inv.currency);
+        map[xKey].fitimi += (sell - buy) * Number(it.quantity);
+      });
+
+      if (!map[pKey]) map[pKey] = { key: pKey, shitje: 0, arketime: 0, fitimi: 0 };
+      map[pKey].arketime += getConv(inv.amountPaid || 0, inv.currency);
+    });
+
+    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+  }, [filteredInvoices, items, filterMode]);
+
+  const fmtReportKey = (k: string) => {
+    const mn: Record<string,string> = {'01':'Janar','02':'Shkurt','03':'Mars','04':'Prill','05':'Maj','06':'Qershor','07':'Korrik','08':'Gusht','09':'Shtator','10':'Tetor','11':'Nëntor','12':'Dhjetor'};
+    if (k.length === 7) { const [y, m] = k.split('-'); return `${mn[m] || m} ${y}`; }
+    const [y, m, d] = k.split('-'); return `${d}/${m}/${y}`;
+  };
+
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
     if (filterMode === 'today') return `Sot, ${todayStr.split('-').reverse().join('/')}`;
@@ -262,12 +299,9 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             <option value="Pa paguar">Pa Paguar</option>
             <option value="Pasuar">Pasuar</option>
           </select>
-          <button onClick={() => exportPeriodReport(
-              filteredInvoices, items, filterMode, getPeriodLabel(),
-              selectedMonth, selectedYear, activeDayStr
-            )}
-            className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/10">
-            <FileSpreadsheet size={16} /> Raport
+          <button onClick={() => setShowReport(r => !r)}
+            className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${showReport ? 'bg-slate-700 text-white shadow-slate-600/10' : 'bg-emerald-600 text-white shadow-emerald-600/10 hover:bg-emerald-700'}`}>
+            {showReport ? <><BackIcon size={15}/> Historiku</> : <><BarChart2 size={15}/> Raport</>}
           </button>
         </div>
       </div>
@@ -297,8 +331,52 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         </div>
       </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* ─── PAMJA E RAPORTIT ─── */}
+      {showReport && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto scrollbar-hide">
+            <table className="w-full text-left min-w-[560px]">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] uppercase font-bold tracking-widest">
+                <tr>
+                  <th className="px-6 py-4">Data</th>
+                  <th className="px-6 py-4 text-right">Shitje (Lek)</th>
+                  <th className="px-6 py-4 text-right">Arketime (Lek)</th>
+                  <th className="px-6 py-4 text-right">Fitimi (Lek)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {reportRows.map(row => (
+                  <tr key={row.key} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-3 font-black text-slate-700">{fmtReportKey(row.key)}</td>
+                    <td className="px-6 py-3 text-right font-black text-slate-800">{Math.round(row.shitje).toLocaleString()}</td>
+                    <td className="px-6 py-3 text-right font-black text-emerald-700">{Math.round(row.arketime).toLocaleString()}</td>
+                    <td className={`px-6 py-3 text-right font-black ${row.fitimi >= 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                      {row.fitimi >= 0 ? '+' : ''}{Math.round(row.fitimi).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-slate-200 bg-indigo-900 text-white">
+                <tr>
+                  <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Totali</td>
+                  <td className="px-6 py-4 text-right font-black text-lg">
+                    {Math.round(reportRows.reduce((s,r) => s+r.shitje, 0)).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black text-lg text-emerald-300">
+                    {Math.round(reportRows.reduce((s,r) => s+r.arketime, 0)).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-right font-black text-lg text-amber-300">
+                    +{Math.round(reportRows.reduce((s,r) => s+r.fitimi, 0)).toLocaleString()}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LISTA E FATURAVE ─── */}
+      {!showReport && <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
           <table className="w-full text-left min-w-[820px]">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] uppercase font-bold tracking-widest">
@@ -454,7 +532,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             </button>
           </div>
         )}
-      </div>
+      </div>}
     </div>
 
       {confirmId && (
