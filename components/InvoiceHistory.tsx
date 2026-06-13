@@ -180,6 +180,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
       if (createdInPeriod) {
         totalSales += getConvVal(inv.subtotal, inv.currency);
+        totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
         inv.items.forEach(it => {
           const globalItem = items.find(gi => gi.id === it.itemId || gi.name === it.name);
           const purchLek = Number(globalItem?.purchasePrice || 0);
@@ -187,9 +188,6 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           totalProfit += (sellLek - purchLek) * Number(it.quantity);
         });
       }
-
-      // Arkëtimet: të gjitha pagesat (filteredInvoices tashmë i ka filtrat e periudhës)
-      totalCollected += getConvVal(inv.amountPaid || 0, inv.currency);
     });
 
     return { sales: totalSales, collected: totalCollected, profit: totalProfit };
