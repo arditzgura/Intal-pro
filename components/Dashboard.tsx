@@ -48,21 +48,19 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       return acc + invoiceCost;
     }, 0);
 
-    // Detyrimet reale — një borxh për klient (fatura e fundit, previousBalance tashmë akumulon të vjetrat)
-    const getClientKey = (inv: Invoice) => {
-      if (inv.clientCode) return `code|${inv.clientCode}`;
-      if (inv.clientId && inv.clientId !== 'manual') return inv.clientId;
-      return `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
-    };
-    const byClient: Record<string, Invoice[]> = {};
-    invoices.forEach(inv => {
-      if (inv.status === 'Anuluar') return;
-      const key = getClientKey(inv);
-      if (!byClient[key]) byClient[key] = [];
-      byClient[key].push(inv);
-    });
-    const totalUnpaid = Object.values(byClient).reduce((sum, invs) => {
-      const latest = invs.reduce((a, b) => a.date > b.date ? a : b);
+    // Detyrimet — njësoj si tabela e klientëve: fatura e fundit e çdo klienti të regjistruar
+    const totalUnpaid = clients.reduce((sum, c) => {
+      const cNameN = normalize(c.name.trim());
+      const clientInvoices = invoices.filter(inv => {
+        if (inv.status === 'Anuluar') return false;
+        if (inv.clientId === c.id) return true;
+        if (c.code && inv.clientCode) return inv.clientCode === c.code;
+        if (inv.clientCode) return false;
+        if (inv.clientId !== 'manual') return false;
+        return normalize(inv.clientName.trim()) === cNameN;
+      });
+      if (clientInvoices.length === 0) return sum;
+      const latest = clientInvoices.reduce((a, b) => a.date > b.date ? a : b);
       if (latest.status === 'E paguar') return sum;
       const debt = getConvVal(latest.subtotal, latest.currency)
         + getConvVal(latest.previousBalance || 0, latest.currency)
