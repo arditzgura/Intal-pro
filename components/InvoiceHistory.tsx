@@ -426,39 +426,52 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                   <th className="px-6 py-4 text-right">Shitje (Lek)</th>
                   <th className="px-6 py-4 text-right">Arketime (Lek)</th>
                   <th className="px-6 py-4 text-right">Fitimi (Lek)</th>
+                  <th className="px-6 py-4 text-right">Detyrimi (Lek)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {reportRows.length === 0 && (
-                  <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-400 text-xs font-bold">Nuk ka të dhëna për periudhën e zgjedhur</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400 text-xs font-bold">Nuk ka të dhëna për periudhën e zgjedhur</td></tr>
                 )}
-                {reportRows.map(row => (
-                  <tr key={row.key} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-3 font-black text-slate-700 w-40">{fmtReportKey(row.key)}</td>
-                    <td className="px-6 py-3 text-right font-black text-slate-800">{Math.round(row.shitje).toLocaleString()}</td>
-                    <td className="px-6 py-3 text-right font-black text-emerald-700">{Math.round(row.arketime).toLocaleString()}</td>
-                    <td className={`px-6 py-3 text-right font-black ${row.fitimi >= 0 ? 'text-amber-600' : 'text-rose-600'}`}>
-                      {row.fitimi >= 0 ? '+' : ''}{Math.round(row.fitimi).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {reportRows.map(row => {
+                  const det = Math.round(row.shitje - row.arketime);
+                  return (
+                    <tr key={row.key} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-3 font-black text-slate-700 w-40">{fmtReportKey(row.key)}</td>
+                      <td className="px-6 py-3 text-right font-black text-slate-800">{Math.round(row.shitje).toLocaleString()}</td>
+                      <td className="px-6 py-3 text-right font-black text-emerald-700">{Math.round(row.arketime).toLocaleString()}</td>
+                      <td className={`px-6 py-3 text-right font-black ${row.fitimi >= 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                        {row.fitimi >= 0 ? '+' : ''}{Math.round(row.fitimi).toLocaleString()}
+                      </td>
+                      <td className={`px-6 py-3 text-right font-black ${det > 0 ? 'text-rose-600' : det < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {det > 0 ? '+' : ''}{det.toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
-              {reportRows.length > 0 && (
-                <tfoot>
-                  <tr className="bg-indigo-900 text-white">
-                    <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Totali</td>
-                    <td className="px-6 py-4 text-right font-black text-base">
-                      {Math.round(reportRows.reduce((s,r) => s+r.shitje, 0)).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-right font-black text-base text-emerald-300">
-                      {Math.round(reportRows.reduce((s,r) => s+r.arketime, 0)).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-right font-black text-base text-amber-300">
-                      +{Math.round(reportRows.reduce((s,r) => s+r.fitimi, 0)).toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
+              {reportRows.length > 0 && (() => {
+                const totDet = Math.round(reportRows.reduce((s,r) => s + r.shitje - r.arketime, 0));
+                return (
+                  <tfoot>
+                    <tr className="bg-indigo-900 text-white">
+                      <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Totali</td>
+                      <td className="px-6 py-4 text-right font-black text-base">
+                        {Math.round(reportRows.reduce((s,r) => s+r.shitje, 0)).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-black text-base text-emerald-300">
+                        {Math.round(reportRows.reduce((s,r) => s+r.arketime, 0)).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-black text-base text-amber-300">
+                        +{Math.round(reportRows.reduce((s,r) => s+r.fitimi, 0)).toLocaleString()}
+                      </td>
+                      <td className={`px-6 py-4 text-right font-black text-base ${totDet > 0 ? 'text-rose-300' : totDet < 0 ? 'text-emerald-300' : 'text-slate-400'}`}>
+                        {totDet > 0 ? '+' : ''}{totDet.toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         </div>
