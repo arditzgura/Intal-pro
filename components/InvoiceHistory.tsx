@@ -188,8 +188,9 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           const sellLek  = getConvVal(Number(it.price), inv.currency);
           totalProfit += (sellLek - purchLek) * Number(it.quantity);
         });
-        // Detyrimet: faturat e papaguara të krijuara në periudhë
-        if (inv.status !== 'E paguar' && inv.status !== 'Anuluar') {
+        // Detyrimet: njësoj si kolona Detyrimi — absorbuarat kanë 0
+        const absorbedSt = getAbsorbedStatus(inv);
+        if (absorbedSt === 'none' && inv.status !== 'E paguar' && inv.status !== 'Anuluar') {
           const debt = Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency));
           totalUnpaid += debt;
         }
