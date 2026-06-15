@@ -352,7 +352,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         const label   = showReport ? reportTitle : getPeriodLabel();
         const count   = showReport ? `${reportRows.length} periudha` : `${filteredInvoices.length} faturime${cityFilter !== 'all' ? ` · ${cityFilter}` : ''}`;
         return (
-          <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl flex flex-wrap justify-between items-center gap-6 border-b-4 border-indigo-700">
+          <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl flex flex-wrap justify-between items-center gap-6 border-b-4 border-indigo-700 select-text">
             <div className="flex items-center gap-3">
               <div className="bg-white/10 p-2 rounded-xl"><Calculator size={20} className="text-indigo-200" /></div>
               <div>
