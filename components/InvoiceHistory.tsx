@@ -167,6 +167,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     let totalSales = 0;
     let totalCollected = 0;
     let totalProfit = 0;
+    let totalUnpaid = 0;
 
     filteredInvoices.forEach(inv => {
       const invDate = inv.date.slice(0, 10);
@@ -187,6 +188,11 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           const sellLek  = getConvVal(Number(it.price), inv.currency);
           totalProfit += (sellLek - purchLek) * Number(it.quantity);
         });
+        // Detyrimet: faturat e papaguara të krijuara në periudhë
+        if (inv.status !== 'E paguar' && inv.status !== 'Anuluar') {
+          const debt = Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency));
+          totalUnpaid += debt;
+        }
       }
 
       // Arkëtimet: sipas datës së PAGESËS (jo krijimit)
@@ -202,7 +208,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       }
     });
 
-    return { sales: totalSales, collected: totalCollected, profit: totalProfit };
+    return { sales: totalSales, collected: totalCollected, profit: totalProfit, unpaid: totalUnpaid };
   }, [filteredInvoices, items, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
   // ─── Filtrat e pavarur të raportit ───────────────────────────────────────────
@@ -369,10 +375,16 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                 <p className="text-[8px] font-black uppercase tracking-widest text-emerald-300 mb-1">Arketimet e Periudhës</p>
                 <p className="text-lg font-black tracking-tight text-emerald-400">{Math.round(display.collected).toLocaleString()} L</p>
               </div>
-              <div className="text-right pr-4">
+              <div className="text-right">
                 <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mb-1">Fitimi i Periudhës</p>
                 <p className="text-xl font-black tracking-tight text-amber-400">+{Math.round(display.profit).toLocaleString()} L</p>
               </div>
+              {!showReport && totals.unpaid > 0 && (
+                <div className="text-right pr-4 border-l border-rose-500/30 pl-10">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-rose-300 mb-1">Pa Paguar</p>
+                  <p className="text-lg font-black tracking-tight text-rose-400">{Math.round(totals.unpaid).toLocaleString()} L</p>
+                </div>
+              )}
             </div>
           </div>
         );
