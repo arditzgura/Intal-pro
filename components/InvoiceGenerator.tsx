@@ -638,23 +638,22 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                     </div>
 
                     <div className="col-span-2 px-2 relative">
-                      {/* Dot toggle: shfaq çmimin origjinal me vijë - brenda cell çmimit, majtas */}
+                      {/* Dot toggle: shfaq/mos shfaq çmimin real kur çmimi është ndryshuar */}
                       {(() => {
                         const catalogItem = items.find(i => i.id === item.itemId);
+                        if (!catalogItem) return null;
                         const prefPrice = catalogItem?.preferentialPrices?.find(p => p.clientId === selectedClientId);
-                        const hasPref = prefPrice && prefPrice.price !== catalogItem?.price;
-                        if (!hasPref) return null;
+                        const catalogPrice = prefPrice ? prefPrice.price : catalogItem.price;
+                        // shfaq dot nëse çmimi aktual ndryshon nga çmimi i katalogut
+                        const priceChanged = item.price > 0 && item.price !== catalogPrice;
+                        if (!priceChanged) return null;
                         const isActive = !!(item.originalPrice && item.originalPrice !== item.price);
                         return (
                           <button
                             type="button"
-                            title={isActive ? 'Çaktivizo çmimin origjinal' : 'Shfaq çmimin origjinal me vijë'}
+                            title={isActive ? 'Mos shfaq çmimin real' : 'Shfaq çmimin real në faturë'}
                             onClick={() => {
-                              if (isActive) {
-                                updateItem(idx, { originalPrice: undefined });
-                              } else {
-                                updateItem(idx, { originalPrice: catalogItem!.price });
-                              }
+                              updateItem(idx, { originalPrice: isActive ? undefined : catalogPrice });
                             }}
                             className="transition-all duration-200 rounded-full focus:outline-none absolute left-0 top-1/2 -translate-y-1/2"
                             style={{
@@ -672,7 +671,17 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                         className="w-full text-center font-black text-indigo-600 outline-none bg-indigo-50/50 rounded-lg py-1 border-b-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
                         value={item.price === 0 ? '' : item.price}
                         onFocus={(e) => (e.target as HTMLInputElement).select()}
-                        onChange={e => updateItem(idx, { price: parseFloat(e.target.value) || 0 })}
+                        onChange={e => {
+                          const newPrice = parseFloat(e.target.value) || 0;
+                          const catalogItem = items.find(i => i.id === item.itemId);
+                          const prefPrice = catalogItem?.preferentialPrices?.find(p => p.clientId === selectedClientId);
+                          const catalogPrice = prefPrice ? prefPrice.price : catalogItem?.price;
+                          // nëse çmimi u kthye tek katalogi, hiq originalPrice
+                          const newOriginal = (catalogPrice && newPrice !== catalogPrice && item.originalPrice)
+                            ? item.originalPrice
+                            : (newPrice === catalogPrice ? undefined : item.originalPrice);
+                          updateItem(idx, { price: newPrice, originalPrice: newOriginal });
+                        }}
                         onKeyDown={(e) => handleNumericKeyDown(e, idx, 'price')}
                         placeholder="0.00"
                       />
