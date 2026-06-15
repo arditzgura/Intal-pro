@@ -644,9 +644,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                         if (!catalogItem) return null;
                         const prefPrice = catalogItem?.preferentialPrices?.find(p => p.clientId === selectedClientId);
                         const catalogPrice = prefPrice ? prefPrice.price : catalogItem.price;
-                        // shfaq dot nëse çmimi aktual ndryshon nga çmimi i katalogut
+                        // shfaq dot nëse ka çmim preferencial OSE çmimi është ndryshuar manualisht
+                        const hasPref = !!(prefPrice && prefPrice.price !== catalogItem.price);
                         const priceChanged = item.price > 0 && item.price !== catalogPrice;
-                        if (!priceChanged) return null;
+                        if (!hasPref && !priceChanged) return null;
                         const isActive = !!(item.originalPrice && item.originalPrice !== item.price);
                         return (
                           <button
