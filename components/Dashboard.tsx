@@ -75,7 +75,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       profit: totalSales - totalCOGS,
       count: validInvoices.length
     };
-  }, [invoices, items]);
+  }, [invoices, items, clients]);
 
   // 2. Llogaritja e Statistikave të Periudhës (Filtruar)
   const filteredInvoices = useMemo(() => {

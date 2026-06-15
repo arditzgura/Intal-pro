@@ -24,6 +24,15 @@ export const local = {
     touch(userId);
   },
 
+  // Shkruan pa prekur _lastLocalWrite — për sync remote, që të mos bllokohet sync-u vijues
+  setAllSilent: <T>(userId: string, table: string, data: T[]): void => {
+    localStorage.setItem(k(userId, table), JSON.stringify(data));
+  },
+
+  setConfigSilent: (userId: string, config: any): void => {
+    localStorage.setItem(`intal_${userId}_config`, JSON.stringify(config));
+  },
+
   upsert: <T extends { id: string }>(userId: string, table: string, record: T): void => {
     const all = local.getAll<T>(userId, table);
     const idx = all.findIndex(r => r.id === record.id);

@@ -312,11 +312,11 @@ const App: React.FC = () => {
         .reduce((a, b) => (a > b ? a : b), '1970-01-01T00:00:00.000Z');
       if (localMod >= cloudMod) return; // localStorage është më i ri — mos mbishkruaj
       const r = (key: string) => remote[key]?.data;
-      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
-      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
-      if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
-      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
-      if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfig(uid, r('config')![0]); }
+      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
+      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
+      if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
+      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
+      if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
     };
 
     cloudLoadAll(cloudId).then(applyRemote);
@@ -324,11 +324,11 @@ const App: React.FC = () => {
     // Real-time: merr ndryshimet nga pajisja tjetër — dy kushte mbrojtëse
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
       if (!canApplyRemote()) return;
-      if (tableName === 'invoices')      { setInvoices(data);     local.setAll(uid,'invoices',      data); }
-      if (tableName === 'clients')       { setClients(data);      local.setAll(uid,'clients',       data); }
-      if (tableName === 'items')         { setItems(data);        local.setAll(uid,'items',         data); }
-      if (tableName === 'stock_entries') { setStockEntries(data); local.setAll(uid,'stock_entries', data); }
-      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfig(uid, data[0]); }
+      if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);      local.setAllSilent(uid,'clients',       data); }
+      if (tableName === 'items')         { setItems(data);        local.setAllSilent(uid,'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data); local.setAllSilent(uid,'stock_entries', data); }
+      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
     });
 
     // Polling fallback: çdo 15s — sinkronizon edhe nëse real-time nuk funksionon
