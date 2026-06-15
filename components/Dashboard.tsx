@@ -1,6 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Invoice, Client, Item, StockEntry } from '../types';
+import { normalize } from '../utils/storage';
 import { TrendingUp, Users, Package, FileText, CheckCircle, AlertCircle, Calculator, DollarSign, ArrowDownCircle, Filter, Calendar, Clock, ChevronDown, Wallet, CalendarDays, History, Landmark, PieChart } from 'lucide-react';
 
 interface Props {
@@ -47,15 +48,27 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       return acc + invoiceCost;
     }, 0);
 
-    // Detyrimet reale = borxhi aktual i papaguar (vetëm faturat Pa paguar = fatura e fundit me borxh)
-    const totalUnpaid = invoices
-      .filter(inv => inv.status === 'Pa paguar')
-      .reduce((sum, inv) => {
-        const debt = getConvVal(inv.subtotal, inv.currency)
-          + getConvVal(inv.previousBalance || 0, inv.currency)
-          - getConvVal(inv.amountPaid || 0, inv.currency);
-        return sum + Math.max(0, debt);
-      }, 0);
+    // Detyrimet reale — një borxh për klient (fatura e fundit, previousBalance tashmë akumulon të vjetrat)
+    const getClientKey = (inv: Invoice) => {
+      if (inv.clientCode) return `code|${inv.clientCode}`;
+      if (inv.clientId && inv.clientId !== 'manual') return inv.clientId;
+      return `manual|${normalize(inv.clientName.trim())}|${normalize((inv.clientCity || '').trim())}`;
+    };
+    const byClient: Record<string, Invoice[]> = {};
+    invoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      const key = getClientKey(inv);
+      if (!byClient[key]) byClient[key] = [];
+      byClient[key].push(inv);
+    });
+    const totalUnpaid = Object.values(byClient).reduce((sum, invs) => {
+      const latest = invs.reduce((a, b) => a.date > b.date ? a : b);
+      if (latest.status === 'E paguar') return sum;
+      const debt = getConvVal(latest.subtotal, latest.currency)
+        + getConvVal(latest.previousBalance || 0, latest.currency)
+        - getConvVal(latest.amountPaid || 0, latest.currency);
+      return sum + Math.max(0, debt);
+    }, 0);
 
     return {
       sales: totalSales,
