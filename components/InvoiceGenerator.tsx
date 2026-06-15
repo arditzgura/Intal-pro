@@ -254,15 +254,12 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
   const selectItemForInvoice = (idx: number, item: Item) => {
     let price = item.price;
-    let originalPrice: number | undefined = undefined;
     if (selectedClientId) {
       const pref = item.preferentialPrices?.find(p => p.clientId === selectedClientId);
-      if (pref && pref.price !== item.price) {
-        originalPrice = item.price; // çmimi pa ulje
-        price = pref.price;
-      }
+      if (pref && pref.price !== item.price) price = pref.price;
     }
-    updateItem(idx, { itemId: item.id, name: item.name, price, originalPrice });
+    // originalPrice nuk vendoset automatikisht — përdoruesi e aktivizon vetë me dot
+    updateItem(idx, { itemId: item.id, name: item.name, price, originalPrice: undefined });
     setActiveItemSearchIdx(null);
     setTimeout(() => {
         qtyInputRefs.current[idx]?.focus();
