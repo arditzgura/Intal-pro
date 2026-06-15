@@ -301,6 +301,22 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm">
+              {sortedAndFilteredClients.length > 0 && (() => {
+                const totFitimi = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.profit || 0), 0);
+                const totSpent  = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.spent  || 0), 0);
+                const totDebt   = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.debt   || 0), 0);
+                return (
+                  <tr className="bg-indigo-900 text-white">
+                    <td className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                      Totali · {sortedAndFilteredClients.length} klientë
+                    </td>
+                    <td className="px-6 py-4 font-black text-emerald-300">+{Math.round(totFitimi).toLocaleString()} L</td>
+                    <td className="px-6 py-4 font-black text-white">{Math.round(totSpent).toLocaleString()} L</td>
+                    <td className="px-6 py-4 font-black text-rose-300">{Math.round(totDebt).toLocaleString()} L</td>
+                    <td className="px-8 py-4"></td>
+                  </tr>
+                );
+              })()}
               {sortedAndFilteredClients.map(client => {
                 const fin = clientFinancials[client.id];
                 const isMergeSelected = mergeSelected.includes(client.id);
@@ -378,24 +394,6 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
                 </tr>
               )}
             </tbody>
-            {sortedAndFilteredClients.length > 0 && (() => {
-              const totFitimi  = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.profit || 0), 0);
-              const totSpent   = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.spent  || 0), 0);
-              const totDebt    = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.debt   || 0), 0);
-              return (
-                <tfoot>
-                  <tr className="bg-indigo-900 text-white">
-                    <td className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-indigo-300">
-                      Totali · {sortedAndFilteredClients.length} klientë
-                    </td>
-                    <td className="px-6 py-4 font-black text-emerald-300">+{Math.round(totFitimi).toLocaleString()} L</td>
-                    <td className="px-6 py-4 font-black text-white">{Math.round(totSpent).toLocaleString()} L</td>
-                    <td className="px-6 py-4 font-black text-rose-300">{Math.round(totDebt).toLocaleString()} L</td>
-                    <td className="px-8 py-4"></td>
-                  </tr>
-                </tfoot>
-              );
-            })()}
           </table>
         </div>
       </div>
