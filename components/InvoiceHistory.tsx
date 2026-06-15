@@ -342,29 +342,41 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       </div>
 
       {/* Banner */}
-      <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl flex flex-wrap justify-between items-center gap-6 border-b-4 border-indigo-700">
-        <div className="flex items-center gap-3">
-          <div className="bg-white/10 p-2 rounded-xl"><Calculator size={20} className="text-indigo-200" /></div>
-          <div>
-            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300">Aktiviteti i Periudhës së Filtruar</p>
-            <p className="text-xs font-bold text-indigo-100">{filteredInvoices.length} faturime{cityFilter !== 'all' ? ` · ${cityFilter}` : ''}</p>
+      {(() => {
+        const reportTotals = showReport ? {
+          sales:     reportRows.reduce((s, r) => s + r.shitje,   0),
+          collected: reportRows.reduce((s, r) => s + r.arketime, 0),
+          profit:    reportRows.reduce((s, r) => s + r.fitimi,   0),
+        } : null;
+        const display = reportTotals ?? totals;
+        const label   = showReport ? reportTitle : getPeriodLabel();
+        const count   = showReport ? `${reportRows.length} periudha` : `${filteredInvoices.length} faturime${cityFilter !== 'all' ? ` · ${cityFilter}` : ''}`;
+        return (
+          <div className="bg-indigo-900 text-white p-4 rounded-2xl shadow-xl flex flex-wrap justify-between items-center gap-6 border-b-4 border-indigo-700">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/10 p-2 rounded-xl"><Calculator size={20} className="text-indigo-200" /></div>
+              <div>
+                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300">{label}</p>
+                <p className="text-xs font-bold text-indigo-100">{count}</p>
+              </div>
+            </div>
+            <div className="flex gap-10">
+              <div className="text-right">
+                <p className="text-[8px] font-black uppercase tracking-widest text-indigo-300 mb-1">Shitjet e Periudhës</p>
+                <p className="text-lg font-black tracking-tight">{Math.round(display.sales).toLocaleString()} L</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] font-black uppercase tracking-widest text-emerald-300 mb-1">Arketimet e Periudhës</p>
+                <p className="text-lg font-black tracking-tight text-emerald-400">{Math.round(display.collected).toLocaleString()} L</p>
+              </div>
+              <div className="text-right pr-4">
+                <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mb-1">Fitimi i Periudhës</p>
+                <p className="text-xl font-black tracking-tight text-amber-400">+{Math.round(display.profit).toLocaleString()} L</p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-10">
-          <div className="text-right">
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-300 mb-1">Shitjet e Periudhës</p>
-            <p className="text-lg font-black tracking-tight">{totals.sales.toLocaleString()} L</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[8px] font-black uppercase tracking-widest text-emerald-300 mb-1">Arketimet e Periudhës</p>
-            <p className="text-lg font-black tracking-tight text-emerald-400">{totals.collected.toLocaleString()} L</p>
-          </div>
-          <div className="text-right pr-4">
-            <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mb-1">Fitimi i Periudhës</p>
-            <p className="text-xl font-black tracking-tight text-amber-400">+{Math.round(totals.profit).toLocaleString()} L</p>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ─── PAMJA E RAPORTIT ─── */}
       {showReport && (<>
