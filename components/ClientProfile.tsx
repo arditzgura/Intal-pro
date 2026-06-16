@@ -41,6 +41,7 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
   const [itemSortBy, setItemSortBy] = useState<'value' | 'qty' | 'profit' | 'price'>('value');
   const [itemSortDir, setItemSortDir] = useState<'desc' | 'asc'>('desc');
   const [itemFilter, setItemFilter] = useState('');
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [selectedItemForPref, setSelectedItemForPref] = useState<Item | null>(null);
@@ -370,28 +371,51 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
                          <History size={18} /> Historia e Faturimit
                        </h4>
                     </div>
+                    {itemFilter.trim() && (
+                      <div className="px-6 py-2 bg-indigo-50 border-b border-indigo-100 text-[9px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2">
+                        <Search size={11}/> Fatura me: {itemFilter.trim()}
+                        <button onClick={() => setItemFilter('')} className="ml-auto text-indigo-300 hover:text-indigo-600"><X size={12}/></button>
+                      </div>
+                    )}
                     <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto custom-scrollbar">
-                      {filteredInvoices.map((inv) => (
-                        <div key={inv.id} className="p-6 hover:bg-slate-50 transition-colors cursor-pointer group flex items-center justify-between" onClick={() => onViewInvoice(inv)}>
-                           <div className="flex-1">
-                              <div className="flex items-center gap-3">
-                                 <p className="text-xs font-black text-indigo-600">#{inv.invoiceNumber}</p>
-                                 <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase ${inv.status === 'E paguar' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{inv.status}</span>
+                      {(() => {
+                        const f = itemFilter.trim().toLowerCase();
+                        const visibleInvoices = f
+                          ? filteredInvoices.filter(inv => inv.items.some(it => it.name.toLowerCase().includes(f)))
+                          : filteredInvoices;
+                        return visibleInvoices.length > 0 ? visibleInvoices.map((inv) => {
+                          const matchedItems = f ? inv.items.filter(it => it.name.toLowerCase().includes(f)) : [];
+                          return (
+                            <div key={inv.id} className="p-6 hover:bg-slate-50 transition-colors cursor-pointer group flex items-center justify-between" onClick={() => onViewInvoice(inv)}>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <p className="text-xs font-black text-indigo-600">#{inv.invoiceNumber}</p>
+                                  <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase ${inv.status === 'E paguar' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{inv.status}</span>
+                                </div>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase">{formatDateDisplay(inv.date.split('T')[0])}</p>
+                                  <span className="text-slate-200">/</span>
+                                  <p className="text-sm font-black text-slate-900">{inv.total.toLocaleString()} L</p>
+                                </div>
+                                {matchedItems.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {matchedItems.map((it, i) => (
+                                      <span key={i} className="text-[8px] font-black uppercase bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-md">
+                                        {it.name} · {it.quantity} {it.quantity !== 1 ? 'copë' : 'copë'}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              <div className="mt-1 flex items-center gap-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">{formatDateDisplay(inv.date.split('T')[0])}</p>
-                                <span className="text-slate-200">/</span>
-                                <p className="text-sm font-black text-slate-900">{inv.total.toLocaleString()} L</p>
+                              <div className="bg-slate-50 p-3 rounded-xl text-slate-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                <ChevronRight size={18} />
                               </div>
-                           </div>
-                           <div className="bg-slate-50 p-3 rounded-xl text-slate-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                              <ChevronRight size={18} />
-                           </div>
-                        </div>
-                      ))}
-                      {filteredInvoices.length === 0 && (
-                        <div className="p-20 text-center text-[10px] font-black text-slate-300 uppercase italic">Asnjë faturë e gjetur</div>
-                      )}
+                            </div>
+                          );
+                        }) : (
+                          <div className="p-20 text-center text-[10px] font-black text-slate-300 uppercase italic">Asnjë faturë e gjetur</div>
+                        );
+                      })()}
                     </div>
                  </div>
               </div>
