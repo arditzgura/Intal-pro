@@ -254,9 +254,8 @@ const App: React.FC = () => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
 
-    // LocalStorage-first: çdo ndryshim shteti vendos lock 30s kundër cloud overwrite
-    // local.setAll/setConfig e shënojnë menjëherë last_modified brenda localDb
-    importLockUntil.current = Date.now() + 30000;
+    // _lastLocalWrite (në localDb) shënohet sinkronisht nga çdo shkrim lokal i përdoruesit
+    // dhe bllokoi canApplyRemote() për 30s — importLockUntil nuk nevojitet këtu
 
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
     autoBackupTimer.current = setTimeout(() => {
