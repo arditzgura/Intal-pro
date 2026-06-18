@@ -305,11 +305,6 @@ const App: React.FC = () => {
 
     const applyRemote = (remote: Record<string, CloudRow>) => {
       if (!canApplyRemote()) return;
-      const localMod = local.getLastModified(uid);
-      const cloudMod = Object.values(remote)
-        .map(r => r?.updatedAt || '1970-01-01T00:00:00.000Z')
-        .reduce((a, b) => (a > b ? a : b), '1970-01-01T00:00:00.000Z');
-      if (localMod >= cloudMod) return; // localStorage është më i ri — mos mbishkruaj
       const r = (key: string) => remote[key]?.data;
       if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
       if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
@@ -330,11 +325,10 @@ const App: React.FC = () => {
       if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
     });
 
-    // Polling fallback: çdo 15s — sinkronizon edhe nëse real-time nuk funksionon
+    // Polling fallback: çdo 5s — sinkronizon edhe nëse real-time nuk funksionon
     const pollInterval = setInterval(() => {
-      if (Date.now() <= importLockUntil.current) return;
       cloudLoadAll(cloudId).then(applyRemote);
-    }, 15000);
+    }, 5000);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
   }, [dataReady]); // eslint-disable-line
