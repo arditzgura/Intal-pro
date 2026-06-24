@@ -50,11 +50,10 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
       const matchesPeriod = filterMode === 'month'
         ? entryDate.slice(0, 7) === selectedMonth
         : entryDate.slice(0, 4) === selectedYear;
-      const matchesSearch = !s || (
-        activeTab === 'analysis'
-          ? e.items.some(it => it.name.toLowerCase().includes(s))
-          : e.entryNumber.includes(s) || e.origin.toLowerCase().includes(s)
-      );
+      // Në tab Artikujt, kërkimi aplikohet mbi rreshtat e analizës, jo këtu
+      const matchesSearch = !s || activeTab === 'analysis'
+        ? true
+        : e.entryNumber.includes(s) || e.origin.toLowerCase().includes(s);
       const matchesOrigin = originFilter === 'all' || e.origin.toUpperCase() === originFilter;
       return matchesPeriod && matchesSearch && matchesOrigin;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -76,21 +75,23 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
       });
     });
 
+    const s = search.toLowerCase().trim();
     return {
       data: Object.entries(stats)
-        .map(([name, data]) => ({ 
-          name, 
-          qty: data.qty, 
-          purchase: data.purchaseVal, 
-          profit: data.sellingVal - data.purchaseVal 
+        .map(([name, data]) => ({
+          name,
+          qty: data.qty,
+          purchase: data.purchaseVal,
+          profit: data.sellingVal - data.purchaseVal
         }))
+        .filter(r => !s || r.name.toLowerCase().includes(s))
         .sort((a, b) => {
           if (itemSortBy === 'qty') return b.qty - a.qty;
           return b.profit - a.profit;
         }),
       totalUnits
     };
-  }, [filtered, itemSortBy]);
+  }, [filtered, itemSortBy, search]);
 
   const totals = useMemo(() => {
     return filtered.reduce((acc, entry) => {
