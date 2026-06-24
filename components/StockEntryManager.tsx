@@ -44,16 +44,21 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
   }, [entries]);
 
   const filtered = useMemo(() => {
+    const s = search.toLowerCase().trim();
     return entries.filter(e => {
       const entryDate = e.date;
       const matchesPeriod = filterMode === 'month'
         ? entryDate.slice(0, 7) === selectedMonth
         : entryDate.slice(0, 4) === selectedYear;
-      const matchesSearch = e.entryNumber.includes(search) || e.origin.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !s || (
+        activeTab === 'analysis'
+          ? e.items.some(it => it.name.toLowerCase().includes(s))
+          : e.entryNumber.includes(s) || e.origin.toLowerCase().includes(s)
+      );
       const matchesOrigin = originFilter === 'all' || e.origin.toUpperCase() === originFilter;
       return matchesPeriod && matchesSearch && matchesOrigin;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [entries, search, filterMode, selectedMonth, selectedYear, originFilter]);
+  }, [entries, search, activeTab, filterMode, selectedMonth, selectedYear, originFilter]);
 
   const itemAnalysis = useMemo(() => {
     const stats: Record<string, { qty: number, purchaseVal: number, sellingVal: number }> = {};
