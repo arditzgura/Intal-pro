@@ -401,8 +401,8 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   };
 
   const handleClearForm = () => {
-    if(confirm("A jeni i sigurt që dëshironi të fshini të gjitha të dhënat e kësaj fature?")) { 
-      clearData(STORAGE_KEYS.DRAFT); 
+    if(confirm("A jeni i sigurt që dëshironi të fshini të gjitha të dhënat e kësaj fature?")) {
+      clearData(STORAGE_KEYS.DRAFT);
       setClientName('');
       setSelectedClientId(null);
       setSelectedClientCode(undefined);
@@ -414,6 +414,25 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       setNotes('');
       setLastSaved(null);
     }
+  };
+
+  const handleUndo = () => {
+    if (!initialData) return;
+    setClientName(initialData.clientName);
+    setSelectedClientId(initialData.clientId);
+    setSelectedClientCode(initialData.clientCode);
+    setClientCity(initialData.clientCity || '');
+    setShipTo(initialData.clientPhone || '');
+    setInvoiceItems(initialData.items);
+    setInvoiceNumber(initialData.invoiceNumber);
+    setInvoiceDate(initialData.date);
+    setPreviousBalance(initialData.previousBalance || 0);
+    setAmountPaid(initialData.amountPaid || 0);
+    setCurrency(initialData.currency || 'Lek');
+    setPrevBalanceLabel(initialData.previousBalanceLabel || 'Gjendja (+)');
+    setAmountPaidLabel(initialData.amountPaidLabel || 'Paguar (-)');
+    setNotes(initialData.notes || '');
+    setPaymentDate(initialData.paymentDate || '');
   };
 
   return (
@@ -438,18 +457,30 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
         </div>
         <div className="w-full md:text-right flex flex-col items-start md:items-end gap-3">
           <div className="flex items-center gap-3 w-full justify-between md:justify-end">
-            <button onClick={handleClearForm} className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"><RotateCcw size={14} /> PASTRO</button>
-            <div className="flex items-center gap-2">
-              {initialData && (
+            {initialData ? (
+              <div className="flex items-center gap-2 w-full justify-between md:justify-end">
                 <button
-                  onClick={() => handleSaveInvoice(false, true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-900 text-slate-900 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all active:scale-95"
+                  onClick={handleUndo}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-300 text-amber-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all active:scale-95"
                 >
-                  <Save size={13} /> Ruaj
+                  <RotateCcw size={13} /> Undo
                 </button>
-              )}
-            <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase">Faturë</h1>
-            </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSaveInvoice(false, true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95"
+                  >
+                    <Save size={13} /> Ruaj
+                  </button>
+                  <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase">Faturë</h1>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button onClick={handleClearForm} className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"><RotateCcw size={14} /> PASTRO</button>
+                <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase">Faturë</h1>
+              </>
+            )}
           </div>
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
             <div className="inline-flex items-center bg-slate-100 p-1 rounded-lg">
