@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Invoice, Client, BusinessConfig } from '../types';
-import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send } from 'lucide-react';
+import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw } from 'lucide-react';
 
 interface Props {
   invoice: Invoice;
@@ -9,6 +9,7 @@ interface Props {
   client?: Client;
   onClose: () => void;
   onEdit: (invoice: Invoice) => void;
+  onSave?: (invoice: Invoice) => void;
 }
 
 const formatDate = (dateStr: string) => {
@@ -36,11 +37,38 @@ const StrikePrice = ({ orig, curr, style }: { orig: number; curr: string; style?
   </span>
 );
 
-const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, onEdit }) => {
+const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, onEdit, onSave }) => {
   const [isPngExporting,  setIsPngExporting]  = useState(false);
   const [isPdfExporting,  setIsPdfExporting]  = useState(false);
   const [isSharing,       setIsSharing]       = useState(false);
+  const [editMode,        setEditMode]        = useState(false);
+  const [draft,           setDraft]           = useState<Invoice>(invoice);
   const clientFileName = invoice.clientName.trim().replace(/\s+/g, '_');
+
+  const enterEdit = () => { setDraft(invoice); setEditMode(true); };
+  const cancelEdit = () => { setDraft(invoice); setEditMode(false); };
+
+  const updateDraftItem = (idx: number, field: 'quantity' | 'price' | 'name', val: string | number) => {
+    const newItems = draft.items.map((it, i) => {
+      if (i !== idx) return it;
+      const q = field === 'quantity' ? Number(val) : it.quantity;
+      const p = field === 'price'    ? Number(val) : it.price;
+      const n = field === 'name'     ? String(val) : it.name;
+      return { ...it, name: n, quantity: q, price: p, total: q * p };
+    });
+    const newSubtotal = newItems.reduce((s, it) => s + it.total, 0);
+    setDraft(d => ({ ...d, items: newItems, subtotal: newSubtotal, total: newSubtotal }));
+  };
+
+  const handleSaveDraft = () => {
+    const balDue = draft.subtotal + (draft.previousBalance || 0) - (draft.amountPaid || 0);
+    const status = balDue <= 0 ? 'E paguar' as const : 'Pa paguar' as const;
+    const saved: Invoice = { ...draft, status };
+    onSave?.(saved);
+    setEditMode(false);
+  };
+
+  const inv = editMode ? draft : invoice;
 
   // ── Hap print preview (A4 ose 80mm) ──────────────────────────────────────
   const handlePrint = async (format: 'A4' | '80mm') => {
@@ -180,12 +208,12 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     } finally { setIsSharing(false); }
   };
 
-  const balanceDue = (invoice.subtotal + (invoice.previousBalance || 0)) - (invoice.amountPaid || 0);
+  const balanceDue = (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
   const isSurplus = balanceDue < 0;
   const isPaidInFull = balanceDue <= 0;
-  
+
   const getCurrency = (type: 'short' | 'full' = 'full') => {
-    if (invoice.currency === 'EUR') return type === 'short' ? '€' : 'EURO';
+    if (inv.currency === 'EUR') return type === 'short' ? '€' : 'EURO';
     return type === 'short' ? 'L' : 'Lekë';
   };
 
@@ -231,7 +259,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     return new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
   };
 
-  const displayCity = invoice.clientCity || client?.city || 'TIRANË';
+  const displayCity = inv.clientCity || client?.city || 'TIRANË';
 
   // Label-et e editueshmë
   const lArt = business.labelArtikulli  ?? 'ARTIKULLI';
@@ -252,11 +280,21 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
          onClick={onClose}>
       <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[310] print:hidden" onClick={e => e.stopPropagation()}>
         <div className="bg-white p-2 rounded-2xl shadow-2xl border border-slate-200 flex items-center gap-2">
-          <button onClick={exportPNG}  className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all">{isPngExporting ? <Loader2 size={16} className="animate-spin"/> : <ImageIcon size={16}/>} PNG</button>
-          <button onClick={exportPDF}  className="bg-[#D81B60] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#AD1457] transition-all">{isPdfExporting ? <Loader2 size={16} className="animate-spin"/> : <FileCheck size={16}/>} PDF</button>
-          <button onClick={sendWhatsApp} className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all">{isSharing ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>} WhatsApp</button>
-          <button onClick={() => handlePrint('A4')}   className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-black transition-all"><Printer size={16}/> A4</button>
-          <button onClick={() => handlePrint('80mm')} className="bg-slate-100 text-slate-800 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all"><Printer size={16}/> 80MM</button>
+          {editMode ? (
+            <>
+              <button onClick={handleSaveDraft} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all active:scale-95"><Save size={16}/> Ruaj</button>
+              <button onClick={cancelEdit} className="bg-amber-50 border border-amber-300 text-amber-700 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-100 transition-all"><RotateCcw size={14}/> Anulo</button>
+            </>
+          ) : (
+            <>
+              <button onClick={exportPNG}  className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all">{isPngExporting ? <Loader2 size={16} className="animate-spin"/> : <ImageIcon size={16}/>} PNG</button>
+              <button onClick={exportPDF}  className="bg-[#D81B60] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#AD1457] transition-all">{isPdfExporting ? <Loader2 size={16} className="animate-spin"/> : <FileCheck size={16}/>} PDF</button>
+              <button onClick={sendWhatsApp} className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all">{isSharing ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>} WhatsApp</button>
+              <button onClick={() => handlePrint('A4')}   className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-black transition-all"><Printer size={16}/> A4</button>
+              <button onClick={() => handlePrint('80mm')} className="bg-slate-100 text-slate-800 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all"><Printer size={16}/> 80MM</button>
+              {onSave && <><div className="w-px h-6 bg-slate-200 mx-1"></div><button onClick={enterEdit} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all"><Pencil size={14}/> Edit</button></>}
+            </>
+          )}
           <div className="w-px h-6 bg-slate-200 mx-1"></div>
           <button onClick={onClose} className="p-2.5 text-slate-400 hover:text-slate-900 rounded-xl transition-all"><X size={24} /></button>
         </div>
@@ -296,10 +334,16 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
               <div className="relative flex flex-col items-end pt-2">
                 <h1 className="text-4xl font-black text-slate-800 uppercase tracking-tight mb-1 z-20 relative px-2 bg-white/80">{lFat}</h1>
                 <div className="w-44 py-2 bg-slate-50 border border-slate-100 rounded-xl flex flex-col items-center justify-center gap-0.5 shadow-sm z-10">
-                  <span className="text-xs font-black text-slate-900">NR. {invoice.invoiceNumber}</span>
+                  {editMode
+                    ? <input className="text-xs font-black text-slate-900 text-center bg-white border border-indigo-300 rounded px-2 py-0.5 w-32 outline-none" value={draft.invoiceNumber} onChange={e => setDraft(d => ({...d, invoiceNumber: e.target.value}))} />
+                    : <span className="text-xs font-black text-slate-900">NR. {inv.invoiceNumber}</span>
+                  }
                   <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DATA: {formatDate(invoice.date)}</span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ORA: {formatTime(invoice.date)}</span>
+                    {editMode
+                      ? <input type="date" className="text-[10px] font-black text-indigo-600 bg-white border border-indigo-300 rounded px-1 py-0.5 outline-none mt-0.5" value={draft.date.split('T')[0]} onChange={e => setDraft(d => ({...d, date: e.target.value + 'T00:00:00'}))} />
+                      : <><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DATA: {formatDate(inv.date)}</span>
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ORA: {formatTime(inv.date)}</span></>
+                    }
                   </div>
                 </div>
               </div>
@@ -317,7 +361,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                     {isSurplus ? lTep : lDet}
                   </p>
                   <p className={`text-[15px] font-black leading-none ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {Math.abs(balanceDue).toLocaleString()} {invoice.currency === 'EUR' ? 'EURO' : 'LEKË'}
+                    {Math.abs(balanceDue).toLocaleString()} {inv.currency === 'EUR' ? 'EURO' : 'LEKË'}
                   </p>
                 </div>
                 <div className="bg-amber-50 border border-amber-100 p-1.5 rounded-xl w-40 text-center flex items-center justify-center gap-1">
@@ -334,7 +378,16 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 const fs = `${fsNum}px`;
                 const fsSub = `${fsNum - 1}px`;
                 const ff = business.itemFont || 'Inter, sans-serif';
-                const items = invoice.items;
+                const items = inv.items;
+
+                const editInput = (idx: number, field: 'quantity'|'price', val: number) => (
+                  <input
+                    type="number" min="0" step="any"
+                    defaultValue={val}
+                    onBlur={e => updateDraftItem(idx, field, e.target.value)}
+                    style={{ width: field === 'quantity' ? '50px' : '70px', border: '1px solid #a5b4fc', borderRadius: '4px', padding: '1px 4px', fontWeight: 900, fontSize: fs, fontFamily: ff, textAlign: 'center', outline: 'none', background: '#eef2ff' }}
+                  />
+                );
 
                 if (tpl === 1) return (
                   <table className="w-full border-collapse">
@@ -343,10 +396,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       {items.map((item, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '5px 12px', fontSize: fs, fontFamily: ff, fontWeight: 900, textTransform: 'uppercase', color: '#1e293b' }}>{item.name}</td>
-                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}>{item.quantity}</td>
+                          <td style={{ padding: '5px 8px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}>{editMode ? editInput(i,'quantity',item.quantity) : item.quantity}</td>
                           {item.originalPrice && item.originalPrice !== item.price
-                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}><StrikePrice orig={item.originalPrice!} curr={getCurrency('short')} /><span style={{fontWeight:900}}>{item.price.toLocaleString()} {getCurrency('short')}</span></td>
-                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}>{item.price.toLocaleString()} {getCurrency('short')}</td>
+                            ? <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}><StrikePrice orig={item.originalPrice!} curr={getCurrency('short')} /><span style={{fontWeight:900}}>{editMode ? editInput(i,'price',item.price) : <>{item.price.toLocaleString()} {getCurrency('short')}</>}</span></td>
+                            : <td style={{ padding: '5px 12px', textAlign: 'center', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#475569' }}>{editMode ? editInput(i,'price',item.price) : <>{item.price.toLocaleString()} {getCurrency('short')}</>}</td>
                           }
                           <td style={{ padding: '5px 12px', textAlign: 'right', fontSize: fs, fontFamily: ff, fontWeight: 900, color: '#0f172a' }}>{item.total.toLocaleString()} {getCurrency('short')}</td>
                         </tr>
@@ -437,7 +490,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
             <div className="mt-4">
               <div className="flex justify-between items-end mb-4 gap-10">
                 <div className="flex-1 self-start">
-                   {invoice.notes && (<div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 max-w-sm"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">SHËNIME:</p><p className="text-[10px] font-bold text-slate-700 whitespace-pre-wrap leading-relaxed italic">{invoice.notes}</p></div>)}
+                   {editMode
+                     ? <div className="bg-slate-50 p-4 rounded-2xl border border-indigo-200 max-w-sm"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">SHËNIME:</p><textarea rows={3} className="w-full text-[10px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none resize-none" value={draft.notes || ''} onChange={e => setDraft(d => ({...d, notes: e.target.value || undefined}))} /></div>
+                     : inv.notes && (<div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 max-w-sm"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">SHËNIME:</p><p className="text-[10px] font-bold text-slate-700 whitespace-pre-wrap leading-relaxed italic">{inv.notes}</p></div>)
+                   }
                    <div className="flex items-center gap-6 mt-4">
                       <div className="flex items-center gap-1.5"><Instagram size={14} className="text-slate-900" /><p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">@INTALALBANIA</p></div>
                       {business.qrCodeUrl && (
@@ -449,14 +505,36 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 </div>
                 <div className="w-64 bg-white border-2 border-slate-900 rounded-[20px] overflow-hidden">
                    <div className="p-3 space-y-1.5">
-                      <div className="flex justify-between items-center text-slate-400 text-[11px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[13px]">{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
-                      {invoice.previousBalance !== 0 && (<div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || lGje}:</span><span className="text-[13px]">{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span></div>)}
-                      {invoice.amountPaid !== 0 && (<div className="flex justify-between items-center text-blue-600 text-[11px] font-black uppercase tracking-widest"><span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span><span className="text-[13px]">- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span></div>)}
+                      <div className="flex justify-between items-center text-slate-400 text-[11px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[13px]">{inv.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
+                      {(inv.previousBalance !== 0 || editMode) && (
+                        <div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest">
+                          <span>{inv.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || lGje}:</span>
+                          {editMode
+                            ? <input type="number" step="any" defaultValue={draft.previousBalance || 0} onBlur={e => setDraft(d => ({...d, previousBalance: Number(e.target.value)}))} className="w-24 text-right border border-amber-300 rounded px-1 py-0.5 text-[11px] font-black bg-amber-50 outline-none" />
+                            : <span className="text-[13px]">{inv.previousBalance.toLocaleString()} {getCurrency('short')}</span>
+                          }
+                        </div>
+                      )}
+                      {(inv.amountPaid !== 0 || editMode) && (
+                        <div className="flex justify-between items-center text-blue-600 text-[11px] font-black uppercase tracking-widest">
+                          <span>{inv.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || lPag}:</span>
+                          {editMode
+                            ? <input type="number" step="any" defaultValue={draft.amountPaid || 0} onBlur={e => setDraft(d => ({...d, amountPaid: Number(e.target.value)}))} className="w-24 text-right border border-blue-300 rounded px-1 py-0.5 text-[11px] font-black bg-blue-50 outline-none" />
+                            : <span className="text-[13px]">- {inv.amountPaid.toLocaleString()} {getCurrency('short')}</span>
+                          }
+                        </div>
+                      )}
+                      {editMode && (
+                        <div className="flex justify-between items-center text-emerald-600 text-[11px] font-black uppercase tracking-widest">
+                          <span>DATA PAGESËS:</span>
+                          <input type="date" value={draft.paymentDate || ''} onChange={e => setDraft(d => ({...d, paymentDate: e.target.value || undefined}))} className="border border-emerald-300 rounded px-1 py-0.5 text-[10px] font-black bg-emerald-50 outline-none" />
+                        </div>
+                      )}
                    </div>
                    <div className={`p-3 flex justify-between items-center border-t border-slate-900 ${isSurplus ? 'bg-amber-50' : isPaidInFull ? 'bg-emerald-50' : 'bg-rose-50'}`}>
                       <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
                       <span className={`text-2xl font-black tracking-tighter ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {Math.abs(balanceDue).toLocaleString()} {invoice.currency === 'EUR' ? 'EURO' : 'LEKË'}
+                        {Math.abs(balanceDue).toLocaleString()} {inv.currency === 'EUR' ? 'EURO' : 'LEKË'}
                       </span>
                    </div>
                 </div>

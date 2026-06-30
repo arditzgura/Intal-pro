@@ -912,7 +912,7 @@ const App: React.FC = () => {
       )}
 
       {/* Overlays */}
-      {previewInvoice  && <InvoicePreview invoice={previewInvoice} business={config} client={clients.find(c=>c.id===previewInvoice.clientId)} onClose={()=>setPreviewInvoice(null)} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}}/>}
+      {previewInvoice  && <InvoicePreview invoice={previewInvoice} business={config} client={clients.find(c=>c.id===previewInvoice.clientId)} onClose={()=>setPreviewInvoice(null)} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onSave={inv=>{const base=invoices.map(i=>i.id===inv.id?inv:i);const upd=recalcClientStatuses(getInvClientKey(inv),base);setInvoices(upd);local.setAll(uid,'invoices',upd);setPreviewInvoice(inv);}}/>}
       {previewStockEntry && <StockEntryPreview entry={previewStockEntry} business={config} onClose={()=>setPreviewStockEntry(null)} onEdit={e=>{setPreviewStockEntry(null);setEditStockEntry(e);setCurrentView('new-stock-entry');}}/>}
       {selectedProfileClient && (() => {
         const pc = selectedProfileClient;
