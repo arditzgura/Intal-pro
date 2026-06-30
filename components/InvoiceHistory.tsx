@@ -132,6 +132,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
   const filteredInvoices = useMemo(() => {
     const searchNorm = normalize(search);
+    const searchNumNorm = normalize(search.replace(/^#/, ''));
     return invoices.filter(inv => {
       const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
       const client = clientMap[inv.clientId];
@@ -139,7 +140,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       const invCity = inv.clientCity || client?.city || '';
       const matchesCity = cityFilter === 'all' || invCity.trim() === cityFilter;
       const matchesSearch = !searchNorm ||
-        normalize(inv.invoiceNumber).includes(searchNorm) ||
+        normalize(inv.invoiceNumber).includes(searchNumNorm) ||
         normalize(inv.clientName).includes(searchNorm) ||
         normalize(invCity).includes(searchNorm) ||
         inv.items.some(item => normalize(item.name).includes(searchNorm));
