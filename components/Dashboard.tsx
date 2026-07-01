@@ -332,24 +332,45 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
               </div>
            </div>
 
-           {/* Shitje & Arketime & Fitimi */}
-           <div className="grid grid-cols-3 gap-3">
-             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Shitje</p>
-               <p className="text-lg font-black text-slate-900 tracking-tighter leading-none">{Math.round(periodStats.sales).toLocaleString()}</p>
-               <p className="text-[8px] font-black text-slate-400 uppercase mt-0.5">LEK</p>
-             </div>
-             <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
-               <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Arketime</p>
-               <p className="text-lg font-black text-indigo-700 tracking-tighter leading-none">{Math.round(periodStats.collected).toLocaleString()}</p>
-               <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">LEK</p>
-             </div>
-             <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-               <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Fitimi</p>
-               <p className="text-lg font-black text-emerald-700 tracking-tighter leading-none">{Math.round(periodStats.profit).toLocaleString()}</p>
-               <p className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">LEK</p>
-             </div>
-           </div>
+           {/* Shitje & Arketime & Fitimi me bar */}
+           {(() => {
+             const arketimePct = periodStats.sales > 0 ? Math.min(100, (periodStats.collected / periodStats.sales) * 100) : 0;
+             const fitimiPct   = periodStats.sales > 0 ? Math.min(100, Math.max(0, (periodStats.profit / periodStats.sales) * 100)) : 0;
+             return (
+               <div className="space-y-3">
+                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                   <div className="flex justify-between items-baseline mb-2">
+                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Shitje</p>
+                     <p className="text-[9px] font-black text-slate-500">100%</p>
+                   </div>
+                   <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden mb-2">
+                     <div className="h-full bg-slate-700 rounded-full w-full" />
+                   </div>
+                   <p className="text-base font-black text-slate-900 tracking-tighter">{Math.round(periodStats.sales).toLocaleString()} <span className="text-[9px] font-black text-slate-400">LEK</span></p>
+                 </div>
+                 <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
+                   <div className="flex justify-between items-baseline mb-2">
+                     <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Arketime</p>
+                     <p className="text-[9px] font-black text-indigo-500">{arketimePct.toFixed(1)}%</p>
+                   </div>
+                   <div className="w-full h-2.5 bg-indigo-100 rounded-full overflow-hidden mb-2">
+                     <div className="h-full bg-indigo-600 rounded-full transition-all" style={{ width: `${arketimePct}%` }} />
+                   </div>
+                   <p className="text-base font-black text-indigo-700 tracking-tighter">{Math.round(periodStats.collected).toLocaleString()} <span className="text-[9px] font-black text-indigo-400">LEK</span></p>
+                 </div>
+                 <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                   <div className="flex justify-between items-baseline mb-2">
+                     <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Fitimi</p>
+                     <p className="text-[9px] font-black text-emerald-600">{fitimiPct.toFixed(1)}%</p>
+                   </div>
+                   <div className="w-full h-2.5 bg-emerald-100 rounded-full overflow-hidden mb-2">
+                     <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${fitimiPct}%` }} />
+                   </div>
+                   <p className="text-base font-black text-emerald-700 tracking-tighter">{Math.round(periodStats.profit).toLocaleString()} <span className="text-[9px] font-black text-emerald-500">LEK</span></p>
+                 </div>
+               </div>
+             );
+           })()}
 
            {/* Arketime % bar */}
            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
