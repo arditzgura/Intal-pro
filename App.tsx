@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   LayoutDashboard, FileText, Users, Package, PlusCircle,
-  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield
+  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield, WifiOff, Wifi
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
@@ -244,11 +244,38 @@ const App: React.FC = () => {
     }, 800);
   }, [config]); // eslint-disable-line
 
+  // ─── Online / Offline detektor + sync kur kthehet interneti ─────────────
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (!session || !CLOUD_ENABLED || !pendingSync.current) return;
+      const uid     = session.user.id;
+      const cloudId = session.user.username.toLowerCase().trim();
+      pendingSync.current = false;
+      Promise.all([
+        cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices')),
+        cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients')),
+        cloudSave(cloudId, 'items',         local.getAll(uid, 'items')),
+        cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries')),
+        cloudSaveConfig(cloudId,            local.getConfig(uid)),
+      ]).catch(() => { pendingSync.current = true; });
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online',  handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online',  handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [session]); // eslint-disable-line
+
   // ─── Auto-backup në localStorage pas çdo veprimi ─────────────────────────
   const autoBackupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudSyncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudChannelRef  = useRef<RealtimeChannel | null>(null);
   const importLockUntil  = useRef<number>(0); // bllokon cloud overwrite pas importit
+  const pendingSync      = useRef<boolean>(false); // shënon nëse ka ndryshime lokale pa sync
+  const [isOnline,       setIsOnline]       = useState<boolean>(navigator.onLine);
 
   useEffect(() => {
     if (!session || !dataReady) return;
@@ -275,14 +302,22 @@ const App: React.FC = () => {
       // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
       if (CLOUD_ENABLED && session) {
         const cloudId = session.user.username.toLowerCase().trim();
-        if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
-        cloudSyncTimer.current = setTimeout(async () => {
-          await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
-          await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
-          await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
-          await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
-          await cloudSaveConfig(cloudId,            local.getConfig(uid));
-        }, 500);
+        if (!navigator.onLine) { pendingSync.current = true; }
+        else {
+          if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+          cloudSyncTimer.current = setTimeout(async () => {
+            try {
+              await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
+              await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
+              await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
+              await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
+              await cloudSaveConfig(cloudId,            local.getConfig(uid));
+              pendingSync.current = false;
+            } catch {
+              pendingSync.current = true;
+            }
+          }, 500);
+        }
       }
     }, 2000);
   }, [clients, items, invoices, stockEntries]); // eslint-disable-line
@@ -721,7 +756,10 @@ const App: React.FC = () => {
               <LogOut size={16}/>
             </button>
           </div>
-          <p className="text-[9px] text-slate-600 text-center font-bold uppercase tracking-widest">Versioni 2.0 — Cloud</p>
+          {!isOnline
+            ? <div className="flex items-center justify-center gap-1.5 bg-amber-500/20 border border-amber-500/30 rounded-lg px-3 py-1.5 mt-1"><WifiOff size={11} className="text-amber-400"/><span className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Offline — Lokal</span></div>
+            : <p className="text-[9px] text-slate-600 text-center font-bold uppercase tracking-widest">Versioni 2.0 — Cloud</p>
+          }
         </div>
       </aside>
 
@@ -739,6 +777,12 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {!isOnline && (
+              <div className="flex items-center gap-1.5 bg-amber-100 border border-amber-200 text-amber-700 rounded-lg px-2.5 py-1.5">
+                <WifiOff size={13}/>
+                <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Offline</span>
+              </div>
+            )}
             <div className="hidden lg:flex items-center gap-3">
               <div className="text-right">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">I kyçur si</p>
