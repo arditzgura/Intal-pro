@@ -322,32 +322,77 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
-           <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                 <div className="bg-indigo-600 p-2 rounded-xl text-white"><Calculator size={20} /></div>
-                 <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm">Analiza e Shpejtë</h3>
-              </div>
-              <div className="space-y-4">
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Pjesa e Arketuar (Periodike)</p>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                       <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${periodStats.sales > 0 ? (periodStats.collected/periodStats.sales)*100 : 0}%` }}></div>
-                    </div>
-                    <p className="text-right text-[10px] font-black text-indigo-600 mt-2">{periodStats.sales > 0 ? ((periodStats.collected/periodStats.sales)*100).toFixed(1) : 0}%</p>
-                 </div>
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Raporti i Fitimit (Global)</p>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                       <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${globalStats.sales > 0 ? (globalStats.profit/globalStats.sales)*100 : 0}%` }}></div>
-                    </div>
-                    <p className="text-right text-[10px] font-black text-emerald-600 mt-2">{globalStats.sales > 0 ? ((globalStats.profit/globalStats.sales)*100).toFixed(1) : 0}% Fitim Neto</p>
-                 </div>
+        <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-6">
+           {/* Header */}
+           <div className="flex items-center gap-3">
+              <div className="bg-indigo-600 p-2 rounded-xl text-white"><Calculator size={20} /></div>
+              <div>
+                <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm">Analiza e Shpejtë</h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{getPeriodLabel()}</p>
               </div>
            </div>
-           
-           <div className="mt-8 pt-6 border-t border-slate-100 text-[10px] text-slate-400 font-bold italic leading-relaxed">
-              * Të gjitha vlerat janë të konvertuara në monedhën LEK (1 Euro = 100 Lek) për efekt të analizës financiare akumuluese.
+
+           {/* Shitje & Arketime & Fitimi */}
+           <div className="grid grid-cols-3 gap-3">
+             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Shitje</p>
+               <p className="text-lg font-black text-slate-900 tracking-tighter leading-none">{Math.round(periodStats.sales).toLocaleString()}</p>
+               <p className="text-[8px] font-black text-slate-400 uppercase mt-0.5">LEK</p>
+             </div>
+             <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
+               <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Arketime</p>
+               <p className="text-lg font-black text-indigo-700 tracking-tighter leading-none">{Math.round(periodStats.collected).toLocaleString()}</p>
+               <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">LEK</p>
+             </div>
+             <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+               <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Fitimi</p>
+               <p className="text-lg font-black text-emerald-700 tracking-tighter leading-none">{Math.round(periodStats.profit).toLocaleString()}</p>
+               <p className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">LEK</p>
+             </div>
+           </div>
+
+           {/* Arketime % bar */}
+           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex justify-between mb-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Arketime / Shitje</p>
+                <p className="text-[10px] font-black text-indigo-600">{periodStats.sales > 0 ? ((periodStats.collected/periodStats.sales)*100).toFixed(1) : 0}%</p>
+              </div>
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                 <div className="h-full bg-indigo-600 rounded-full transition-all" style={{ width: `${Math.min(100, periodStats.sales > 0 ? (periodStats.collected/periodStats.sales)*100 : 0)}%` }}></div>
+              </div>
+           </div>
+
+           {/* Marzhi fitimi bar */}
+           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex justify-between mb-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Marzhi i Fitimit</p>
+                <p className="text-[10px] font-black text-emerald-600">{periodStats.margin.toFixed(1)}%</p>
+              </div>
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                 <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, periodStats.margin))}%` }}></div>
+              </div>
+           </div>
+
+           {/* Debi neto periodë + debi akumuluar */}
+           <div className="grid grid-cols-2 gap-3">
+             <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
+               <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest mb-1">Debi Neto (Periudhë)</p>
+               <p className={`text-lg font-black tracking-tighter leading-none ${periodStats.sales - periodStats.collected > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                 {Math.round(Math.abs(periodStats.sales - periodStats.collected)).toLocaleString()}
+               </p>
+               <p className="text-[8px] font-black text-rose-400 uppercase mt-0.5">
+                 {periodStats.sales - periodStats.collected > 0 ? '▲ Pa arkëtuar' : '▼ Tepricë'}
+               </p>
+             </div>
+             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+               <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1">Debi Akumuluese</p>
+               <p className="text-lg font-black text-amber-700 tracking-tighter leading-none">{Math.round(globalStats.unpaid).toLocaleString()}</p>
+               <p className="text-[8px] font-black text-amber-500 uppercase mt-0.5">Totale · Gjithë Kohës</p>
+             </div>
+           </div>
+
+           <div className="pt-2 border-t border-slate-100 text-[9px] text-slate-400 font-bold italic leading-relaxed">
+              * Vlerat në LEK (1 Euro = 100 Lek). Debi Neto = Shitje − Arketime e periudhës.
            </div>
         </div>
       </div>
