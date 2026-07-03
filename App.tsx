@@ -702,12 +702,10 @@ const App: React.FC = () => {
   if (!session) return <AuthScreen onAuth={(user) => {
     setSession({ user: { id: user.id, username: user.username } });
     loadAllData(user.id);
-    // Migro kredencialet ekzistuese në cloud (herën e parë pas login-it)
+    // Sinkronizo kredencialet me cloud pas çdo login të suksesshëm (upsert)
     if (CLOUD_ENABLED && user.id !== 'guest' && user.passwordHash) {
-      import('./utils/cloudSync').then(({ cloudSaveCredentials, cloudUsernameExists }) => {
-        cloudUsernameExists(user.username).then(exists => {
-          if (!exists) cloudSaveCredentials(user.username, user.passwordHash);
-        });
+      import('./utils/cloudSync').then(({ cloudSaveCredentials }) => {
+        cloudSaveCredentials(user.username, user.passwordHash);
       });
     }
   }} />;
