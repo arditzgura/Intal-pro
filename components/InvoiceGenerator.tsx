@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Client, Item, Invoice, InvoiceItem, BusinessConfig } from '../types';
-import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock } from 'lucide-react';
+import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock, Pencil } from 'lucide-react';
 import { loadData, saveData, STORAGE_KEYS, clearData, normalize } from '../utils/storage';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   initialData?: Invoice | null;
   defaultInvoiceNumber?: string;
   business?: BusinessConfig;
+  onUpdateBusiness?: (b: Partial<BusinessConfig>) => void;
 }
 
 const formatDateDisplay = (dateStr: string) => {
@@ -23,7 +24,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber, business }) => {
+const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber, business, onUpdateBusiness }) => {
   const [clientName, setClientName] = useState(initialData?.clientName || '');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(initialData?.clientId || null);
   const [selectedClientCode, setSelectedClientCode] = useState<string | undefined>(initialData?.clientCode);
@@ -42,6 +43,34 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [paymentDate, setPaymentDate] = useState<string>('');
   
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [editLabels, setEditLabels] = useState(false);
+  const [labelDraft, setLabelDraft] = useState<Partial<BusinessConfig>>({});
+
+  const enterLabelEdit = () => {
+    setLabelDraft({
+      name:              business?.name              || '',
+      labelFature:       business?.labelFature       || 'FATURË',
+      labelKlienti:      business?.labelKlienti      || 'KLIENTI',
+      labelArtikulli:    business?.labelArtikulli    || 'ARTIKULLI',
+      labelSasia:        business?.labelSasia        || 'SASIA',
+      labelCmimi:        business?.labelCmimi        || 'ÇMIMI',
+      labelTotali:       business?.labelTotali       || 'TOTALI',
+      labelNentotali:    business?.labelNentotali    || 'NËNTOTALI',
+      labelGjendja:      business?.labelGjendja      || 'GJENDJA',
+      labelPaguar:       business?.labelPaguar       || 'PAGUAR',
+      labelDetyrimi:     business?.labelDetyrimi     || 'DETYRIMI',
+      labelTeprica:      business?.labelTeprica      || 'TEPRICA',
+      labelFaleminderit: business?.labelFaleminderit || 'FALEMINDERIT QË NA BESUAT!',
+    });
+    setEditLabels(true);
+  };
+
+  const saveLabelEdit = () => {
+    onUpdateBusiness?.(labelDraft);
+    setEditLabels(false);
+  };
+
+  const ld = (k: keyof typeof labelDraft) => (labelDraft[k] as string) || '';
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -439,11 +468,58 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   return (
     <>
     <div className="bg-white p-4 md:p-8 rounded-2xl border border-slate-200 shadow-xl min-h-screen relative animate-in fade-in duration-300">
+
+      {/* Edit Labels Panel */}
+      {editLabels && (
+        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-5 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2"><Pencil size={12}/> Edito Tekstet e Faturës</p>
+            <div className="flex gap-2">
+              <button onClick={() => setEditLabels(false)} className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all">Anulo</button>
+              <button onClick={saveLabelEdit} className="px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1.5"><Save size={11}/> Ruaj</button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {([
+              ['name',              'Emri i Biznesit'],
+              ['labelFature',       'Titulli Faturës'],
+              ['labelKlienti',      'Etiketa Klienti'],
+              ['labelArtikulli',    'Etiketa Artikulli'],
+              ['labelSasia',        'Etiketa Sasia'],
+              ['labelCmimi',        'Etiketa Çmimi'],
+              ['labelTotali',       'Etiketa Totali'],
+              ['labelNentotali',    'Etiketa Nëntotali'],
+              ['labelGjendja',      'Etiketa Gjendja'],
+              ['labelPaguar',       'Etiketa Paguar'],
+              ['labelDetyrimi',     'Etiketa Detyrimi'],
+              ['labelTeprica',      'Etiketa Teprica'],
+              ['labelFaleminderit', 'Teksti Faleminderit'],
+            ] as [keyof BusinessConfig, string][]).map(([key, label]) => (
+              <div key={key}>
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                <input
+                  className="w-full px-2 py-1.5 text-[11px] font-black bg-white border border-indigo-200 rounded-lg outline-none focus:border-indigo-500 transition-all"
+                  value={ld(key)}
+                  onChange={e => setLabelDraft(d => ({ ...d, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header Fature */}
       <div className="flex flex-col md:flex-row justify-between items-start mb-8 md:mb-12 gap-6">
         <div className="w-full md:w-1/2">
            <div className="border-l-4 border-[#D81B60] bg-slate-50 p-4 md:p-6 rounded-r-lg">
-              <p className="font-black text-slate-800 uppercase tracking-tighter text-lg md:text-xl">{business?.name || 'Intal Albania'}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-black text-slate-800 uppercase tracking-tighter text-lg md:text-xl">{business?.name || 'Intal Albania'}</p>
+                {onUpdateBusiness && !editLabels && (
+                  <button onClick={enterLabelEdit} className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all" title="Edito tekstet">
+                    <Pencil size={13}/>
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <p className="text-slate-600 text-[10px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
                   <Clock size={12} className="text-slate-400" /> Faturë: {formatDateDisplay(invoiceDate)}
