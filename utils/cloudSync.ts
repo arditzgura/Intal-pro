@@ -116,3 +116,54 @@ export function cloudUnsubscribe(channel: RealtimeChannel | null): void {
   if (!supabase || !channel) return;
   supabase.removeChannel(channel);
 }
+
+// ─── Auth cloud: ruan/kontrollon kredencialet ndër-pajisje ───────────────────
+// user_id = username (lowercase), table_name = '_auth'
+// data = [{ username, passwordHash }]
+
+/** Ruan kredencialet në cloud (pas regjistrimit) */
+export async function cloudSaveCredentials(username: string, passwordHash: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.from(TABLE).upsert(
+      { user_id: username.toLowerCase().trim(), table_name: '_auth', data: [{ username, passwordHash }], updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,table_name' }
+    );
+  } catch (e) {
+    console.warn('[cloudSync] saveCredentials error:', e);
+  }
+}
+
+/** Kontrollon kredencialet nga cloud — kthe username-in nëse fjalëkalimi është i saktë */
+export async function cloudCheckCredentials(username: string, passwordHash: string): Promise<{ username: string } | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('data')
+      .eq('user_id', username.toLowerCase().trim())
+      .eq('table_name', '_auth')
+      .single();
+    if (error || !data?.data?.[0]) return null;
+    const cred = data.data[0];
+    if (cred.passwordHash !== passwordHash) return null;
+    return { username: cred.username };
+  } catch (e) {
+    console.warn('[cloudSync] checkCredentials error:', e);
+    return null;
+  }
+}
+
+/** Kontrollon nëse username ekziston tashmë në cloud */
+export async function cloudUsernameExists(username: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data } = await supabase
+      .from(TABLE)
+      .select('user_id')
+      .eq('user_id', username.toLowerCase().trim())
+      .eq('table_name', '_auth')
+      .maybeSingle();
+    return !!data;
+  } catch { return false; }
+}

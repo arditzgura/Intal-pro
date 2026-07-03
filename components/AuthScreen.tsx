@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle, UserX } from 'lucide-react';
+import { cloudSaveCredentials, cloudCheckCredentials, cloudUsernameExists, CLOUD_ENABLED } from '../utils/cloudSync';
 
 // ─── Auth lokal — vetëm localStorage ─────────────────────────────────────────
 const LOCAL_USERS_KEY = 'intal_local_users';
@@ -13,10 +14,10 @@ function simpleHash(str: string): string {
   return h.toString(36);
 }
 
-function getUsers(): LocalUser[] {
+export function getUsers(): LocalUser[] {
   try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]'); } catch { return []; }
 }
-function saveUsers(users: LocalUser[]) {
+export function saveUsers(users: LocalUser[]) {
   localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
 }
 export function localLogin(username: string, password: string): LocalUser | null {
@@ -57,7 +58,7 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); setSuccess('');
 
@@ -67,26 +68,50 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     if (mode === 'register' && password !== password2) return setError('Fjalëkalimet nuk përputhen.');
 
     setLoading(true);
-    setTimeout(() => {
-      if (mode === 'register') {
-        const result = localRegister(uname, password);
-        if (result === 'exists') {
+
+    if (mode === 'register') {
+      // Kontrollo cloud nëse username ekziston (ndër-pajisje)
+      if (CLOUD_ENABLED) {
+        const existsCloud = await cloudUsernameExists(uname);
+        if (existsCloud) {
           setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
-        } else {
-          setLocalSession(result);
-          onAuth(result);
-        }
-      } else {
-        const user = localLogin(uname, password);
-        if (!user) {
-          setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
-        } else {
-          setLocalSession(user);
-          onAuth(user);
+          setLoading(false);
+          return;
         }
       }
-      setLoading(false);
-    }, 100);
+      const result = localRegister(uname, password);
+      if (result === 'exists') {
+        setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
+      } else {
+        // Ruaj kredencialet edhe në cloud për akses ndër-pajisje
+        if (CLOUD_ENABLED) await cloudSaveCredentials(uname, simpleHash(password));
+        setLocalSession(result);
+        onAuth(result);
+      }
+    } else {
+      // Provo login lokal fillimisht (i shpejtë)
+      const user = localLogin(uname, password);
+      if (user) {
+        setLocalSession(user);
+        onAuth(user);
+      } else if (CLOUD_ENABLED) {
+        // Fallback: kontrollo cloud (pajisje e re ose localStorage e fshirë)
+        const cloudUser = await cloudCheckCredentials(uname, simpleHash(password));
+        if (cloudUser) {
+          // Regjistro lokalisht për herët e ardhshme
+          const newLocal: LocalUser = { id: 'local-' + Date.now(), username: cloudUser.username, passwordHash: simpleHash(password) };
+          const users = getUsers();
+          saveUsers([...users, newLocal]);
+          setLocalSession(newLocal);
+          onAuth(newLocal);
+        } else {
+          setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
+        }
+      } else {
+        setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
+      }
+    }
+    setLoading(false);
   };
 
   return (
