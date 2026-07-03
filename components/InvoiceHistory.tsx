@@ -510,7 +510,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
                 // Vlerat e kolonave
                 const vleraFature = inv.subtotal;
                 const arkëtuar = inv.amountPaid || 0;
-                const detyrimiPerInvoice = isAbsorbedAny ? 0 : Math.max(0, (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0));
+                const detyrimiPerInvoice = (isAbsorbedAny || inv.status === 'E paguar') ? 0 : Math.max(0, (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0));
                 const globalBalance = cd?.balance ?? 0;
 
                 // Ngjyra rreshti
