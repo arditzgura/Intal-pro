@@ -10,7 +10,7 @@ import { local, getLastLocalWrite } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow } from './utils/cloudSync';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { getLocalSession, clearLocalSession, setLocalSession } from './components/AuthScreen';
+import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
 import ClientManager   from './components/ClientManager';
@@ -39,6 +39,7 @@ const App: React.FC = () => {
   // ─── Auth (lokal) ──────────────────────────────────────────────────────────
   const [session,   setSession]  = useState<{ user: { id: string; username: string } } | null | undefined>(undefined);
   const [dataReady, setDataReady] = useState(false);
+  const isGuest = session?.user.id === 'guest';
 
   // ─── Data ──────────────────────────────────────────────────────────────────
   const [clients,      setClients]      = useState<Client[]>([]);
@@ -248,7 +249,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (!session || !CLOUD_ENABLED || !pendingSync.current) return;
+      if (!session || !CLOUD_ENABLED || !pendingSync.current || isGuest) return;
       const uid     = session.user.id;
       const cloudId = session.user.username.toLowerCase().trim();
       pendingSync.current = false;
@@ -300,7 +301,7 @@ const App: React.FC = () => {
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
 
       // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
-      if (CLOUD_ENABLED && session) {
+      if (CLOUD_ENABLED && session && !isGuest) {
         const cloudId = session.user.username.toLowerCase().trim();
         if (!navigator.onLine) { pendingSync.current = true; }
         else {
@@ -324,7 +325,7 @@ const App: React.FC = () => {
 
   // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
   useEffect(() => {
-    if (!session || !dataReady || !CLOUD_ENABLED) return;
+    if (!session || !dataReady || !CLOUD_ENABLED || isGuest) return;
     const uid      = session.user.id;                                   // local storage key
     const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
 

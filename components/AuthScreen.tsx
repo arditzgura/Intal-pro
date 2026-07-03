@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle, UserX } from 'lucide-react';
 
 // ─── Auth lokal — vetëm localStorage ─────────────────────────────────────────
 const LOCAL_USERS_KEY = 'intal_local_users';
@@ -41,6 +41,8 @@ export function getLocalSession(): { user: LocalUser } | null {
 export function clearLocalSession() {
   localStorage.removeItem('intal_session');
 }
+
+export const GUEST_USER: LocalUser = { id: 'guest', username: 'I pa regjistruar', passwordHash: '' };
 
 // ─── Komponenti ───────────────────────────────────────────────────────────────
 interface Props { onAuth: (user: LocalUser) => void; }
@@ -159,6 +161,12 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
             </button>
           </form>
         </div>
+        <button
+          onClick={() => { setLocalSession(GUEST_USER); onAuth(GUEST_USER); }}
+          className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 font-black text-[11px] uppercase tracking-widest transition-all"
+        >
+          <UserX size={15} /> Vazhdo si I Pa Regjistruar
+        </button>
         <p className="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest mt-6">
           INTAL PRO © {new Date().getFullYear()}
         </p>
