@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Client, Item, Invoice, InvoiceItem } from '../types';
+import { Client, Item, Invoice, InvoiceItem, BusinessConfig } from '../types';
 import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock } from 'lucide-react';
 import { loadData, saveData, STORAGE_KEYS, clearData, normalize } from '../utils/storage';
 
@@ -13,6 +13,7 @@ interface Props {
   onAddItem?: (item: Item) => void;
   initialData?: Invoice | null;
   defaultInvoiceNumber?: string;
+  business?: BusinessConfig;
 }
 
 const formatDateDisplay = (dateStr: string) => {
@@ -22,7 +23,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber }) => {
+const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit, onCancel, onAddItem, initialData, defaultInvoiceNumber, business }) => {
   const [clientName, setClientName] = useState(initialData?.clientName || '');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(initialData?.clientId || null);
   const [selectedClientCode, setSelectedClientCode] = useState<string | undefined>(initialData?.clientCode);
@@ -442,7 +443,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       <div className="flex flex-col md:flex-row justify-between items-start mb-8 md:mb-12 gap-6">
         <div className="w-full md:w-1/2">
            <div className="border-l-4 border-[#D81B60] bg-slate-50 p-4 md:p-6 rounded-r-lg">
-              <p className="font-black text-slate-800 uppercase tracking-tighter text-lg md:text-xl">Intal Albania</p>
+              <p className="font-black text-slate-800 uppercase tracking-tighter text-lg md:text-xl">{business?.name || 'Intal Albania'}</p>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <p className="text-slate-600 text-[10px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
                   <Clock size={12} className="text-slate-400" /> Faturë: {formatDateDisplay(invoiceDate)}
