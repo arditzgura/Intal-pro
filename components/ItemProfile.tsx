@@ -108,6 +108,81 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
     return `Viti ${selectedYear}`;
   };
 
+  // Grafiku i shitjeve sipas periudhës
+  const chartData = useMemo(() => {
+    const map: Record<string, { qty: number; value: number }> = {};
+    const todayStr = new Date().toLocaleDateString('en-CA');
+
+    invoices.filter(inv => inv.status !== 'Anuluar').forEach(inv => {
+      const foundItems = inv.items.filter(it => it.itemId === item.id || it.name === item.name);
+      if (!foundItems.length) return;
+      const d = inv.date.slice(0, 10);
+
+      let key = '';
+      if (filterMode === 'year')       { if (d.slice(0,4) !== selectedYear)  return; key = d.slice(0,7); }
+      else if (filterMode === 'month') { if (d.slice(0,7) !== selectedMonth) return; key = d.slice(0,10); }
+      else if (filterMode === 'day')   { if (d !== selectedDay) return; key = d; }
+      else if (filterMode === 'today') { if (d !== todayStr) return; key = d; }
+      else { key = d.slice(0,7); }
+
+      if (!map[key]) map[key] = { qty: 0, value: 0 };
+      foundItems.forEach(f => {
+        map[key].qty   += Number(f.quantity);
+        map[key].value += getConvVal(f.total, inv.currency);
+      });
+    });
+
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, v]) => ({ key, ...v }));
+  }, [item, invoices, filterMode, selectedDay, selectedMonth, selectedYear]);
+
+  const renderChart = () => {
+    if (chartData.length === 0) return null;
+    const W = 900, H = 200, PL = 50, PR = 20, PT = 20, PB = 36;
+    const innerW = W - PL - PR;
+    const innerH = H - PT - PB;
+    const maxQty = Math.max(...chartData.map(d => d.qty), 1);
+    const xStep = innerW / chartData.length;
+    const barW = Math.min(38, xStep - 6);
+
+    const pts = chartData.map((d, i) => ({
+      x: PL + xStep * i + xStep / 2,
+      y: PT + innerH - (d.qty / maxQty) * innerH,
+      ...d
+    }));
+
+    const fmtKey = (k: string) => {
+      if (k.length === 7) { const [,m] = k.split('-'); return ['','Jan','Shk','Mar','Pri','Maj','Qer','Kor','Gus','Sht','Tet','Nën','Dhj'][+m] || m; }
+      if (k.length === 10) return k.slice(8);
+      return k;
+    };
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '180px' }}>
+        {[0, 0.25, 0.5, 0.75, 1].map(t => {
+          const y = PT + innerH * (1 - t);
+          return <g key={t}>
+            <line x1={PL} y1={y} x2={W - PR} y2={y} stroke="#f1f5f9" strokeWidth="1"/>
+            <text x={PL - 6} y={y + 4} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="700">{Math.round(maxQty * t)}</text>
+          </g>;
+        })}
+        {pts.map((p, i) => (
+          <rect key={i} x={p.x - barW/2} y={p.y} width={barW} height={PT + innerH - p.y} rx="4" fill="#e0e7ff"/>
+        ))}
+        <polyline points={pts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="4" fill="#4f46e5" stroke="white" strokeWidth="2"/>
+            <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="9" fill="#4f46e5" fontWeight="900">{p.qty}</text>
+            <text x={p.x} y={H - 4} textAnchor="middle" fontSize="8.5" fill="#94a3b8" fontWeight="700">{fmtKey(p.key)}</text>
+          </g>
+        ))}
+        <line x1={PL} y1={PT} x2={PL} y2={PT + innerH} stroke="#e2e8f0" strokeWidth="1"/>
+      </svg>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-[300] flex items-center justify-center p-4">
       <div className="bg-slate-50 w-full max-w-7xl h-[95vh] rounded-[48px] shadow-2xl flex flex-col overflow-hidden border border-white/20">
@@ -185,6 +260,28 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
                </div>
              </div>
           </div>
+
+          {/* Grafiku XY — Sasia sipas periudhës */}
+          {chartData.length > 0 && (
+            <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 p-2 rounded-xl text-white"><TrendingUp size={18}/></div>
+                  <div>
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800">Shitjet Sipas Periudhës</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Sasia e shitur · {getPeriodLabel()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-200 inline-block"/>{item.unit} (Sasia)</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-1 rounded bg-indigo-600 inline-block"/> Trendi</span>
+                </div>
+              </div>
+              <div className="px-2">
+                {renderChart()}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm flex flex-col mb-20">
              <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
