@@ -144,7 +144,7 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
     const innerH = H - PT - PB;
     const maxQty = Math.max(...chartData.map(d => d.qty), 1);
     const xStep = innerW / chartData.length;
-    const barW = Math.min(38, xStep - 6);
+    const barW = Math.min(14, xStep - 6);
 
     const pts = chartData.map((d, i) => ({
       x: PL + xStep * i + xStep / 2,
@@ -164,7 +164,7 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
           const y = PT + innerH * (1 - t);
           return <g key={t}>
             <line x1={PL} y1={y} x2={W - PR} y2={y} stroke="#f1f5f9" strokeWidth="1"/>
-            <text x={PL - 6} y={y + 4} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="700">{Math.round(maxQty * t)}</text>
+            <text x={PL - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#94a3b8" fontWeight="700">{Math.round(maxQty * t)}</text>
           </g>;
         })}
         {pts.map((p, i) => (
@@ -174,8 +174,8 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
         {pts.map((p, i) => (
           <g key={i}>
             <circle cx={p.x} cy={p.y} r="4" fill="#4f46e5" stroke="white" strokeWidth="2"/>
-            <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="9" fill="#4f46e5" fontWeight="900">{p.qty}</text>
-            <text x={p.x} y={H - 4} textAnchor="middle" fontSize="8.5" fill="#94a3b8" fontWeight="700">{fmtKey(p.key)}</text>
+            <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="11" fill="#4f46e5" fontWeight="900">{p.qty}</text>
+            <text x={p.x} y={H - 4} textAnchor="middle" fontSize="10.5" fill="#94a3b8" fontWeight="700">{fmtKey(p.key)}</text>
           </g>
         ))}
         <line x1={PL} y1={PT} x2={PL} y2={PT + innerH} stroke="#e2e8f0" strokeWidth="1"/>
