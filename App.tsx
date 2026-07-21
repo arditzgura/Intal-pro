@@ -132,7 +132,7 @@ const App: React.FC = () => {
       return { ...c, code: 'KL' + String(counter).padStart(3, '0') };
     });
     setClients(updated);
-    local.setAll(session.user.id, 'clients', updated);
+    local.setAllSilent(session.user.id, 'clients', updated);
     // Gjithashtu lidh faturat ekzistuese me kodet e klientëve
     const codeMap = new Map(updated.map(c => [c.id, c.code!]));
     const updatedInvoices = invoices.map(inv => {
@@ -145,7 +145,7 @@ const App: React.FC = () => {
     const hasChange = updatedInvoices.some((inv, i) => inv !== invoices[i]);
     if (hasChange) {
       setInvoices(updatedInvoices);
-      local.setAll(session.user.id, 'invoices', updatedInvoices);
+      local.setAllSilent(session.user.id, 'invoices', updatedInvoices);
     }
   }, [dataReady]); // eslint-disable-line
 
@@ -200,7 +200,7 @@ const App: React.FC = () => {
     const hasChange = updated.some((inv, i) => inv.status !== invoices[i].status);
     if (hasChange) {
       setInvoices(updated);
-      local.setAll(session.user.id, 'invoices', updated);
+      local.setAllSilent(session.user.id, 'invoices', updated);
     }
   }, [dataReady]); // eslint-disable-line
 
@@ -231,7 +231,7 @@ const App: React.FC = () => {
     const changedC = updated.filter((u, i) => u !== clients[i]);
     if (changedC.length > 0) {
       setClients(updated);
-      local.setAll(userId, 'clients', updated);
+      local.setAllSilent(userId, 'clients', updated);
     }
   }, [invoices]); // eslint-disable-line
 
@@ -301,7 +301,8 @@ const App: React.FC = () => {
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
 
       // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
-      if (CLOUD_ENABLED && session && !isGuest) {
+      // Shpëto vetëm nëse ka pasur shkrim real nga përdoruesi (jo nga sync remote)
+      if (CLOUD_ENABLED && session && !isGuest && Date.now() - getLastLocalWrite() < 10000) {
         const cloudId = session.user.username.toLowerCase().trim();
         if (!navigator.onLine) { pendingSync.current = true; }
         else {
