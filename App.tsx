@@ -301,8 +301,7 @@ const App: React.FC = () => {
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
 
       // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
-      // Shpëto vetëm nëse ka pasur shkrim real nga përdoruesi (jo nga sync remote)
-      if (CLOUD_ENABLED && session && !isGuest && Date.now() - getLastLocalWrite() < 10000) {
+      if (CLOUD_ENABLED && session && !isGuest) {
         const cloudId = session.user.username.toLowerCase().trim();
         if (!navigator.onLine) { pendingSync.current = true; }
         else {
