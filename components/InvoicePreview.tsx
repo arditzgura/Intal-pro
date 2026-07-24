@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, Client, BusinessConfig } from '../types';
 import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw } from 'lucide-react';
 
@@ -43,6 +43,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const [isSharing,       setIsSharing]       = useState(false);
   const [editMode,        setEditMode]        = useState(false);
   const [draft,           setDraft]           = useState<Invoice>(invoice);
+  const [invoiceZoom,     setInvoiceZoom]     = useState(1);
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
   const clientFileName = invoice.clientName.trim().replace(/\s+/g, '_');
 
   // Lejo zoom-in/out me touch kur preview është hapur
@@ -51,6 +53,19 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     const original = vp?.content || '';
     if (vp) vp.content = 'width=device-width, initial-scale=1.0';
     return () => { if (vp) vp.content = original; };
+  }, []);
+
+  // Shkallëzo faturën që të përshtahet me gjerësinë e ekranit
+  useEffect(() => {
+    const update = () => {
+      if (!scaleWrapRef.current) return;
+      const containerW = scaleWrapRef.current.offsetWidth;
+      const invoiceW = 794; // 210mm @ 96dpi
+      setInvoiceZoom(Math.min(1, containerW / invoiceW));
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
   const enterEdit = () => { setDraft(invoice); setEditMode(true); };
@@ -161,7 +176,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 3, useCORS: true, onclone: (doc: any) => {
             const el = doc.getElementById('invoice-printable');
-            if (el) { el.style.transform = 'none'; el.style.boxShadow = 'none'; }
+            if (el) { el.style.transform = 'none'; el.style.boxShadow = 'none'; if (el.parentElement) el.parentElement.style.zoom = '1'; }
           }},
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           outputType: 'blob',
@@ -179,7 +194,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 3, useCORS: true, onclone: (doc: any) => {
             const el = doc.getElementById('invoice-printable');
-            if (el) el.style.transform = 'none';
+            if (el) { el.style.transform = 'none'; if (el.parentElement) el.parentElement.style.zoom = '1'; }
           }},
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         };
@@ -251,10 +266,11 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
         el.style.transform = 'none';
         el.style.boxShadow = 'none';
 
-        // Wrapper: hiq vetëm transform inline, jo className
+        // Wrapper: hiq vetëm transform/zoom inline, jo className
         const wrap = el.parentElement;
         if (wrap) {
           wrap.style.transform = 'none';
+          wrap.style.zoom = '1';
           wrap.style.margin = '0';
         }
 
@@ -308,7 +324,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
         </div>
       </div>
 
-      <div className="mt-16 print:mt-0 transition-all transform scale-[0.55] sm:scale-75 md:scale-90 lg:scale-100 origin-top" onClick={e => e.stopPropagation()}>
+      <div ref={scaleWrapRef} className="mt-16 print:mt-0 w-full" onClick={e => e.stopPropagation()}>
+        <div style={{ zoom: invoiceZoom }} className="print:zoom-[1]">
         <div id="invoice-printable" className="bg-white shadow-2xl print:shadow-none flex flex-col" style={{ width: '210mm', minHeight: '297mm', padding: '10mm 15mm', position: 'relative', boxSizing: 'border-box', overflow: 'hidden' }}>
           
           {/* Watermark */}
@@ -664,6 +681,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
              </div>
           </div>
         </div>
+        </div>{/* /zoom wrapper */}
       </div>
     </div>
   );
