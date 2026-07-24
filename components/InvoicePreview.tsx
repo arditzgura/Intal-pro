@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Invoice, Client, BusinessConfig } from '../types';
 import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw } from 'lucide-react';
 
@@ -44,6 +44,14 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const [editMode,        setEditMode]        = useState(false);
   const [draft,           setDraft]           = useState<Invoice>(invoice);
   const clientFileName = invoice.clientName.trim().replace(/\s+/g, '_');
+
+  // Lejo zoom-in/out me touch kur preview është hapur
+  useEffect(() => {
+    const vp = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+    const original = vp?.content || '';
+    if (vp) vp.content = 'width=device-width, initial-scale=1.0';
+    return () => { if (vp) vp.content = original; };
+  }, []);
 
   const enterEdit = () => { setDraft(invoice); setEditMode(true); };
   const cancelEdit = () => { setDraft(invoice); setEditMode(false); };
