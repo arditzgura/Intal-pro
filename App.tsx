@@ -235,6 +235,20 @@ const App: React.FC = () => {
     }
   }, [invoices]); // eslint-disable-line
 
+  // ─── Auto-save: pasqyron çdo ndryshim state → localStorage menjëherë ───────
+  // Ndaj remote sync (setAllSilent) nga veprimet e përdoruesit (setAll+touch)
+  // Kjo garanton që asnjë veprim nuk humbet, edhe nëse handleri harron setAll()
+  const isApplyingRemote = useRef(false);
+  useEffect(() => {
+    if (!session || !dataReady) return;
+    const uid = session.user.id;
+    if (isApplyingRemote.current) return; // remote e ruajti tashmë me setAllSilent
+    local.setAll(uid, 'invoices',      invoices);
+    local.setAll(uid, 'clients',       clients);
+    local.setAll(uid, 'items',         items);
+    local.setAll(uid, 'stock_entries', stockEntries);
+  }, [invoices, clients, items, stockEntries]); // eslint-disable-line
+
   // ─── Config auto-save ──────────────────────────────────────────────────────
   const configSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -341,12 +355,15 @@ const App: React.FC = () => {
 
     const applyRemote = (remote: Record<string, CloudRow>) => {
       if (!canApplyRemote()) return;
+      isApplyingRemote.current = true;
       const r = (key: string) => remote[key]?.data;
       if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
       if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
       if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
       if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
       if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
+      // Reseto pas render-it (setTimeout 0 garanton pas useEffect)
+      setTimeout(() => { isApplyingRemote.current = false; }, 0);
     };
 
     cloudLoadAll(cloudId).then(applyRemote);
@@ -354,11 +371,13 @@ const App: React.FC = () => {
     // Real-time: merr ndryshimet nga pajisja tjetër — dy kushte mbrojtëse
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
       if (!canApplyRemote()) return;
+      isApplyingRemote.current = true;
       if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
       if (tableName === 'clients')       { setClients(data);      local.setAllSilent(uid,'clients',       data); }
       if (tableName === 'items')         { setItems(data);        local.setAllSilent(uid,'items',         data); }
       if (tableName === 'stock_entries') { setStockEntries(data); local.setAllSilent(uid,'stock_entries', data); }
       if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
+      setTimeout(() => { isApplyingRemote.current = false; }, 0);
     });
 
     // Polling fallback: çdo 5s — sinkronizon edhe nëse real-time nuk funksionon
