@@ -8,8 +8,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local, getLastLocalWrite } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, CLOUD_ENABLED } from './utils/cloudSync';
-import type { CloudRow } from './utils/cloudSync';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
@@ -287,7 +286,7 @@ const App: React.FC = () => {
   // ─── Auto-backup në localStorage pas çdo veprimi ─────────────────────────
   const autoBackupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudSyncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudChannelRef  = useRef<RealtimeChannel | null>(null);
+  const cloudChannelRef  = useRef<CloudChannel>(null);
   const importLockUntil  = useRef<number>(0); // bllokon cloud overwrite pas importit
   const pendingSync      = useRef<boolean>(false); // shënon nëse ka ndryshime lokale pa sync
   const [isOnline,       setIsOnline]       = useState<boolean>(navigator.onLine);

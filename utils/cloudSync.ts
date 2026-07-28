@@ -1,62 +1,67 @@
-// ─── Cloud Sync layer — Supabase real-time ────────────────────────────────────
-import { createClient, RealtimeChannel } from '@supabase/supabase-js';
+// ─── Cloud Sync layer — Firebase Firestore ────────────────────────────────────
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getFirestore, collection, doc,
+  setDoc, getDoc, getDocs,
+  onSnapshot, Firestore,
+} from 'firebase/firestore';
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string;
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const firebaseConfig = {
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              as string,
+};
 
-export const supabase = (SUPABASE_URL && SUPABASE_ANON)
-  ? createClient(SUPABASE_URL, SUPABASE_ANON)
-  : null;
-
-export const CLOUD_ENABLED = !!supabase;
-
-// ─── Tabela: sync_data ────────────────────────────────────────────────────────
-// Kolona: user_id TEXT, table_name TEXT, data JSONB, updated_at TIMESTAMPTZ
-// Primary key: (user_id, table_name)
-// RLS: user mund të lexojë/shkruajë vetëm rreshtat e vet (user_id = auth.uid() ose value)
-
-const TABLE = 'sync_data';
-
-/** Ruaj të dhënat e një tabele në cloud */
-export async function cloudSave(userId: string, tableName: string, data: any[]): Promise<void> {
-  if (!supabase) return;
-  try {
-    await supabase.from(TABLE).upsert(
-      { user_id: userId, table_name: tableName, data, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,table_name' }
-    );
-  } catch (e) {
-    console.warn('[cloudSync] save error:', e);
-  }
+let db: Firestore | null = null;
+if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+  const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  db = getFirestore(firebaseApp);
 }
 
-/** Ruaj konfigurimin në cloud */
-export async function cloudSaveConfig(userId: string, config: any): Promise<void> {
-  if (!supabase) return;
-  try {
-    await supabase.from(TABLE).upsert(
-      { user_id: userId, table_name: 'config', data: [config], updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,table_name' }
-    );
-  } catch (e) {
-    console.warn('[cloudSync] saveConfig error:', e);
-  }
-}
+export const CLOUD_ENABLED = !!db;
+
+// ─── Struktura Firestore ──────────────────────────────────────────────────────
+// users/{cloudId}/data/{tableName}  → { data: any[], updatedAt: string }
+// users/{cloudId}/data/_auth        → { data: [{ username, passwordHash }] }
+
+const userCol  = (id: string) => collection(db!, 'users', id, 'data');
+const tableDoc = (id: string, t: string) => doc(db!, 'users', id, 'data', t);
+
+// Tipi i kanalit — funksion unsubscribe i Firebase (zëvendëson RealtimeChannel)
+export type CloudChannel = (() => void) | null;
 
 export interface CloudRow { data: any[]; updatedAt: string; }
 
-/** Ngarko të gjitha tabelat nga cloud për një user — kthe dhe updated_at */
-export async function cloudLoadAll(userId: string): Promise<Record<string, CloudRow>> {
-  if (!supabase) return {};
+// ─── Ruaj një tabelë ─────────────────────────────────────────────────────────
+export async function cloudSave(userId: string, tableName: string, data: any[]): Promise<void> {
+  if (!db) return;
   try {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('table_name, data, updated_at')
-      .eq('user_id', userId);
-    if (error || !data) return {};
+    await setDoc(tableDoc(userId, tableName), { data, updatedAt: new Date().toISOString() });
+  } catch (e) {
+    console.warn('[cloudSync] save error:', e);
+    throw e;
+  }
+}
+
+// ─── Ruaj konfigurimin ────────────────────────────────────────────────────────
+export async function cloudSaveConfig(userId: string, config: any): Promise<void> {
+  await cloudSave(userId, 'config', [config]);
+}
+
+// ─── Ngarko të gjitha tabelat ─────────────────────────────────────────────────
+export async function cloudLoadAll(userId: string): Promise<Record<string, CloudRow>> {
+  if (!db) return {};
+  try {
+    const snapshot = await getDocs(userCol(userId));
     const result: Record<string, CloudRow> = {};
-    data.forEach((row: any) => {
-      result[row.table_name] = { data: row.data, updatedAt: row.updated_at };
+    snapshot.forEach(d => {
+      const td = d.data();
+      if (d.id !== '_auth' && Array.isArray(td.data)) {
+        result[d.id] = { data: td.data, updatedAt: td.updatedAt || '' };
+      }
     });
     return result;
   } catch (e) {
@@ -65,88 +70,65 @@ export async function cloudLoadAll(userId: string): Promise<Record<string, Cloud
   }
 }
 
-/** Subscribe për ndryshime real-time me polling fallback */
+// ─── Real-time subscribe ──────────────────────────────────────────────────────
 export function cloudSubscribe(
   userId: string,
   onChange: (tableName: string, data: any[]) => void
-): RealtimeChannel | null {
-  if (!supabase) return null;
+): CloudChannel {
+  if (!db) return null;
 
-  const channel = supabase
-    .channel(`sync_${userId}_${Date.now()}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: TABLE,
-      },
-      (payload: any) => {
-        const row = payload.new;
-        if (row?.user_id !== userId) return; // filtro manualisht
-        if (row?.table_name && Array.isArray(row?.data)) {
-          onChange(row.table_name, row.data);
-        }
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: TABLE,
-      },
-      (payload: any) => {
-        const row = payload.new;
-        if (row?.user_id !== userId) return;
-        if (row?.table_name && Array.isArray(row?.data)) {
-          onChange(row.table_name, row.data);
-        }
-      }
-    )
-    .subscribe((status) => {
-      console.log('[cloudSync] subscription status:', status);
-    });
+  let initialized = false;
 
-  return channel;
+  const unsubscribe = onSnapshot(
+    userCol(userId),
+    (snapshot) => {
+      // Snapshot-i fillestar mbulohet nga cloudLoadAll — kalo
+      if (!initialized) { initialized = true; return; }
+
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'modified' || change.type === 'added') {
+          const tableName = change.doc.id;
+          const data = change.doc.data().data;
+          if (tableName !== '_auth' && Array.isArray(data)) {
+            onChange(tableName, data);
+          }
+        }
+      });
+    },
+    (error) => console.warn('[cloudSync] subscription error:', error)
+  );
+
+  return unsubscribe;
 }
 
-/** Çregjistro channel */
-export function cloudUnsubscribe(channel: RealtimeChannel | null): void {
-  if (!supabase || !channel) return;
-  supabase.removeChannel(channel);
+// ─── Çregjistro listener ──────────────────────────────────────────────────────
+export function cloudUnsubscribe(channel: CloudChannel): void {
+  if (channel) channel();
 }
 
-// ─── Auth cloud: ruan/kontrollon kredencialet ndër-pajisje ───────────────────
-// user_id = username (lowercase), table_name = '_auth'
-// data = [{ username, passwordHash }]
-
-/** Ruan kredencialet në cloud (pas regjistrimit) */
+// ─── Auth cloud: kredencialet ndër-pajisje ────────────────────────────────────
 export async function cloudSaveCredentials(username: string, passwordHash: string): Promise<void> {
-  if (!supabase) return;
+  if (!db) return;
   try {
-    await supabase.from(TABLE).upsert(
-      { user_id: username.toLowerCase().trim(), table_name: '_auth', data: [{ username, passwordHash }], updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,table_name' }
-    );
+    await setDoc(tableDoc(username.toLowerCase().trim(), '_auth'), {
+      data: [{ username, passwordHash }],
+      updatedAt: new Date().toISOString(),
+    });
   } catch (e) {
     console.warn('[cloudSync] saveCredentials error:', e);
   }
 }
 
-/** Kontrollon kredencialet nga cloud — kthe username-in nëse fjalëkalimi është i saktë */
-export async function cloudCheckCredentials(username: string, passwordHash: string): Promise<{ username: string } | null> {
-  if (!supabase) return null;
+export async function cloudCheckCredentials(
+  username: string,
+  passwordHash: string
+): Promise<{ username: string } | null> {
+  if (!db) return null;
   try {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('data')
-      .eq('user_id', username.toLowerCase().trim())
-      .eq('table_name', '_auth')
-      .single();
-    if (error || !data?.data?.[0]) return null;
-    const cred = data.data[0];
-    if (cred.passwordHash !== passwordHash) return null;
+    const snap = await getDoc(tableDoc(username.toLowerCase().trim(), '_auth'));
+    if (!snap.exists()) return null;
+    const cred = snap.data()?.data?.[0];
+    if (!cred || cred.passwordHash !== passwordHash) return null;
     return { username: cred.username };
   } catch (e) {
     console.warn('[cloudSync] checkCredentials error:', e);
@@ -154,16 +136,10 @@ export async function cloudCheckCredentials(username: string, passwordHash: stri
   }
 }
 
-/** Kontrollon nëse username ekziston tashmë në cloud */
 export async function cloudUsernameExists(username: string): Promise<boolean> {
-  if (!supabase) return false;
+  if (!db) return false;
   try {
-    const { data } = await supabase
-      .from(TABLE)
-      .select('user_id')
-      .eq('user_id', username.toLowerCase().trim())
-      .eq('table_name', '_auth')
-      .maybeSingle();
-    return !!data;
+    const snap = await getDoc(tableDoc(username.toLowerCase().trim(), '_auth'));
+    return snap.exists();
   } catch { return false; }
 }
