@@ -241,11 +241,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
-    if (isApplyingRemote.current) return; // remote e ruajti tashmë me setAllSilent
-    local.setAll(uid, 'invoices',      invoices);
-    local.setAll(uid, 'clients',       clients);
-    local.setAll(uid, 'items',         items);
-    local.setAll(uid, 'stock_entries', stockEntries);
+    // Gjithmonë setAllSilent — nuk prek _lastLocalWrite, nuk bllokon canApplyRemote()
+    // Touch-i bëhet vetëm nga handler-at e veprimeve reale të përdoruesit
+    local.setAllSilent(uid, 'invoices',      invoices);
+    local.setAllSilent(uid, 'clients',       clients);
+    local.setAllSilent(uid, 'items',         items);
+    local.setAllSilent(uid, 'stock_entries', stockEntries);
   }, [invoices, clients, items, stockEntries]); // eslint-disable-line
 
   // ─── Config auto-save ──────────────────────────────────────────────────────
