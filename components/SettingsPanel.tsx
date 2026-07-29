@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { BusinessConfig, Invoice } from '../types';
 import { Save, Download, Upload, Info, Building2, Phone, Mail, Globe, MapPin, Tag, ImageIcon, Trash2, FileText, Play, X, Layers, Printer } from 'lucide-react';
 
@@ -53,6 +53,7 @@ interface Props {
   onImport: (file: File) => Promise<boolean>;
   onRestoreAutoBackup: () => boolean;
   onQRSync: () => void;
+  onCloudPush?: () => Promise<void>;
 }
 
 const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
@@ -308,7 +309,31 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync }) => {
+const CloudPushButton: React.FC<{ onCloudPush: () => Promise<void> }> = ({ onCloudPush }) => {
+  const [status, setStatus] = useState<'idle'|'loading'|'ok'|'err'>('idle');
+  const handle = useCallback(async () => {
+    setStatus('loading');
+    try { await onCloudPush(); setStatus('ok'); } catch { setStatus('err'); }
+    setTimeout(() => setStatus('idle'), 3000);
+  }, [onCloudPush]);
+  return (
+    <button onClick={handle} disabled={status === 'loading'}
+      className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-emerald-700/40 hover:bg-slate-700 transition-all group disabled:opacity-60"
+    >
+      <span className="text-emerald-400 text-2xl group-hover:scale-110 transition-transform">
+        {status === 'loading' ? '⏳' : status === 'ok' ? '✓' : status === 'err' ? '✗' : '☁'}
+      </span>
+      <div className="text-center">
+        <span className={`block font-bold ${status === 'ok' ? 'text-emerald-300' : status === 'err' ? 'text-rose-300' : 'text-emerald-300'}`}>
+          {status === 'loading' ? 'Duke dërguar...' : status === 'ok' ? 'U dërgua!' : status === 'err' ? 'Dështoi' : 'Dërgo në Cloud'}
+        </span>
+        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Shtyp për të sinkronizuar</span>
+      </div>
+    </button>
+  );
+};
+
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync, onCloudPush }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -570,16 +595,8 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                   </div>
                </button>
 
-               <button
-                 onClick={onQRSync}
-                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-indigo-700/40 hover:bg-slate-700 transition-all group"
-               >
-                  <span className="text-indigo-400 text-2xl group-hover:scale-110 transition-transform">📱</span>
-                  <div className="text-center">
-                    <span className="block font-bold text-indigo-300">QR Sinkronizim</span>
-                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Desktop ↔ Mobil</span>
-                  </div>
-               </button>
+
+               {onCloudPush && <CloudPushButton onCloudPush={onCloudPush} />}
 
                <input
                  type="file"
