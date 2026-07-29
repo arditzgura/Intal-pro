@@ -1,6 +1,6 @@
 // ─── Cloud Sync — Firebase Realtime Database ──────────────────────────────────
 import { initializeApp, getApps } from 'firebase/app';
-import { getDatabase, ref, set, get, onValue, Database } from 'firebase/database';
+import { getDatabase, ref, set, get, remove, onValue, Database } from 'firebase/database';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
@@ -130,11 +130,34 @@ export async function cloudCheckCredentials(
     if (!snap.exists()) return null;
     const auth = snap.val();
     if (auth.passwordHash !== passwordHash) return null;
+    if (auth.locked) return null;
     return { username: auth.username || username };
   } catch (e) {
     console.warn('[cloudSync] checkCredentials error:', e);
     return null;
   }
+}
+
+// ─── Admin: veprime mbi përdorues ────────────────────────────────────────────
+export async function cloudDeleteUser(username: string): Promise<void> {
+  if (!db) return;
+  await remove(ref(db, `users/${username.toLowerCase().trim()}`));
+}
+
+export async function cloudLockUser(username: string, locked: boolean): Promise<void> {
+  if (!db) return;
+  const key = username.toLowerCase().trim();
+  const snap = await get(authRef(key));
+  if (!snap.exists()) return;
+  await set(authRef(key), { ...snap.val(), locked });
+}
+
+export async function cloudResetPassword(username: string, newHash: string): Promise<void> {
+  if (!db) return;
+  const key = username.toLowerCase().trim();
+  const snap = await get(authRef(key));
+  if (!snap.exists()) return;
+  await set(authRef(key), { ...snap.val(), passwordHash: newHash, locked: false });
 }
 
 // ─── Auth: kontroll ekzistencës ───────────────────────────────────────────────
@@ -147,7 +170,7 @@ export async function cloudUsernameExists(username: string): Promise<boolean> {
 }
 
 // ─── Admin: merr të gjithë përdoruesit ───────────────────────────────────────
-export async function cloudGetAllUsers(): Promise<{ username: string; invoiceCount: number; lastSync: string }[]> {
+export async function cloudGetAllUsers(): Promise<{ username: string; invoiceCount: number; lastSync: string; locked: boolean }[]> {
   if (!db) return [];
   try {
     const snap = await get(ref(db, 'users'));
@@ -157,7 +180,8 @@ export async function cloudGetAllUsers(): Promise<{ username: string; invoiceCou
       const data = child.val();
       const invoiceCount = data?.invoices?.data?.length ?? 0;
       const lastSync = data?.invoices?.updatedAt ?? data?.clients?.updatedAt ?? '';
-      users.push({ username: child.key || '', invoiceCount, lastSync });
+      const locked = data?.auth?.locked ?? false;
+      users.push({ username: child.key || '', invoiceCount, lastSync, locked });
     });
     return users.sort((a, b) => a.username.localeCompare(b.username));
   } catch { return []; }
