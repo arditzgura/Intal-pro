@@ -1,5 +1,23 @@
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Component } from 'react';
+
+class ErrorBoundary extends Component<{children: React.ReactNode}, {error: string | null}> {
+  state = { error: null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{padding:32,fontFamily:'monospace',background:'#0f172a',color:'#f87171',minHeight:'100vh'}}>
+        <h2 style={{color:'#fbbf24'}}>App Error</h2>
+        <pre style={{whiteSpace:'pre-wrap'}}>{this.state.error}</pre>
+        <button onClick={() => { localStorage.removeItem('intal_session'); window.location.reload(); }}
+          style={{marginTop:16,padding:'8px 16px',background:'#D81B60',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>
+          Dil dhe rihap
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 import {
   LayoutDashboard, FileText, Users, Package, PlusCircle,
   Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield, WifiOff, Wifi
@@ -70,12 +88,12 @@ const App: React.FC = () => {
     let stock = local.getAll<StockEntry>(userId, 'stock_entries');
     let cfg   = local.getConfig(userId);
 
-    // Migrim: nëse nuk ka të dhëna, kërko nën ID-të e vjetra
-    if (!invs.length) {
+    // Migrim: vetëm nga ID-të e vjetra pa prefix "local-" (para sistemit të auth)
+    if (!invs.length && !userId.startsWith('local-')) {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i) || '';
         const m = key.match(/^intal_(.+)_invoices$/);
-        if (m && m[1] !== userId) {
+        if (m && m[1] !== userId && !m[1].startsWith('local-')) {
           const oldId = m[1];
           const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
           if (oldInvs.length > 0) {
@@ -1025,4 +1043,7 @@ const App: React.FC = () => {
   );
 };
 
-export default App;
+const WrappedApp: React.FC = () => (
+  <ErrorBoundary><App /></ErrorBoundary>
+);
+export default WrappedApp;
