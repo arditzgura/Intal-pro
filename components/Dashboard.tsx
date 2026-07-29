@@ -145,7 +145,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     };
   }, [invoices, items, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
-  // 3. Gjendja e Inventarit sipas Periudhës
+  // 3. Gjendja e Inventarit sipas Periudhës + krahasimi me periudhën paraardhëse
   const inventoryStats = useMemo(() => {
     const matches = (d: string) => {
       if (filterMode === 'all') return true;
@@ -156,14 +156,31 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       return true;
     };
 
-    const periodValue = stockEntries.reduce((sum, entry) => {
-      if (matches(entry.date.slice(0, 10))) return sum + (entry.totalPurchaseValue || 0);
-      return sum;
-    }, 0);
+    // Periudha paraardhëse
+    const prevMatches = (d: string) => {
+      if (filterMode === 'all') return false;
+      if (filterMode === 'today' || filterMode === 'day') {
+        const target = filterMode === 'today' ? todayStr : selectedDay;
+        const prev = new Date(target);
+        prev.setDate(prev.getDate() - 1);
+        return d === prev.toLocaleDateString('en-CA');
+      }
+      if (filterMode === 'month') {
+        const [y, m] = selectedMonth.split('-').map(Number);
+        const prev = new Date(y, m - 2, 1);
+        return d.slice(0, 7) === `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      }
+      if (filterMode === 'year') {
+        return d.slice(0, 4) === String(Number(selectedYear) - 1);
+      }
+      return false;
+    };
 
-    const totalValue = stockEntries.reduce((sum, entry) => sum + (entry.totalPurchaseValue || 0), 0);
+    const periodValue = stockEntries.reduce((sum, e) => matches(e.date.slice(0, 10)) ? sum + (e.totalPurchaseValue || 0) : sum, 0);
+    const prevValue   = stockEntries.reduce((sum, e) => prevMatches(e.date.slice(0, 10)) ? sum + (e.totalPurchaseValue || 0) : sum, 0);
+    const diff = periodValue - prevValue;
 
-    return { periodValue, totalValue };
+    return { periodValue, prevValue, diff };
   }, [stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const getPeriodLabel = () => {
@@ -442,10 +459,14 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
                </p>
                <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">▲ Hyrje Stoku</p>
              </div>
-             <div className="p-4 bg-violet-50 rounded-2xl border border-violet-100">
-               <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest mb-1">Inventari Total</p>
-               <p className="text-lg font-black text-violet-700 tracking-tighter leading-none">{Math.round(inventoryStats.totalValue).toLocaleString()}</p>
-               <p className="text-[8px] font-black text-violet-500 uppercase mt-0.5">Totale · Gjithë Kohës</p>
+             <div className={`p-4 rounded-2xl border ${inventoryStats.diff > 0 ? 'bg-emerald-50 border-emerald-100' : inventoryStats.diff < 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+               <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${inventoryStats.diff > 0 ? 'text-emerald-500' : inventoryStats.diff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>Ndryshimi vs Paraardhëse</p>
+               <p className={`text-lg font-black tracking-tighter leading-none ${inventoryStats.diff > 0 ? 'text-emerald-600' : inventoryStats.diff < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                 {inventoryStats.diff === 0 && inventoryStats.prevValue === 0 ? '—' : `${inventoryStats.diff >= 0 ? '+' : ''}${Math.round(inventoryStats.diff).toLocaleString()}`}
+               </p>
+               <p className={`text-[8px] font-black uppercase mt-0.5 ${inventoryStats.diff > 0 ? 'text-emerald-500' : inventoryStats.diff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                 {inventoryStats.diff > 0 ? '▲ Rritje Stoku' : inventoryStats.diff < 0 ? '▼ Ulje Stoku' : '— Pa ndryshim'}
+               </p>
              </div>
            </div>
 
