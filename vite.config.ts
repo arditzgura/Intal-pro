@@ -9,12 +9,22 @@ export default defineConfig(({ mode }) => {
     const base = isElectron ? './' : '/Intal-pro/';
     return {
       base,
+      build: {
+        crossOriginLoading: false,
+        cssCodeSplit: true,
+      },
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
       plugins: [
         react(),
+        {
+          name: 'remove-crossorigin-css',
+          transformIndexHtml(html: string) {
+            return html.replace(/<link rel="stylesheet" crossorigin /g, '<link rel="stylesheet" ');
+          }
+        },
         !isElectron && VitePWA({
           registerType: 'autoUpdate',
           injectRegister: 'auto',
