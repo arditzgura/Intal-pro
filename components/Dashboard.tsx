@@ -145,43 +145,83 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     };
   }, [invoices, items, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
-  // 3. Gjendja e Inventarit sipas Periudhës + krahasimi me periudhën paraardhëse
+  // 3. Gjendja e Inventarit: vlera totale e artikujve (sasi × çmim blerje)
+  // Llogarit gjendjen deri në një datë të caktuar (inkluze)
   const inventoryStats = useMemo(() => {
-    const matches = (d: string) => {
-      if (filterMode === 'all') return true;
-      if (filterMode === 'today') return d === todayStr;
-      if (filterMode === 'day') return d === selectedDay;
-      if (filterMode === 'month') return d.slice(0, 7) === selectedMonth;
-      if (filterMode === 'year') return d.slice(0, 4) === selectedYear;
-      return true;
+    // Gjej artikujt unikë (bashkon duplikate me emër të njëjtë)
+    const mergedMap = new Map<string, Item>();
+    items.forEach(item => {
+      const key = normalize(item.name.trim());
+      if (!mergedMap.has(key)) mergedMap.set(key, item);
+    });
+    const mergedItems = Array.from(mergedMap.values());
+
+    const calcStockValue = (upToDate: string | null): number => {
+      return mergedItems.reduce((total, item) => {
+        const nameLower = normalize(item.name.trim());
+        const sameNameIds = new Set(items.filter(i => normalize(i.name.trim()) === nameLower).map(i => i.id));
+
+        const totalIn = stockEntries.reduce((acc, entry) => {
+          if (upToDate && entry.date.slice(0, 10) > upToDate) return acc;
+          const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
+          return acc + (found ? Number(found.quantity) : 0);
+        }, 0);
+
+        const totalOut = invoices.reduce((acc, inv) => {
+          if (inv.status === 'Anuluar') return acc;
+          if (upToDate && inv.date.slice(0, 10) > upToDate) return acc;
+          let qty = 0;
+          inv.items.forEach(it => {
+            if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower) qty += Number(it.quantity);
+          });
+          return acc + qty;
+        }, 0);
+
+        const qty = Math.max(0, totalIn - totalOut);
+        return total + qty * (item.purchasePrice || 0);
+      }, 0);
     };
 
-    // Periudha paraardhëse
-    const prevMatches = (d: string) => {
-      if (filterMode === 'all') return false;
-      if (filterMode === 'today' || filterMode === 'day') {
-        const target = filterMode === 'today' ? todayStr : selectedDay;
-        const prev = new Date(target);
-        prev.setDate(prev.getDate() - 1);
-        return d === prev.toLocaleDateString('en-CA');
+    // Data e fundit e periudhës aktuale
+    const currentCutoff: string | null = (() => {
+      if (filterMode === 'all') return null; // deri sot
+      if (filterMode === 'today') return todayStr;
+      if (filterMode === 'day') return selectedDay;
+      if (filterMode === 'month') {
+        const [y, m] = selectedMonth.split('-').map(Number);
+        const lastDay = new Date(y, m, 0);
+        return lastDay.toLocaleDateString('en-CA');
+      }
+      if (filterMode === 'year') return `${selectedYear}-12-31`;
+      return null;
+    })();
+
+    // Data e fundit e periudhës paraardhëse
+    const prevCutoff: string = (() => {
+      if (filterMode === 'all' || filterMode === 'today') {
+        const d = new Date(todayStr); d.setDate(d.getDate() - 1);
+        return d.toLocaleDateString('en-CA');
+      }
+      if (filterMode === 'day') {
+        const d = new Date(selectedDay); d.setDate(d.getDate() - 1);
+        return d.toLocaleDateString('en-CA');
       }
       if (filterMode === 'month') {
         const [y, m] = selectedMonth.split('-').map(Number);
-        const prev = new Date(y, m - 2, 1);
-        return d.slice(0, 7) === `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+        // Dita e fundit e muajit paraardhës
+        const lastDay = new Date(y, m - 1, 0);
+        return lastDay.toLocaleDateString('en-CA');
       }
-      if (filterMode === 'year') {
-        return d.slice(0, 4) === String(Number(selectedYear) - 1);
-      }
-      return false;
-    };
+      if (filterMode === 'year') return `${Number(selectedYear) - 1}-12-31`;
+      return todayStr;
+    })();
 
-    const periodValue = stockEntries.reduce((sum, e) => matches(e.date.slice(0, 10)) ? sum + (e.totalPurchaseValue || 0) : sum, 0);
-    const prevValue   = stockEntries.reduce((sum, e) => prevMatches(e.date.slice(0, 10)) ? sum + (e.totalPurchaseValue || 0) : sum, 0);
-    const diff = periodValue - prevValue;
+    const currentValue = calcStockValue(currentCutoff);
+    const prevValue    = calcStockValue(prevCutoff);
+    const diff         = currentValue - prevValue;
 
-    return { periodValue, prevValue, diff };
-  }, [stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
+    return { currentValue, prevValue, diff };
+  }, [items, stockEntries, invoices, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
@@ -453,19 +493,19 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
            {/* Gjendja e Inventarit */}
            <div className="grid grid-cols-2 gap-3">
              <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-               <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Inventari (Periudhë)</p>
+               <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Gjendja Inventarit</p>
                <p className="text-lg font-black text-indigo-700 tracking-tighter leading-none">
-                 {Math.round(inventoryStats.periodValue).toLocaleString()}
+                 {Math.round(inventoryStats.currentValue).toLocaleString()}
                </p>
-               <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">▲ Hyrje Stoku</p>
+               <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">Vlera · Sasia × Kosto</p>
              </div>
              <div className={`p-4 rounded-2xl border ${inventoryStats.diff > 0 ? 'bg-emerald-50 border-emerald-100' : inventoryStats.diff < 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
-               <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${inventoryStats.diff > 0 ? 'text-emerald-500' : inventoryStats.diff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>Ndryshimi vs Paraardhëse</p>
+               <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${inventoryStats.diff > 0 ? 'text-emerald-500' : inventoryStats.diff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>Ndryshimi vs Muaji Para</p>
                <p className={`text-lg font-black tracking-tighter leading-none ${inventoryStats.diff > 0 ? 'text-emerald-600' : inventoryStats.diff < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                 {inventoryStats.diff === 0 && inventoryStats.prevValue === 0 ? '—' : `${inventoryStats.diff >= 0 ? '+' : ''}${Math.round(inventoryStats.diff).toLocaleString()}`}
+                 {inventoryStats.prevValue === 0 && inventoryStats.currentValue === 0 ? '—' : `${inventoryStats.diff >= 0 ? '+' : ''}${Math.round(inventoryStats.diff).toLocaleString()}`}
                </p>
                <p className={`text-[8px] font-black uppercase mt-0.5 ${inventoryStats.diff > 0 ? 'text-emerald-500' : inventoryStats.diff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                 {inventoryStats.diff > 0 ? '▲ Rritje Stoku' : inventoryStats.diff < 0 ? '▼ Ulje Stoku' : '— Pa ndryshim'}
+                 {inventoryStats.diff > 0 ? '▲ Rritje' : inventoryStats.diff < 0 ? '▼ Ulje' : '— Pa ndryshim'}
                </p>
              </div>
            </div>
