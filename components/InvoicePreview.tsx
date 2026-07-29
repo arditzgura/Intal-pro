@@ -41,7 +41,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const [isPngExporting,  setIsPngExporting]  = useState(false);
   const [isPdfExporting,  setIsPdfExporting]  = useState(false);
   const [isSharing,       setIsSharing]       = useState(false);
-  const [shareBlob,       setShareBlob]       = useState<Blob | null>(null);
   const [editMode,        setEditMode]        = useState(false);
   const [draft,           setDraft]           = useState<Invoice>(invoice);
   const [invoiceZoom,     setInvoiceZoom]     = useState(1);
@@ -205,44 +204,44 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     } finally { setIsPdfExporting(false); }
   };
 
-  // ── WhatsApp → dy hapa: gjenero PNG, pastaj share nga gesture i ri ──────
-  const prepareWhatsApp = async () => {
+  // ── WhatsApp share ────────────────────────────────────────────────────────
+  const sendWhatsApp = async () => {
     if (isSharing) return;
     setIsSharing(true);
     try {
       const blob = await captureInvoiceBlob();
       if (!blob) return;
-      setShareBlob(blob);
+      const fileName = clientFileName + '_fatura.png';
+
+      // 1. Provo Web Share API (Android Chrome / iOS Safari kur mbështetet)
+      const file = new File([blob], fileName, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fileName });
+          return; // sukses
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return; // përdoruesi anuloi
+          // vazhdo te fallback
+        }
+      }
+
+      // 2. Fallback: shkarko PNG + hap WhatsApp
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      // Hap WhatsApp pas 800ms (koha për shkarkim të fillojë)
+      setTimeout(() => {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        window.open(isIOS ? 'whatsapp://' : 'https://wa.me/', '_blank');
+      }, 800);
+
     } catch (e: any) {
       console.error(e);
     } finally {
       setIsSharing(false);
     }
-  };
-
-  // Kjo thirret direkt nga onClick — asnjë await para navigator.share
-  const doShare = () => {
-    if (!shareBlob) return;
-    const fileName = clientFileName + '_fatura.png';
-    const eAPI = (window as any).electronAPI;
-    if (eAPI?.shareImage) {
-      shareBlob.arrayBuffer().then(ab =>
-        eAPI.shareImage(Array.from(new Uint8Array(ab)), fileName)
-      );
-      setShareBlob(null);
-      return;
-    }
-    const file = new File([shareBlob], fileName, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) {
-      navigator.share({ files: [file], title: fileName })
-        .catch((e: any) => { if (e?.name !== 'AbortError') console.error(e); });
-    } else {
-      // Fallback: shkarko direkt
-      const url = URL.createObjectURL(shareBlob);
-      const a = document.createElement('a'); a.href = url; a.download = fileName; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }
-    setShareBlob(null);
   };
 
   const balanceDue = (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
@@ -327,15 +326,9 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
             <>
               <button onClick={exportPNG}  className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all">{isPngExporting ? <Loader2 size={16} className="animate-spin"/> : <ImageIcon size={16}/>} PNG</button>
               <button onClick={exportPDF}  className="bg-[#D81B60] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#AD1457] transition-all">{isPdfExporting ? <Loader2 size={16} className="animate-spin"/> : <FileCheck size={16}/>} PDF</button>
-              {shareBlob ? (
-                <button onClick={doShare} className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all animate-pulse">
-                  <Send size={16}/> Shpërnda tani
-                </button>
-              ) : (
-                <button onClick={prepareWhatsApp} disabled={isSharing} className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all disabled:opacity-60">
-                  {isSharing ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>} WhatsApp
-                </button>
-              )}
+              <button onClick={sendWhatsApp} disabled={isSharing} className="bg-[#25D366] text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-[#1da851] transition-all disabled:opacity-60">
+                {isSharing ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>} WhatsApp
+              </button>
               <button onClick={() => handlePrint('A4')}   className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-black transition-all"><Printer size={16}/> A4</button>
               <button onClick={() => handlePrint('80mm')} className="bg-slate-100 text-slate-800 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all"><Printer size={16}/> 80MM</button>
               {onSave && <><div className="w-px h-6 bg-slate-200 mx-1"></div><button onClick={enterEdit} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all"><Pencil size={14}/> Edit</button></>}
