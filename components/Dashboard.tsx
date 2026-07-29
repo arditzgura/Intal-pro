@@ -145,6 +145,27 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     };
   }, [invoices, items, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
+  // 3. Gjendja e Inventarit sipas Periudhës
+  const inventoryStats = useMemo(() => {
+    const matches = (d: string) => {
+      if (filterMode === 'all') return true;
+      if (filterMode === 'today') return d === todayStr;
+      if (filterMode === 'day') return d === selectedDay;
+      if (filterMode === 'month') return d.slice(0, 7) === selectedMonth;
+      if (filterMode === 'year') return d.slice(0, 4) === selectedYear;
+      return true;
+    };
+
+    const periodValue = stockEntries.reduce((sum, entry) => {
+      if (matches(entry.date.slice(0, 10))) return sum + (entry.totalPurchaseValue || 0);
+      return sum;
+    }, 0);
+
+    const totalValue = stockEntries.reduce((sum, entry) => sum + (entry.totalPurchaseValue || 0), 0);
+
+    return { periodValue, totalValue };
+  }, [stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
+
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
     if (filterMode === 'today') return `Sot, ${todayStr.split('-').reverse().join('/')}`;
@@ -412,8 +433,24 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
              </div>
            </div>
 
+           {/* Gjendja e Inventarit */}
+           <div className="grid grid-cols-2 gap-3">
+             <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+               <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Inventari (Periudhë)</p>
+               <p className="text-lg font-black text-indigo-700 tracking-tighter leading-none">
+                 {Math.round(inventoryStats.periodValue).toLocaleString()}
+               </p>
+               <p className="text-[8px] font-black text-indigo-400 uppercase mt-0.5">▲ Hyrje Stoku</p>
+             </div>
+             <div className="p-4 bg-violet-50 rounded-2xl border border-violet-100">
+               <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest mb-1">Inventari Total</p>
+               <p className="text-lg font-black text-violet-700 tracking-tighter leading-none">{Math.round(inventoryStats.totalValue).toLocaleString()}</p>
+               <p className="text-[8px] font-black text-violet-500 uppercase mt-0.5">Totale · Gjithë Kohës</p>
+             </div>
+           </div>
+
            <div className="pt-2 border-t border-slate-100 text-[9px] text-slate-400 font-bold italic leading-relaxed">
-              * Vlerat në LEK (1 Euro = 100 Lek). Debi Neto = Shitje − Arketime e periudhës.
+              * Vlerat në LEK (1 Euro = 100 Lek). Debi Neto = Shitje − Arketime e periudhës. Inventari = Vlera e blerjes së stokut të hyrë.
            </div>
         </div>
       </div>
