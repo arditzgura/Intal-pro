@@ -28,10 +28,9 @@ import AdminPanel      from './components/AdminPanel';
 import QRSyncModal    from './components/QRSyncModal';
 
 const DEFAULT_CONFIG: BusinessConfig = {
-  name: 'INTAL ALBANIA', nipt: 'L12345678X',
-  address: 'Rruga Kryesore, Qyteti, Shqipëri',
-  phone: '+355 69 27 76 636', email: 'info@intalal.com',
-  website: 'www.intalal.com', slogan: 'Cilësia është prioriteti ynë'
+  name: '', nipt: '',
+  address: '', phone: '', email: '',
+  website: '', slogan: ''
 };
 
 const App: React.FC = () => {
@@ -891,6 +890,17 @@ const App: React.FC = () => {
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
+                }}
+                onCloudPush={async () => {
+                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
+                  const cid = session.user.username.toLowerCase().trim();
+                  await Promise.all([
+                    cloudSave(cid, 'invoices',      local.getAll(uid, 'invoices')),
+                    cloudSave(cid, 'clients',       local.getAll(uid, 'clients')),
+                    cloudSave(cid, 'items',         local.getAll(uid, 'items')),
+                    cloudSave(cid, 'stock_entries', local.getAll(uid, 'stock_entries')),
+                    cloudSaveConfig(cid,            local.getConfig(uid)),
+                  ]);
                 }}
                 onImport={async (file) => {
                   try {
