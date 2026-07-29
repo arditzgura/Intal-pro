@@ -88,28 +88,33 @@ const App: React.FC = () => {
     let stock = local.getAll<StockEntry>(userId, 'stock_entries');
     let cfg   = local.getConfig(userId);
 
-    // Migrim: vetëm nga ID-të e vjetra pa prefix "local-" (para sistemit të auth)
-    if (!invs.length && !userId.startsWith('local-')) {
+    // Migrim: nëse nuk ka të dhëna nën userId aktual, kërko nën ID të tjera
+    // Siguria: nëse burimi është local-XXX, migro vetëm nëse është i vetmi user lokal
+    // (sesion i ri pas reinstalimit të PWA) — jo nga user tjetër
+    if (!invs.length) {
+      const registeredUsers: {id:string}[] = (() => { try { return JSON.parse(localStorage.getItem('intal_local_users')||'[]'); } catch{return[];} })();
+      const otherLocalIds = registeredUsers.filter((u:any) => u.id !== userId).map((u:any) => u.id);
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i) || '';
         const m = key.match(/^intal_(.+)_invoices$/);
-        if (m && m[1] !== userId && !m[1].startsWith('local-')) {
-          const oldId = m[1];
-          const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
-          if (oldInvs.length > 0) {
-            cls   = local.getAll<Client>(oldId, 'clients');
-            itms  = local.getAll<Item>(oldId, 'items');
-            invs  = oldInvs;
-            stock = local.getAll<StockEntry>(oldId, 'stock_entries');
-            cfg   = local.getConfig(oldId) ?? cfg;
-            local.setAll(userId, 'clients',       cls);
-            local.setAll(userId, 'items',         itms);
-            local.setAll(userId, 'invoices',      invs);
-            local.setAll(userId, 'stock_entries', stock);
-            if (cfg) local.setConfig(userId, cfg);
-            console.log(`[migrate] ${oldInvs.length} invoices nga ${oldId} → ${userId}`);
-            break;
-          }
+        if (!m || m[1] === userId) continue;
+        const oldId = m[1];
+        // Blloko migrim nga ID-të e users të tjerë të regjistruar
+        if (otherLocalIds.includes(oldId)) continue;
+        const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
+        if (oldInvs.length > 0) {
+          cls   = local.getAll<Client>(oldId, 'clients');
+          itms  = local.getAll<Item>(oldId, 'items');
+          invs  = oldInvs;
+          stock = local.getAll<StockEntry>(oldId, 'stock_entries');
+          cfg   = local.getConfig(oldId) ?? cfg;
+          local.setAll(userId, 'clients',       cls);
+          local.setAll(userId, 'items',         itms);
+          local.setAll(userId, 'invoices',      invs);
+          local.setAll(userId, 'stock_entries', stock);
+          if (cfg) local.setConfig(userId, cfg);
+          console.log(`[migrate] ${oldInvs.length} invoices nga ${oldId} → ${userId}`);
+          break;
         }
       }
     }
