@@ -12,6 +12,7 @@ interface Props {
   onEdit: (entry: StockEntry) => void;
   onDelete: (id: string) => void;
   onPreview: (entry: StockEntry) => void;
+  onOpenProfile?: (item: Item) => void;
 }
 
 const formatDateDisplay = (dateStr: string) => {
@@ -20,7 +21,7 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, onDelete, onPreview }) => {
+const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, onDelete, onPreview, onOpenProfile }) => {
   const [search, setSearch] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<'month' | 'year'>('month');
@@ -390,9 +391,17 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
                     </div>
 
                     <div className="flex justify-end xl:pl-4">
-                       <div className="bg-slate-50 p-2 rounded-xl text-slate-300">
-                          <ArrowUpRight size={18} />
-                       </div>
+                       <button
+                         onClick={() => {
+                           if (!onOpenProfile) return;
+                           const found = items.find(i => i.id === item.itemId || i.name === item.name);
+                           if (found) onOpenProfile(found);
+                         }}
+                         className="bg-slate-50 hover:bg-indigo-600 hover:text-white p-2 rounded-xl text-slate-300 transition-all"
+                         title="Hap Profilin"
+                       >
+                         <ArrowUpRight size={18} />
+                       </button>
                     </div>
                   </div>
                 </div>
