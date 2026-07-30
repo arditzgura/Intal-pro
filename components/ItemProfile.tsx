@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Item, StockEntry, Invoice, Client } from '../types';
-import { X, Package, ArrowUpCircle, ArrowDownCircle, TrendingUp, DollarSign, Clock, Filter, Landmark, BarChart3, PieChart, Calculator, ArrowUpRight, Search, Trash2, Tag, CheckCircle2, History, Box, Plus, LayoutGrid, ArrowDownWideNarrow, MapPin, Calendar, ArrowLeft, ShoppingCart, FileText } from 'lucide-react';
+import { X, Package, ArrowUpCircle, ArrowDownCircle, TrendingUp, DollarSign, Clock, Filter, Landmark, BarChart3, PieChart, Calculator, ArrowUpRight, Search, Trash2, Tag, CheckCircle2, History, Box, Plus, LayoutGrid, ArrowDownWideNarrow, MapPin, Calendar, ArrowLeft, ShoppingCart, FileText, Edit2, Save, XCircle } from 'lucide-react';
 
 interface Props {
   item: Item;
@@ -9,6 +9,7 @@ interface Props {
   invoices: Invoice[];
   clients: Client[];
   onUpdateItem: (updatedItem: Item) => void;
+  onUpdateInvoice: (updatedInvoice: Invoice) => void;
   onClose: () => void;
 }
 
@@ -19,8 +20,12 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, onUpdateItem, onClose }) => {
+const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, onUpdateItem, onUpdateInvoice, onClose }) => {
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('year');
+  // State për editimin inline të faturave
+  const [editingInvId, setEditingInvId] = useState<string | null>(null);
+  const [editQty,   setEditQty]   = useState('');
+  const [editPrice, setEditPrice] = useState('');
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
@@ -95,6 +100,42 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
   const monthNames: Record<string, string> = {
     '01': 'Janar', '02': 'Shkurt', '03': 'Mars', '04': 'Prill', '05': 'Maj', '06': 'Qershor',
     '07': 'Korrik', '08': 'Gusht', '09': 'Shtator', '10': 'Tetor', '11': 'Nëntor', '12': 'Dhjetor'
+  };
+
+  // Faturat që përmbajnë këtë artikull, sipas filtrit
+  const filteredInvoicesForItem = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    return invoices.filter(inv => {
+      if (inv.status === 'Anuluar') return false;
+      if (!inv.items.some(it => it.itemId === item.id || it.name === item.name)) return false;
+      const d = inv.date.slice(0, 10);
+      if (filterMode === 'all') return true;
+      if (filterMode === 'today') return d === todayStr;
+      if (filterMode === 'day') return d === selectedDay;
+      if (filterMode === 'month') return d.slice(0, 7) === selectedMonth;
+      return d.slice(0, 4) === selectedYear;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [invoices, item, filterMode, selectedDay, selectedMonth, selectedYear]);
+
+  const startEdit = (inv: Invoice) => {
+    const it = inv.items.find(it => it.itemId === item.id || it.name === item.name);
+    if (!it) return;
+    setEditingInvId(inv.id);
+    setEditQty(String(it.quantity));
+    setEditPrice(String(it.price));
+  };
+
+  const saveEdit = (inv: Invoice) => {
+    const qty   = parseFloat(editQty)   || 0;
+    const price = parseFloat(editPrice) || 0;
+    const newItems = inv.items.map(it => {
+      if (it.itemId !== item.id && it.name !== item.name) return it;
+      const total = qty * price;
+      return { ...it, quantity: qty, price, total };
+    });
+    const newSubtotal = newItems.reduce((s, it) => s + it.total, 0);
+    onUpdateInvoice({ ...inv, items: newItems, subtotal: newSubtotal, total: newSubtotal + (inv.previousBalance || 0) - (inv.amountPaid || 0) });
+    setEditingInvId(null);
   };
 
   const getPeriodLabel = () => {
@@ -282,6 +323,88 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
               </div>
             </div>
           )}
+
+          {/* Lista e faturave me edit inline */}
+          <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm flex flex-col">
+            <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <span className="font-black text-[11px] uppercase text-slate-500 flex items-center gap-3">
+                <FileText size={18}/> Faturat ({filteredInvoicesForItem.length})
+              </span>
+              <span className="text-[9px] text-slate-400 font-bold uppercase">Edito sasi / çmim pa ndryshuar datën ose statusin</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100 bg-slate-50/50">
+                  <tr>
+                    <th className="px-8 py-4">Nr. Faturës</th>
+                    <th className="px-6 py-4">Klienti</th>
+                    <th className="px-6 py-4">Data</th>
+                    <th className="px-6 py-4 text-center">Sasia</th>
+                    <th className="px-6 py-4 text-center">Çmimi</th>
+                    <th className="px-6 py-4 text-center">Totali</th>
+                    <th className="px-6 py-4 text-center">Statusi</th>
+                    <th className="px-4 py-4"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoicesForItem.map(inv => {
+                    const it = inv.items.find(it => it.itemId === item.id || it.name === item.name);
+                    if (!it) return null;
+                    const isEditing = editingInvId === inv.id;
+                    return (
+                      <tr key={inv.id} className={`border-b border-slate-50 transition-colors ${isEditing ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                        <td className="px-8 py-4 font-black text-slate-700 text-xs">{inv.invoiceNumber}</td>
+                        <td className="px-6 py-4">
+                          <p className="font-black text-blue-600 text-xs uppercase">{inv.clientName}</p>
+                          {inv.clientCity && <p className="text-[9px] text-slate-400 font-bold flex items-center gap-1"><MapPin size={9}/>{inv.clientCity}</p>}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{formatDateDisplay(inv.date)}</td>
+                        <td className="px-6 py-4 text-center">
+                          {isEditing ? (
+                            <input type="number" value={editQty} onChange={e => setEditQty(e.target.value)}
+                              className="w-20 border-2 border-indigo-400 rounded-xl px-2 py-1 text-center text-xs font-black outline-none focus:border-indigo-600" />
+                          ) : (
+                            <span className="font-black text-slate-800 text-xs">{it.quantity} {item.unit}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {isEditing ? (
+                            <input type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)}
+                              className="w-24 border-2 border-indigo-400 rounded-xl px-2 py-1 text-center text-xs font-black outline-none focus:border-indigo-600" />
+                          ) : (
+                            <span className="font-bold text-slate-600 text-xs">{it.price.toLocaleString()} L</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center font-black text-slate-900 text-xs">
+                          {isEditing
+                            ? <span className="text-indigo-600">{((parseFloat(editQty)||0)*(parseFloat(editPrice)||0)).toLocaleString()} L</span>
+                            : `${it.total.toLocaleString()} L`}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${inv.status === 'E paguar' ? 'bg-emerald-100 text-emerald-700' : inv.status === 'Pa paguar' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          {isEditing ? (
+                            <div className="flex gap-1">
+                              <button onClick={() => saveEdit(inv)} className="p-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-xl transition-all" title="Ruaj"><Save size={14}/></button>
+                              <button onClick={() => setEditingInvId(null)} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-all" title="Anulo"><XCircle size={14}/></button>
+                            </div>
+                          ) : (
+                            <button onClick={() => startEdit(inv)} className="p-2 bg-slate-100 hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 rounded-xl transition-all" title="Edito"><Edit2 size={14}/></button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredInvoicesForItem.length === 0 && (
+                    <tr><td colSpan={8} className="p-20 text-center text-[10px] font-black text-slate-300 uppercase italic">Nuk ka fatura për këtë artikull në këtë periudhë</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm flex flex-col mb-20">
              <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">

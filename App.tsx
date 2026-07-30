@@ -1051,7 +1051,7 @@ const App: React.FC = () => {
         });
         return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
       })()}
-      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid, 'items', upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
+      {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid, 'items', upd);}} onUpdateInvoice={upd=>{const newInvs=invoices.map(i=>i.id===upd.id?upd:i);setInvoices(newInvs);local.setAll(uid,'invoices',newInvs);}} onClose={()=>setSelectedProfileItem(null)}/>}
     </div>
   );
 };
