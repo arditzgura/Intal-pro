@@ -68,6 +68,7 @@ const App: React.FC = () => {
   const [currentView,           setCurrentView]           = useState<View>('dashboard');
   const [viewHistory,           setViewHistory]           = useState<View[]>(['dashboard']);
   const [previewInvoice,        setPreviewInvoice]        = useState<Invoice | null>(null);
+  const [previewInvoiceList,    setPreviewInvoiceList]    = useState<Invoice[]>([]);
   const [previewStockEntry,     setPreviewStockEntry]     = useState<StockEntry | null>(null);
   const [editInvoice,           setEditInvoice]           = useState<Invoice | null>(null);
   const [invoicesInitialFilter, setInvoicesInitialFilter] = useState<string | undefined>(undefined);
@@ -1045,7 +1046,24 @@ const App: React.FC = () => {
       )}
 
       {/* Overlays */}
-      {previewInvoice  && <InvoicePreview invoice={previewInvoice} business={config} client={clients.find(c=>c.id===previewInvoice.clientId)} onClose={()=>setPreviewInvoice(null)} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onSave={inv=>{const base=invoices.map(i=>i.id===inv.id?inv:i);const upd=recalcClientStatuses(getInvClientKey(inv),base);setInvoices(upd);local.setAll(uid,'invoices',upd);setPreviewInvoice(inv);}}/>}
+      {previewInvoice  && (() => {
+        const navList = previewInvoiceList.length > 0 ? previewInvoiceList : [];
+        const navIdx  = navList.findIndex(i => i.id === previewInvoice.id);
+        const hasPrev = navIdx > 0;
+        const hasNext = navIdx >= 0 && navIdx < navList.length - 1;
+        return <InvoicePreview
+          invoice={previewInvoice}
+          business={config}
+          client={clients.find(c=>c.id===previewInvoice.clientId)}
+          onClose={()=>{ setPreviewInvoice(null); setPreviewInvoiceList([]); }}
+          onEdit={inv=>{setPreviewInvoice(null);setPreviewInvoiceList([]);setSelectedProfileClient(null);setEditInvoice(inv);setCurrentView('new-invoice');}}
+          onSave={inv=>{const base=invoices.map(i=>i.id===inv.id?inv:i);const upd=recalcClientStatuses(getInvClientKey(inv),base);setInvoices(upd);local.setAll(uid,'invoices',upd);setPreviewInvoice(inv);}}
+          onPrev={hasPrev ? ()=>setPreviewInvoice(navList[navIdx-1]) : undefined}
+          onNext={hasNext ? ()=>setPreviewInvoice(navList[navIdx+1]) : undefined}
+          currentIndex={navIdx >= 0 ? navIdx : undefined}
+          totalCount={navList.length > 0 ? navList.length : undefined}
+        />;
+      })()}
       {previewStockEntry && <StockEntryPreview entry={previewStockEntry} business={config} onClose={()=>setPreviewStockEntry(null)} onEdit={e=>{setPreviewStockEntry(null);setEditStockEntry(e);setCurrentView('new-stock-entry');}}/>}
       {selectedProfileClient && (() => {
         const pc = selectedProfileClient;
@@ -1071,7 +1089,7 @@ const App: React.FC = () => {
           if (inv.clientId !== 'manual') return false;
           return normalize(inv.clientName.trim()) === normalize(pc.name.trim());
         });
-        return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{setSelectedProfileClient(null);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
+        return <ClientProfile client={pc} invoices={profileInvoices} items={items} onUpdateItems={ni=>{setItems(ni);local.setAll(uid, 'items', ni);}} onUpdateClient={u=>{const upd=clients.map(c=>c.id===u.id?u:c);setClients(upd);local.setAll(uid, 'clients', upd);}} onClose={()=>setSelectedProfileClient(null)} onViewInvoice={inv=>{const sorted=[...profileInvoices].sort((a,b)=>b.date.localeCompare(a.date));setPreviewInvoiceList(sorted);setPreviewInvoice(inv);}} onNewInvoice={handleNewInvoiceForClient}/>;
       })()}
       {selectedProfileItem && <ItemProfile item={selectedProfileItem} invoices={invoices} stockEntries={stockEntries} clients={clients} onUpdateItem={u=>{const upd=items.map(i=>i.id===u.id?u:i);setItems(upd);local.setAll(uid, 'items', upd);}} onUpdateStockEntry={u=>{const upd=stockEntries.map(e=>e.id===u.id?u:e);setStockEntries(upd);local.setAll(uid,'stock_entries',upd);}} onClose={()=>setSelectedProfileItem(null)}/>}
     </div>

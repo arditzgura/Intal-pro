@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, Client, BusinessConfig } from '../types';
-import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw } from 'lucide-react';
+import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
   invoice: Invoice;
@@ -10,6 +10,10 @@ interface Props {
   onClose: () => void;
   onEdit: (invoice: Invoice) => void;
   onSave?: (invoice: Invoice) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  currentIndex?: number;
+  totalCount?: number;
 }
 
 const formatDate = (dateStr: string) => {
@@ -37,7 +41,7 @@ const StrikePrice = ({ orig, curr, style }: { orig: number; curr: string; style?
   </span>
 );
 
-const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, onEdit, onSave }) => {
+const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, onEdit, onSave, onPrev, onNext, currentIndex, totalCount }) => {
   const [isPngExporting,  setIsPngExporting]  = useState(false);
   const [isPdfExporting,  setIsPdfExporting]  = useState(false);
   const [isSharing,       setIsSharing]       = useState(false);
@@ -332,6 +336,18 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
               <button onClick={() => handlePrint('A4')}   className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-black transition-all"><Printer size={16}/> A4</button>
               <button onClick={() => handlePrint('80mm')} className="bg-slate-100 text-slate-800 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all"><Printer size={16}/> 80MM</button>
               {onSave && <><div className="w-px h-6 bg-slate-200 mx-1"></div><button onClick={enterEdit} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all"><Pencil size={14}/> Edit</button></>}
+              <div className="w-px h-6 bg-slate-200 mx-1"></div>
+              <button onClick={() => onEdit(invoice)} className="bg-amber-500 text-white px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-600 transition-all"><Pencil size={14}/> Edito</button>
+            </>
+          )}
+          {(onPrev || onNext) && !editMode && (
+            <>
+              <div className="w-px h-6 bg-slate-200 mx-1"></div>
+              <button onClick={onPrev} disabled={!onPrev} className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-30"><ChevronLeft size={20}/></button>
+              {totalCount != null && currentIndex != null && (
+                <span className="text-[10px] font-black text-slate-400 px-1">{currentIndex + 1}/{totalCount}</span>
+              )}
+              <button onClick={onNext} disabled={!onNext} className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-30"><ChevronRight size={20}/></button>
             </>
           )}
           <div className="w-px h-6 bg-slate-200 mx-1"></div>
