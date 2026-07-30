@@ -268,7 +268,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
   [sortedAndFilteredItems, itemStats]);
 
   const exportExcel = () => {
-    const BOM = '﻿';
+    const esc = (v: string | number) => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const headers = ['Artikulli', 'Çmimi Standard (Lek)', 'Gjendja Stokut', 'Shitjet Totale (njësi)', 'Fitimi (Lek)'];
     const rows = sortedAndFilteredItems.map(item => [
       item.name,
@@ -277,14 +277,18 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
       itemStats.salesStats[item.id] ?? 0,
       Math.round(itemStats.profitStats[item.id] ?? 0),
     ]);
-    const csv = BOM + [headers, ...rows]
-      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
-      .join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const thStyle = 'background:#D81B60;color:white;font-weight:bold;border:1px solid #ccc;padding:6px 10px;';
+    const tdStyle = 'border:1px solid #ccc;padding:5px 10px;';
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"/></head><body>
+<table><thead><tr>${headers.map(h=>`<th style="${thStyle}">${esc(h)}</th>`).join('')}</tr></thead>
+<tbody>${rows.map(r=>`<tr>${r.map((v,i)=>`<td style="${tdStyle}"${i>0?' x:num=""':''} >${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>
+</table></body></html>`;
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `artikujt_${new Date().toLocaleDateString('en-CA')}.csv`;
+    a.download = `artikujt_${new Date().toLocaleDateString('en-CA')}.xls`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
