@@ -61,13 +61,13 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
   }, [entries, search, activeTab, filterMode, selectedMonth, selectedYear, originFilter]);
 
   const itemAnalysis = useMemo(() => {
-    const stats: Record<string, { qty: number, purchaseVal: number, sellingVal: number }> = {};
+    const stats: Record<string, { qty: number, purchaseVal: number, sellingVal: number, itemId: string }> = {};
     let totalUnits = 0;
 
     filtered.forEach(entry => {
       entry.items.forEach(entryItem => {
         if (!stats[entryItem.name]) {
-          stats[entryItem.name] = { qty: 0, purchaseVal: 0, sellingVal: 0 };
+          stats[entryItem.name] = { qty: 0, purchaseVal: 0, sellingVal: 0, itemId: entryItem.itemId };
         }
         stats[entryItem.name].qty += entryItem.quantity;
         stats[entryItem.name].purchaseVal += (entryItem.total || 0);
@@ -81,6 +81,7 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
       data: Object.entries(stats)
         .map(([name, data]) => ({
           name,
+          itemId: data.itemId,
           qty: data.qty,
           purchase: data.purchaseVal,
           profit: data.sellingVal - data.purchaseVal
@@ -394,7 +395,7 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
                        <button
                          onClick={() => {
                            if (!onOpenProfile) return;
-                           const found = items.find(i => i.id === item.itemId || i.name === item.name);
+                           const found = items.find(i => i.id === item.itemId) || items.find(i => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
                            if (found) onOpenProfile(found);
                          }}
                          className="bg-slate-50 hover:bg-indigo-600 hover:text-white p-2 rounded-xl text-slate-300 transition-all"
