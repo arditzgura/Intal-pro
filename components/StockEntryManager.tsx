@@ -47,14 +47,14 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
   const filtered = useMemo(() => {
     const s = search.toLowerCase().trim();
     return entries.filter(e => {
-      const entryDate = e.date;
-      const matchesPeriod = filterMode === 'month'
-        ? entryDate.slice(0, 7) === selectedMonth
-        : entryDate.slice(0, 4) === selectedYear;
-      // Në tab Artikujt, kërkimi aplikohet mbi rreshtat e analizës, jo këtu
-      const matchesSearch = !s || activeTab === 'analysis'
-        ? true
-        : e.entryNumber.includes(s) || e.origin.toLowerCase().includes(s);
+      const matchesSearch = !s
+        || e.entryNumber.toLowerCase().includes(s)
+        || e.origin.toLowerCase().includes(s)
+        || e.items.some(it => it.name.toLowerCase().includes(s));
+      // kur ka kërkim aktiv, injorojmë filtrin e periudhës (si në Artikujt/Fatura)
+      const matchesPeriod = s ? true : filterMode === 'month'
+        ? e.date.slice(0, 7) === selectedMonth
+        : e.date.slice(0, 4) === selectedYear;
       const matchesOrigin = originFilter === 'all' || e.origin.toUpperCase() === originFilter;
       return matchesPeriod && matchesSearch && matchesOrigin;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
