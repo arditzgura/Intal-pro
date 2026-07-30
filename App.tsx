@@ -392,13 +392,35 @@ const App: React.FC = () => {
       if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
       if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
       if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
-      // Reseto pas render-it (setTimeout 0 garanton pas useEffect)
       setTimeout(() => { isApplyingRemote.current = false; }, 0);
     };
 
-    cloudLoadAll(cloudId).then(applyRemote);
+    // ── Startup sync: local gjithmonë fiton ────────────────────────────────
+    // Nëse lokale ka të dhëna → shtyjmë LOCAL→CLOUD (jo anasjelltas).
+    // Vetëm kur lokale është bosh tërhiqemi nga cloud.
+    const localHasData = local.getAll(uid, 'invoices').length > 0
+                      || local.getAll(uid, 'clients').length > 0;
 
-    // Real-time: merr ndryshimet nga pajisja tjetër — dy kushte mbrojtëse
+    if (localHasData) {
+      // Blloko çdo overwrite cloud deri sa shtyjmë lokalen me sukses
+      pendingSync.current = true;
+      if (navigator.onLine) {
+        Promise.all([
+          cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices')),
+          cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients')),
+          cloudSave(cloudId, 'items',         local.getAll(uid, 'items')),
+          cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries')),
+          cloudSaveConfig(cloudId,            local.getConfig(uid)),
+        ]).then(() => { pendingSync.current = false; })
+          .catch(() => { /* mbetet pending — handleOnline do ta provojë sërish */ });
+      }
+      // Nëse offline: pendingSync mbetet true, handleOnline do ta shtyjë kur kthehet interneti
+    } else {
+      // Lokale bosh → tërhiq nga cloud (pajisje e re / reinstalim)
+      cloudLoadAll(cloudId).then(applyRemote);
+    }
+
+    // Real-time: merr ndryshimet nga pajisja tjetër — vetëm kur pendingSync=false
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
       if (!canApplyRemote()) return;
       isApplyingRemote.current = true;
