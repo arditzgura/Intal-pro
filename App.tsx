@@ -263,12 +263,15 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
-    // Gjithmonë setAllSilent — nuk prek _lastLocalWrite, nuk bllokon canApplyRemote()
-    // Touch-i bëhet vetëm nga handler-at e veprimeve reale të përdoruesit
     local.setAllSilent(uid, 'invoices',      invoices);
     local.setAllSilent(uid, 'clients',       clients);
     local.setAllSilent(uid, 'items',         items);
     local.setAllSilent(uid, 'stock_entries', stockEntries);
+    // Shëno sync si pending menjëherë kur ndryshon state nga veprimi i përdoruesit
+    // (jo kur aplikohet remote) — kjo mbron localStorage nga mbishkrim i cloud-it
+    if (!isApplyingRemote.current && CLOUD_ENABLED && !isGuest) {
+      pendingSync.current = true;
+    }
   }, [invoices, clients, items, stockEntries]); // eslint-disable-line
 
   // ─── Config auto-save ──────────────────────────────────────────────────────
@@ -285,17 +288,21 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (!session || !CLOUD_ENABLED || !pendingSync.current || isGuest) return;
+      if (!session || !CLOUD_ENABLED || isGuest) return;
       const uid     = session.user.id;
       const cloudId = session.user.username.toLowerCase().trim();
-      pendingSync.current = false;
+      // Gjithmonë sinkronizo kur kthehet interneti — jo vetëm kur pendingSync
       Promise.all([
         cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices')),
         cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients')),
         cloudSave(cloudId, 'items',         local.getAll(uid, 'items')),
         cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries')),
         cloudSaveConfig(cloudId,            local.getConfig(uid)),
-      ]).catch(() => { pendingSync.current = true; });
+      ]).then(() => {
+        pendingSync.current = false; // vetëm pas suksesit
+      }).catch(() => {
+        pendingSync.current = true; // provo sërish herën tjetër
+      });
     };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online',  handleOnline);
@@ -369,9 +376,10 @@ const App: React.FC = () => {
     // getLastLocalWrite() është SINKRON — vendoset menjëherë nga local.setAll()
     // pa pritur React render ose useEffect, duke eliminuar çdo dritare race
     const canApplyRemote = (): boolean => {
-      // Blloko nëse: (1) import lock aktiv, ose (2) ka pasur shkrim lokal në 30s e fundit
       if (Date.now() <= importLockUntil.current) return false;
       if (Date.now() - getLastLocalWrite() < 30000) return false;
+      // Mos mbishkruaj nëse ka ndryshime lokale pa sync ende
+      if (pendingSync.current) return false;
       return true;
     };
 
@@ -402,9 +410,9 @@ const App: React.FC = () => {
       setTimeout(() => { isApplyingRemote.current = false; }, 0);
     });
 
-    // Polling fallback: çdo 5s — sinkronizon edhe nëse real-time nuk funksionon
+    // Polling fallback: çdo 5s — vetëm kur online dhe pa ndryshime lokale pending
     const pollInterval = setInterval(() => {
-      cloudLoadAll(cloudId).then(applyRemote);
+      if (navigator.onLine && !pendingSync.current) cloudLoadAll(cloudId).then(applyRemote);
     }, 5000);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
