@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, FileSpreadsheet } from 'lucide-react';
 
 interface Props {
   items: Item[];
@@ -267,6 +267,28 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     sortedAndFilteredItems.reduce((s, i) => s + (itemStats.profitStats[i.id] || 0), 0),
   [sortedAndFilteredItems, itemStats]);
 
+  const exportExcel = () => {
+    const BOM = '﻿';
+    const headers = ['Artikulli', 'Çmimi Standard (Lek)', 'Gjendja Stokut', 'Shitjet Totale (njësi)', 'Fitimi (Lek)'];
+    const rows = sortedAndFilteredItems.map(item => [
+      item.name,
+      item.price,
+      itemStats.stockBalances[item.id] ?? 0,
+      itemStats.salesStats[item.id] ?? 0,
+      Math.round(itemStats.profitStats[item.id] ?? 0),
+    ]);
+    const csv = BOM + [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+      .join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `artikujt_${new Date().toLocaleDateString('en-CA')}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return [];
     return clients.filter(c => normalize(c.name).includes(normalize(clientSearchQuery))).slice(0, 5);
@@ -373,7 +395,12 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               </select>
             </div>
           </div>
-          <button onClick={() => setIsAdding(true)} className="w-full md:w-auto bg-[#D81B60] text-white px-8 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">Shto Artikull</button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button onClick={exportExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">
+              <FileSpreadsheet size={15}/> Excel
+            </button>
+            <button onClick={() => setIsAdding(true)} className="flex-1 md:flex-none bg-[#D81B60] text-white px-8 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">Shto Artikull</button>
+          </div>
         </div>
       </div>
 
