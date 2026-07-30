@@ -429,7 +429,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       total: finalSubtotal,
       status: finalStatus,
       notes: notes.trim() || undefined,
-      paymentDate: paymentDate || undefined
+      paymentDate: paymentDate || finalDate.slice(0, 10)
     });
   };
 
