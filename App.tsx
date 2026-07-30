@@ -402,21 +402,9 @@ const App: React.FC = () => {
     const localHasData = local.getAll(uid, 'invoices').length > 0
                       || local.getAll(uid, 'clients').length > 0;
 
-    if (localHasData && navigator.onLine) {
-      // Startup: shtyjmë lokalen → cloud, pastaj sinkronizimi normal rifillon
-      pendingSync.current = true;
-      Promise.all([
-        cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices')),
-        cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients')),
-        cloudSave(cloudId, 'items',         local.getAll(uid, 'items')),
-        cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries')),
-        cloudSaveConfig(cloudId,            local.getConfig(uid)),
-      ]).finally(() => { pendingSync.current = false; });
-    } else if (!localHasData) {
-      // Lokale bosh → tërhiq nga cloud (pajisje e re / reinstalim)
-      cloudLoadAll(cloudId).then(applyRemote);
-    }
-    // Nëse offline me data lokale: handleOnline do ta shtyjë kur kthehet interneti
+    // Startup: tërhiq nga cloud — canApplyRemote() mbron nga overwrite nëse
+    // ka ndryshime lokale të papushuar (pendingSync=true ose shkrim i fundit < 30s)
+    cloudLoadAll(cloudId).then(applyRemote);
 
     // Real-time: merr ndryshimet nga pajisja tjetër — vetëm kur pendingSync=false
     cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
