@@ -403,13 +403,16 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
     clearData(STORAGE_KEYS.DRAFT);
 
+    // Kur jemi duke edituar një faturë ekzistuese, ruaj gjithmonë datën dhe statusin origjinal
+    const isEditing = !!initialData;
     const computedStatus = (finalBalanceDue <= 0 || isPaid) ? 'E paguar' as const : 'Pa paguar' as const;
-    const finalStatus = keepStatus && initialData?.status ? initialData.status : computedStatus;
+    const finalStatus = (isEditing || keepStatus) && initialData?.status ? initialData.status : computedStatus;
+    const finalDate = isEditing ? initialData!.date : invoiceDate;
 
     onSubmit({
       id: initialData?.id || Date.now().toString(),
       invoiceNumber,
-      date: invoiceDate,
+      date: finalDate,
       clientId: selectedClientId || 'manual',
       clientCode: selectedClientCode || undefined,
       clientName,
