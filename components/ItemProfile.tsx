@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Item, StockEntry, Invoice, Client } from '../types';
-import { X, Package, ArrowUpCircle, ArrowDownCircle, TrendingUp, DollarSign, Clock, Filter, Landmark, BarChart3, PieChart, Calculator, ArrowUpRight, Search, Trash2, Tag, CheckCircle2, History, Box, Plus, LayoutGrid, ArrowDownWideNarrow, MapPin, Calendar, ArrowLeft, ShoppingCart, FileText } from 'lucide-react';
+import { X, Package, ArrowUpCircle, ArrowDownCircle, TrendingUp, DollarSign, Clock, Filter, Landmark, BarChart3, PieChart, Calculator, ArrowUpRight, Search, Trash2, Tag, CheckCircle2, History, Box, Plus, LayoutGrid, ArrowDownWideNarrow, MapPin, Calendar, ArrowLeft, ShoppingCart, FileText, Pencil, Check } from 'lucide-react';
 
 interface Props {
   item: Item;
@@ -9,6 +9,7 @@ interface Props {
   invoices: Invoice[];
   clients: Client[];
   onUpdateItem: (updatedItem: Item) => void;
+  onUpdateStockEntry?: (updatedEntry: StockEntry) => void;
   onClose: () => void;
 }
 
@@ -19,13 +20,23 @@ const formatDateDisplay = (dateStr: string) => {
   return `${d}/${m}/${y}`;
 };
 
-const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, onUpdateItem, onClose }) => {
+interface EditStockRow {
+  entryId: string;
+  itemIdx: number;
+  quantity: string;
+  purchasePrice: string;
+  sellingPrice: string;
+}
+
+const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, onUpdateItem, onUpdateStockEntry, onClose }) => {
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('year');
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [sortBy, setSortBy] = useState<'qty' | 'value' | 'profit' | 'salesCount' | 'price'>('qty');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [activeTab, setActiveTab] = useState<'shitje' | 'hyrje'>('shitje');
+  const [editRow, setEditRow] = useState<EditStockRow | null>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -91,6 +102,29 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
       totalSalesCount
     };
   }, [item, invoices, clients, filterMode, selectedDay, selectedMonth, selectedYear, sortBy, sortDir]);
+
+  const itemStockEntries = useMemo(() => {
+    return stockEntries
+      .filter(e => e.items.some(it => it.itemId === item.id || it.name === item.name))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [stockEntries, item]);
+
+  const handleSaveEdit = () => {
+    if (!editRow || !onUpdateStockEntry) return;
+    const entry = stockEntries.find(e => e.id === editRow.entryId);
+    if (!entry) return;
+    const updatedItems = entry.items.map((it, idx) => {
+      if (idx !== editRow.itemIdx) return it;
+      const qty = Number(editRow.quantity) || it.quantity;
+      const pp = Number(editRow.purchasePrice) || it.purchasePrice;
+      const sp = Number(editRow.sellingPrice) || it.sellingPrice;
+      return { ...it, quantity: qty, purchasePrice: pp, sellingPrice: sp, total: sp * qty };
+    });
+    const newTotalPurchase = updatedItems.reduce((s, it) => s + it.purchasePrice * it.quantity, 0);
+    const newTotalSelling = updatedItems.reduce((s, it) => s + it.sellingPrice * it.quantity, 0);
+    onUpdateStockEntry({ ...entry, items: updatedItems, totalPurchaseValue: newTotalPurchase, totalSellingValue: newTotalSelling });
+    setEditRow(null);
+  };
 
   const monthNames: Record<string, string> = {
     '01': 'Janar', '02': 'Shkurt', '03': 'Mars', '04': 'Prill', '05': 'Maj', '06': 'Qershor',
@@ -201,7 +235,12 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
             </div>
           </div>
 
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full md:w-auto overflow-x-auto scrollbar-hide">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <button onClick={() => setActiveTab('shitje')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all ${activeTab === 'shitje' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Shitjet</button>
+            <button onClick={() => setActiveTab('hyrje')} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all ${activeTab === 'hyrje' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Hyrjet ({itemStockEntries.length})</button>
+          </div>
+
+          {activeTab === 'shitje' && <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full md:w-auto overflow-x-auto scrollbar-hide">
             {['all', 'today', 'day', 'month', 'year'].map(m => (
               <button 
                 key={m} 
@@ -211,7 +250,7 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
                 {m === 'all' ? 'Gjithë' : m === 'today' ? 'Sot' : m === 'day' ? 'Data' : m === 'month' ? 'Muaji' : 'Viti'}
               </button>
             ))}
-          </div>
+          </div>}
 
           <div className="flex items-center gap-3">
              {filterMode !== 'all' && filterMode !== 'today' && (
@@ -231,6 +270,93 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
         </div>
 
         <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+
+          {/* TAB: HYRJET */}
+          {activeTab === 'hyrje' && (
+            <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm">
+              <div className="p-8 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+                <div className="bg-indigo-600 p-2 rounded-xl text-white"><ArrowUpCircle size={18}/></div>
+                <span className="font-black text-[11px] uppercase text-slate-700 tracking-[0.15em]">Flethyrjet e Stokut — {item.name}</span>
+              </div>
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100 bg-slate-50/50">
+                    <tr>
+                      <th className="px-8 py-5">Data</th>
+                      <th className="px-6 py-5">Nr. Hyrje</th>
+                      <th className="px-6 py-5">Origjina</th>
+                      <th className="px-6 py-5 text-right">Sasia</th>
+                      <th className="px-6 py-5 text-right">Çm. Blerje</th>
+                      <th className="px-6 py-5 text-right">Çm. Shitje</th>
+                      <th className="px-6 py-5 text-right">Totali</th>
+                      <th className="px-6 py-5 text-center">Edit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemStockEntries.map(entry => {
+                      const itemRows = entry.items
+                        .map((it, idx) => ({ it, idx }))
+                        .filter(({ it }) => it.itemId === item.id || it.name === item.name);
+                      return itemRows.map(({ it, idx }) => {
+                        const isEditing = editRow?.entryId === entry.id && editRow?.itemIdx === idx;
+                        return (
+                          <tr key={`${entry.id}-${idx}`} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <td className="px-8 py-5 font-bold text-slate-600 text-xs">{formatDateDisplay(entry.date)}</td>
+                            <td className="px-6 py-5 text-[10px] font-black text-indigo-600">{entry.entryNumber}</td>
+                            <td className="px-6 py-5 text-xs text-slate-500 font-bold">{entry.origin}</td>
+                            {isEditing ? (
+                              <>
+                                <td className="px-6 py-5 text-right">
+                                  <input type="number" className="w-20 text-right border border-indigo-300 rounded-lg px-2 py-1 text-xs font-black outline-none focus:ring-2 focus:ring-indigo-400" value={editRow.quantity} onChange={e => setEditRow(r => r ? { ...r, quantity: e.target.value } : r)} />
+                                </td>
+                                <td className="px-6 py-5 text-right">
+                                  <input type="number" className="w-24 text-right border border-indigo-300 rounded-lg px-2 py-1 text-xs font-black outline-none focus:ring-2 focus:ring-indigo-400" value={editRow.purchasePrice} onChange={e => setEditRow(r => r ? { ...r, purchasePrice: e.target.value } : r)} />
+                                </td>
+                                <td className="px-6 py-5 text-right">
+                                  <input type="number" className="w-24 text-right border border-indigo-300 rounded-lg px-2 py-1 text-xs font-black outline-none focus:ring-2 focus:ring-indigo-400" value={editRow.sellingPrice} onChange={e => setEditRow(r => r ? { ...r, sellingPrice: e.target.value } : r)} />
+                                </td>
+                                <td className="px-6 py-5 text-right font-bold text-slate-700 text-xs">
+                                  {((Number(editRow.sellingPrice) || it.sellingPrice) * (Number(editRow.quantity) || it.quantity)).toLocaleString()} L
+                                </td>
+                                <td className="px-6 py-5 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button onClick={handleSaveEdit} className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1 hover:bg-emerald-700 transition-all"><Check size={13}/> Ruaj</button>
+                                    <button onClick={() => setEditRow(null)} className="bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase hover:bg-slate-300 transition-all"><X size={13}/></button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-6 py-5 text-right font-bold text-slate-700">{it.quantity.toLocaleString()}</td>
+                                <td className="px-6 py-5 text-right text-slate-500 font-bold text-xs">{it.purchasePrice.toLocaleString()} L</td>
+                                <td className="px-6 py-5 text-right text-slate-500 font-bold text-xs">{it.sellingPrice.toLocaleString()} L</td>
+                                <td className="px-6 py-5 text-right font-black text-slate-900 text-xs">{it.total.toLocaleString()} L</td>
+                                <td className="px-6 py-5 text-center">
+                                  <button
+                                    onClick={() => setEditRow({ entryId: entry.id, itemIdx: idx, quantity: String(it.quantity), purchasePrice: String(it.purchasePrice), sellingPrice: String(it.sellingPrice) })}
+                                    className="bg-slate-100 text-slate-500 hover:bg-amber-50 hover:text-amber-600 p-2 rounded-xl transition-all"
+                                    title="Ndrysho"
+                                  >
+                                    <Pencil size={14}/>
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      });
+                    })}
+                    {itemStockEntries.length === 0 && (
+                      <tr><td colSpan={8} className="p-20 text-center text-[10px] font-black text-slate-300 uppercase italic">Nuk ka hyrje stoku për këtë artikull</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SHITJET */}
+          {activeTab === 'shitje' && <div className="space-y-10">
           <div className="space-y-6 animate-in fade-in duration-300">
              <div className="flex items-center gap-3">
                 <div className="bg-indigo-600 p-2 rounded-xl text-white"><BarChart3 size={18} /></div>
@@ -334,6 +460,8 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
                 </table>
              </div>
           </div>
+          </div>}  {/* end activeTab === 'shitje' */}
+
         </div>
       </div>
     </div>

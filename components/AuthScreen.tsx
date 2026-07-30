@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle, UserX } from 'lucide-react';
-import { cloudSaveCredentials, cloudCheckCredentials, cloudUsernameExists, CLOUD_ENABLED } from '../utils/cloudSync';
+import { cloudSaveCredentials, cloudCheckCredentials, cloudUsernameExists, CLOUD_ENABLED, CLOUD_INIT_ERROR } from '../utils/cloudSync';
 
 // ─── Auth lokal — vetëm localStorage ─────────────────────────────────────────
 const LOCAL_USERS_KEY = 'intal_local_users';
@@ -105,10 +105,10 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
           setLocalSession(newLocal);
           onAuth(newLocal);
         } else {
-          setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
+          setError('Kredencialet janë të gabuara ose nuk u gjet llogaria në cloud.');
         }
       } else {
-        setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
+        setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.' + (!CLOUD_ENABLED ? ' [Cloud: OFF' + (CLOUD_INIT_ERROR ? ': ' + CLOUD_INIT_ERROR : '') + ']' : ''));
       }
     }
     setLoading(false);
@@ -192,9 +192,26 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
         >
           <UserX size={15} /> Vazhdo si I Pa Regjistruar
         </button>
-        <p className="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest mt-6">
-          INTAL PRO © {new Date().getFullYear()}
+        <p className="text-center text-[10px] font-bold uppercase tracking-widest mt-4">
+          <span className={CLOUD_ENABLED ? 'text-emerald-500' : 'text-rose-500'}>
+            ☁ Cloud: {CLOUD_ENABLED ? 'ON' : 'OFF' + (CLOUD_INIT_ERROR ? ' – ' + CLOUD_INIT_ERROR : '')}
+          </span>
+          <span className="text-slate-600"> · INTAL PRO © {new Date().getFullYear()}</span>
         </p>
+        <button
+          onClick={async () => {
+            try {
+              const regs = await navigator.serviceWorker?.getRegistrations();
+              if (regs) for (const r of regs) await r.unregister();
+              const cacheNames = await caches.keys();
+              await Promise.all(cacheNames.map(n => caches.delete(n)));
+            } catch {}
+            window.location.reload();
+          }}
+          className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl text-slate-600 hover:text-slate-400 font-bold text-[10px] uppercase tracking-widest transition-all"
+        >
+          ↻ Përditëso App (pastro cache)
+        </button>
       </div>
     </div>
   );
