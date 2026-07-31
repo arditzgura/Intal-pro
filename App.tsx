@@ -411,9 +411,21 @@ const App: React.FC = () => {
     const localHasData = local.getAll(uid, 'invoices').length > 0
                       || local.getAll(uid, 'clients').length > 0;
 
-    // Startup: tërhiq nga cloud — canApplyRemote() mbron nga overwrite nëse
-    // ka ndryshime lokale të papushuar (pendingSync=true ose shkrim i fundit < 30s)
-    cloudLoadAll(uid).then(applyRemote);
+    // Startup: nëse localStorage është bosh (pajisje e re), apliko GJITHMONË nga Firestore
+    cloudLoadAll(uid).then(remote => {
+      if (!localHasData) {
+        isApplyingRemote.current = true;
+        const r = (key: string) => remote[key]?.data;
+        if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
+        if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
+        if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
+        if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
+        if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
+        setTimeout(() => { isApplyingRemote.current = false; }, 0);
+      } else {
+        applyRemote(remote);
+      }
+    });
 
     // Real-time: merr ndryshimet nga pajisja tjetër — vetëm kur pendingSync=false
     cloudChannelRef.current = cloudSubscribe(uid, (tableName, data) => {
