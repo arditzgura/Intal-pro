@@ -778,9 +778,23 @@ const App: React.FC = () => {
   }
 
   // Pa sesion → ekrani i login-it
-  if (!session) return <AuthScreen onAuth={(user) => {
-    setSession({ user: { id: user.id, username: user.username } });
-    loadAllData(user.id);
+  if (!session) return <AuthScreen onAuth={async (user) => {
+    const uid = user.id;
+    // Nëse localStorage është bosh, tërhiq nga Firestore PARA se të hapet app-i
+    const hasLocal = local.getAll(uid, 'invoices').length > 0 || local.getAll(uid, 'clients').length > 0;
+    if (!hasLocal && uid !== 'guest') {
+      try {
+        const remote = await cloudLoadAll(uid);
+        const r = (key: string) => remote[key]?.data;
+        if (r('invoices')?.length)      local.setAllSilent(uid, 'invoices',      r('invoices')!);
+        if (r('clients')?.length)       local.setAllSilent(uid, 'clients',       r('clients')!);
+        if (r('items')?.length)         local.setAllSilent(uid, 'items',         r('items')!);
+        if (r('stock_entries')?.length) local.setAllSilent(uid, 'stock_entries', r('stock_entries')!);
+        if (r('config')?.[0])           local.setConfigSilent(uid,               r('config')![0]);
+      } catch (e) { console.warn('[onAuth] cloudLoadAll error:', e); }
+    }
+    setSession({ user: { id: uid, username: user.username } });
+    loadAllData(uid);
     // Sinkronizo kredencialet me cloud pas çdo login të suksesshëm (upsert)
     if (CLOUD_ENABLED && user.id !== 'guest' && user.passwordHash) {
       import('./utils/cloudSync').then(({ cloudSaveCredentials }) => {
