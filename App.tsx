@@ -128,27 +128,27 @@ const App: React.FC = () => {
     setDataReady(true);
   }, []);
 
-  // ─── Auth: Firebase Auth state ────────────────────────────────────────────
+  // ─── Auth: ngarko sesionin ────────────────────────────────────────────────
   useEffect(() => {
-    // Shiko sesionin lokal të ruajtur (për shpejtësi të fillimit)
     const cached = getLocalSession();
     if (cached) {
+      // Pajisje ekzistuese: ngarko nga localStorage menjëherë
       setSession({ user: { id: cached.id, username: cached.username } });
       loadAllData(cached.id);
+    } else {
+      // Firebase Auth listener — për rastin kur sesioni Firebase ekziston por jo localStorage
+      const unsub = cloudOnAuthChange((user) => {
+        if (user) {
+          const u = { id: user.uid, username: user.username };
+          setLocalSession(u);
+          // Nuk thirrim loadAllData — onAuth e bën këtë
+        } else {
+          setSession(null);
+          setDataReady(true);
+        }
+      });
+      return unsub;
     }
-    // Firebase Auth listener — burimi i vërtetë i auth-it
-    const unsub = cloudOnAuthChange((user) => {
-      if (user) {
-        const u = { id: user.uid, username: user.username };
-        setLocalSession(u);
-        setSession({ user: u });
-        if (!cached) loadAllData(user.uid);
-      } else {
-        clearLocalSession();
-        if (!cached) { setSession(null); setDataReady(true); }
-      }
-    });
-    return unsub;
   }, [loadAllData]); // eslint-disable-line
 
   // ─── Migrim: cakto kode klientëve ekzistues pa kod ───────────────────────
@@ -780,27 +780,20 @@ const App: React.FC = () => {
   // Pa sesion → ekrani i login-it
   if (!session) return <AuthScreen onAuth={async (user) => {
     const uid = user.id;
-    // Nëse localStorage është bosh, tërhiq nga Firestore PARA se të hapet app-i
-    const hasLocal = local.getAll(uid, 'invoices').length > 0 || local.getAll(uid, 'clients').length > 0;
-    if (!hasLocal && uid !== 'guest') {
+    if (uid !== 'guest') {
+      // Ngarko gjithmonë nga Firestore — vendos drejtpërdrejt në state
       try {
         const remote = await cloudLoadAll(uid);
         const r = (key: string) => remote[key]?.data;
-        if (r('invoices')?.length)      local.setAllSilent(uid, 'invoices',      r('invoices')!);
-        if (r('clients')?.length)       local.setAllSilent(uid, 'clients',       r('clients')!);
-        if (r('items')?.length)         local.setAllSilent(uid, 'items',         r('items')!);
-        if (r('stock_entries')?.length) local.setAllSilent(uid, 'stock_entries', r('stock_entries')!);
-        if (r('config')?.[0])           local.setConfigSilent(uid,               r('config')![0]);
+        if (r('invoices')?.length)      setInvoices(r('invoices')!);
+        if (r('clients')?.length)       setClients(r('clients')!);
+        if (r('items')?.length)         setItems(r('items')!);
+        if (r('stock_entries')?.length) setStockEntries(r('stock_entries')!);
+        if (r('config')?.[0])           setConfig(c => ({ ...c, ...r('config')![0] }));
       } catch (e) { console.warn('[onAuth] cloudLoadAll error:', e); }
     }
     setSession({ user: { id: uid, username: user.username } });
-    loadAllData(uid);
-    // Sinkronizo kredencialet me cloud pas çdo login të suksesshëm (upsert)
-    if (CLOUD_ENABLED && user.id !== 'guest' && user.passwordHash) {
-      import('./utils/cloudSync').then(({ cloudSaveCredentials }) => {
-        cloudSaveCredentials(user.username, user.passwordHash);
-      });
-    }
+    setDataReady(true);
   }} />;
 
   // Me sesion por të dhënat nuk janë gati
