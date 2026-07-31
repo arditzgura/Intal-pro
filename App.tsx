@@ -362,11 +362,11 @@ const App: React.FC = () => {
           if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
           cloudSyncTimer.current = setTimeout(async () => {
             try {
-              await cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices'));
-              await cloudSave(uid, 'clients',       local.getAll(uid, 'clients'));
-              await cloudSave(uid, 'items',         local.getAll(uid, 'items'));
-              await cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries'));
-              await cloudSaveConfig(uid,            local.getConfig(uid));
+              await cloudSave(uid, 'invoices',      invoices);
+              await cloudSave(uid, 'clients',       clients);
+              await cloudSave(uid, 'items',         items);
+              await cloudSave(uid, 'stock_entries', stockEntries);
+              await cloudSaveConfig(uid,            config);
               pendingSync.current = false;
             } catch {
               pendingSync.current = true;
@@ -794,11 +794,11 @@ const App: React.FC = () => {
         if (attempt < 3) await new Promise(r => setTimeout(r, 800));
       }
       const r = (key: string) => remote[key]?.data;
-      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
-      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
-      if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
-      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
-      if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfigSilent(uid, r('config')![0]); }
+      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
+      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
+      if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
+      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
+      if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(uid, r('config')![0]); }
     }
     setSession({ user: { id: uid, username: user.username } });
     setDataReady(true);
