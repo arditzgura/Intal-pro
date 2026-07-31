@@ -282,7 +282,10 @@ const App: React.FC = () => {
     // Shëno sync si pending menjëherë kur ndryshon state nga veprimi i përdoruesit
     // (jo kur aplikohet remote) — kjo mbron localStorage nga mbishkrim i cloud-it
     if (!isApplyingRemote.current && CLOUD_ENABLED && !isGuest) {
-      pendingSync.current = true;
+      // Mos vendos pendingSync=true kur të dhënat janë bosh (pajisje e re)
+      if (invoices.length > 0 || clients.length > 0 || items.length > 0 || stockEntries.length > 0) {
+        pendingSync.current = true;
+      }
     }
   }, [invoices, clients, items, stockEntries]); // eslint-disable-line
 
