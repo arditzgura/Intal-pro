@@ -445,7 +445,7 @@ const App: React.FC = () => {
     }, 5000);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
-  }, [dataReady]); // eslint-disable-line
+  }, [dataReady, session?.user?.id]); // eslint-disable-line
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   const doBackup = useCallback((isAuto = false) => {
