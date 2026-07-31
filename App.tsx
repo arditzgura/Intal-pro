@@ -794,11 +794,11 @@ const App: React.FC = () => {
         if (attempt < 3) await new Promise(r => setTimeout(r, 800));
       }
       const r = (key: string) => remote[key]?.data;
-      if (r('invoices')?.length)      setInvoices(r('invoices')!);
-      if (r('clients')?.length)       setClients(r('clients')!);
-      if (r('items')?.length)         setItems(r('items')!);
-      if (r('stock_entries')?.length) setStockEntries(r('stock_entries')!);
-      if (r('config')?.[0])           setConfig(c => ({ ...c, ...r('config')![0] }));
+      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
+      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
+      if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
+      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
+      if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfigSilent(uid, r('config')![0]); }
     }
     setSession({ user: { id: uid, username: user.username } });
     setDataReady(true);
