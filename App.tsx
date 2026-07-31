@@ -781,16 +781,24 @@ const App: React.FC = () => {
   if (!session) return <AuthScreen onAuth={async (user) => {
     const uid = user.id;
     if (uid !== 'guest') {
-      // Ngarko gjithmonë nga Firestore — vendos drejtpërdrejt në state
-      try {
-        const remote = await cloudLoadAll(uid);
-        const r = (key: string) => remote[key]?.data;
-        if (r('invoices')?.length)      setInvoices(r('invoices')!);
-        if (r('clients')?.length)       setClients(r('clients')!);
-        if (r('items')?.length)         setItems(r('items')!);
-        if (r('stock_entries')?.length) setStockEntries(r('stock_entries')!);
-        if (r('config')?.[0])           setConfig(c => ({ ...c, ...r('config')![0] }));
-      } catch (e) { console.warn('[onAuth] cloudLoadAll error:', e); }
+      // Provo max 3 herë me 800ms ndërmjet
+      let remote: Record<string, any> = {};
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          remote = await cloudLoadAll(uid);
+          console.log(`[onAuth] attempt ${attempt} — keys:`, Object.keys(remote));
+          if (Object.keys(remote).length > 0) break; // u gjet diçka
+        } catch (e: any) {
+          console.error(`[onAuth] attempt ${attempt} error:`, e?.code, e?.message);
+        }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 800));
+      }
+      const r = (key: string) => remote[key]?.data;
+      if (r('invoices')?.length)      setInvoices(r('invoices')!);
+      if (r('clients')?.length)       setClients(r('clients')!);
+      if (r('items')?.length)         setItems(r('items')!);
+      if (r('stock_entries')?.length) setStockEntries(r('stock_entries')!);
+      if (r('config')?.[0])           setConfig(c => ({ ...c, ...r('config')![0] }));
     }
     setSession({ user: { id: uid, username: user.username } });
     setDataReady(true);

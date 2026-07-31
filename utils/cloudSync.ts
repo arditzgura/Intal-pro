@@ -72,17 +72,14 @@ export async function cloudSave(uid: string, tableName: string, data: any[]): Pr
 
 export async function cloudLoadAll(uid: string): Promise<Record<string, CloudRow>> {
   const result: Record<string, CloudRow> = {};
-  try {
-    for (const table of TABLES) {
-      const snap = await getDoc(doc(db, 'users', uid, 'tables', table));
-      if (snap.exists()) {
-        const d = snap.data();
-        if (Array.isArray(d.data)) result[table] = { data: d.data, updatedAt: d.updatedAt || '' };
-      }
+  for (const table of TABLES) {
+    const snap = await getDoc(doc(db, 'users', uid, 'tables', table));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (Array.isArray(d.data)) result[table] = { data: d.data, updatedAt: d.updatedAt || '' };
     }
-  } catch (e) {
-    console.warn('[cloudSync] loadAll error:', e);
   }
+  console.log('[cloudSync] loadAll result tables:', Object.keys(result));
   return result;
 }
 
