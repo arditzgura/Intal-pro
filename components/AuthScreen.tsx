@@ -1,51 +1,22 @@
-
 import React, { useState } from 'react';
 import { FileText, LogIn, UserPlus, Eye, EyeOff, Loader2, AlertCircle, UserX } from 'lucide-react';
-import { cloudSaveCredentials, cloudCheckCredentials, cloudUsernameExists, CLOUD_ENABLED, CLOUD_INIT_ERROR } from '../utils/cloudSync';
+import { cloudLogin, cloudRegister } from '../utils/cloudSync';
 
-// ─── Auth lokal — vetëm localStorage ─────────────────────────────────────────
-const LOCAL_USERS_KEY = 'intal_local_users';
+export interface LocalUser { id: string; username: string; }
 
-interface LocalUser { id: string; username: string; passwordHash: string; }
+export const GUEST_USER: LocalUser = { id: 'guest', username: 'I pa regjistruar' };
 
-function simpleHash(str: string): string {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
-  return h.toString(36);
-}
-
-export function getUsers(): LocalUser[] {
-  try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]'); } catch { return []; }
-}
-export function saveUsers(users: LocalUser[]) {
-  localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
-}
-export function localLogin(username: string, password: string): LocalUser | null {
-  const users = getUsers();
-  const u = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  if (!u) return null;
-  return simpleHash(password) === u.passwordHash ? u : null;
-}
-export function localRegister(username: string, password: string): LocalUser | 'exists' {
-  const users = getUsers();
-  if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return 'exists';
-  const newUser: LocalUser = { id: 'local-' + Date.now(), username, passwordHash: simpleHash(password) };
-  saveUsers([...users, newUser]);
-  return newUser;
-}
+// Session helpers (ende localStorage për ta mbajtur sesionin pas refresh)
 export function setLocalSession(user: LocalUser) {
-  localStorage.setItem('intal_session', JSON.stringify({ user, loggedAt: Date.now() }));
+  localStorage.setItem('intal_session_v2', JSON.stringify(user));
 }
-export function getLocalSession(): { user: LocalUser } | null {
-  try { return JSON.parse(localStorage.getItem('intal_session') || 'null'); } catch { return null; }
+export function getLocalSession(): LocalUser | null {
+  try { return JSON.parse(localStorage.getItem('intal_session_v2') || 'null'); } catch { return null; }
 }
 export function clearLocalSession() {
-  localStorage.removeItem('intal_session');
+  localStorage.removeItem('intal_session_v2');
 }
 
-export const GUEST_USER: LocalUser = { id: 'guest', username: 'I pa regjistruar', passwordHash: '' };
-
-// ─── Komponenti ───────────────────────────────────────────────────────────────
 interface Props { onAuth: (user: LocalUser) => void; }
 
 const AuthScreen: React.FC<Props> = ({ onAuth }) => {
@@ -56,11 +27,10 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
   const [showPass, setShowPass]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
-  const [success, setSuccess]     = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(''); setSuccess('');
+    setError('');
 
     const uname = username.trim();
     if (!uname || uname.length < 3) return setError('Emri i përdoruesit duhet të ketë të paktën 3 karaktere.');
@@ -68,48 +38,26 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
     if (mode === 'register' && password !== password2) return setError('Fjalëkalimet nuk përputhen.');
 
     setLoading(true);
-
-    if (mode === 'register') {
-      // Kontrollo cloud nëse username ekziston (ndër-pajisje)
-      if (CLOUD_ENABLED) {
-        const existsCloud = await cloudUsernameExists(uname);
-        if (existsCloud) {
-          setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
-          setLoading(false);
-          return;
-        }
-      }
-      const result = localRegister(uname, password);
-      if (result === 'exists') {
-        setError('Ky emër përdoruesi ekziston tashmë. Provoni të logoheni.');
+    try {
+      if (mode === 'register') {
+        const user = await cloudRegister(uname, password);
+        const localUser: LocalUser = { id: user.uid, username: user.username };
+        setLocalSession(localUser);
+        onAuth(localUser);
       } else {
-        // Ruaj kredencialet edhe në cloud për akses ndër-pajisje
-        if (CLOUD_ENABLED) await cloudSaveCredentials(uname, simpleHash(password));
-        setLocalSession(result);
-        onAuth(result);
+        const user = await cloudLogin(uname, password);
+        const localUser: LocalUser = { id: user.uid, username: user.username };
+        setLocalSession(localUser);
+        onAuth(localUser);
       }
-    } else {
-      // Provo login lokal fillimisht (i shpejtë)
-      const user = localLogin(uname, password);
-      if (user) {
-        setLocalSession(user);
-        onAuth(user);
-      } else if (CLOUD_ENABLED) {
-        // Fallback: kontrollo cloud (pajisje e re ose localStorage e fshirë)
-        const cloudUser = await cloudCheckCredentials(uname, simpleHash(password));
-        if (cloudUser) {
-          // Regjistro lokalisht për herët e ardhshme
-          const newLocal: LocalUser = { id: 'local-' + Date.now(), username: cloudUser.username, passwordHash: simpleHash(password) };
-          const users = getUsers();
-          saveUsers([...users, newLocal]);
-          setLocalSession(newLocal);
-          onAuth(newLocal);
-        } else {
-          setError('Kredencialet janë të gabuara ose nuk u gjet llogaria në cloud.');
-        }
-      } else {
-        setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.' + (!CLOUD_ENABLED ? ' [Cloud: OFF' + (CLOUD_INIT_ERROR ? ': ' + CLOUD_INIT_ERROR : '') + ']' : ''));
-      }
+    } catch (e: any) {
+      const code = e?.code || '';
+      if (code === 'auth/email-already-in-use')    setError('Ky emër përdoruesi ekziston tashmë.');
+      else if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') setError('Emri i përdoruesit ose fjalëkalimi është i gabuar.');
+      else if (code === 'auth/wrong-password')     setError('Fjalëkalimi është i gabuar.');
+      else if (code === 'auth/too-many-requests')  setError('Shumë tentativa. Provo përsëri më vonë.');
+      else if (code === 'auth/network-request-failed') setError('Nuk ka lidhje interneti.');
+      else setError(e?.message || 'Gabim i panjohur. Provo përsëri.');
     }
     setLoading(false);
   };
@@ -174,11 +122,6 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
                 <p className="text-rose-300 text-xs font-bold">{error}</p>
               </div>
             )}
-            {success && (
-              <div className="bg-emerald-900/30 border border-emerald-700/50 rounded-xl px-3 py-2.5">
-                <p className="text-emerald-300 text-xs font-bold">{success}</p>
-              </div>
-            )}
             <button type="submit" disabled={loading}
               className="w-full bg-[#D81B60] hover:bg-[#AD1457] text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-[#D81B60]/20 disabled:opacity-60 flex items-center justify-center gap-2 mt-2">
               {loading ? <Loader2 size={18} className="animate-spin" /> :
@@ -186,18 +129,14 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
             </button>
           </form>
         </div>
+
         <button
           onClick={() => { setLocalSession(GUEST_USER); onAuth(GUEST_USER); }}
           className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 font-black text-[11px] uppercase tracking-widest transition-all"
         >
           <UserX size={15} /> Vazhdo si I Pa Regjistruar
         </button>
-        <p className="text-center text-[10px] font-bold uppercase tracking-widest mt-4">
-          <span className={CLOUD_ENABLED ? 'text-emerald-500' : 'text-rose-500'}>
-            ☁ Cloud: {CLOUD_ENABLED ? 'ON' : 'OFF' + (CLOUD_INIT_ERROR ? ' – ' + CLOUD_INIT_ERROR : '')}
-          </span>
-          <span className="text-slate-600"> · INTAL PRO © {new Date().getFullYear()}</span>
-        </p>
+
         <button
           onClick={async () => {
             try {
@@ -206,12 +145,17 @@ const AuthScreen: React.FC<Props> = ({ onAuth }) => {
               const cacheNames = await caches.keys();
               await Promise.all(cacheNames.map(n => caches.delete(n)));
             } catch {}
-            window.location.reload();
+            const base = window.location.href.split('?')[0];
+            window.location.replace(base + '?v=' + Date.now());
           }}
           className="w-full mt-2 flex items-center justify-center gap-2 py-2 rounded-xl text-slate-600 hover:text-slate-400 font-bold text-[10px] uppercase tracking-widest transition-all"
         >
           ↻ Përditëso App (pastro cache)
         </button>
+
+        <p className="text-center text-[10px] font-bold uppercase tracking-widest mt-3 text-slate-600">
+          INTAL PRO © {new Date().getFullYear()}
+        </p>
       </div>
     </div>
   );

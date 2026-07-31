@@ -25,7 +25,7 @@ import {
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local, getLastLocalWrite } from './utils/localDb';
-import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, CLOUD_ENABLED } from './utils/cloudSync';
+import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
 
@@ -128,17 +128,28 @@ const App: React.FC = () => {
     setDataReady(true);
   }, []);
 
-  // ─── Auth: ngarko sesionin lokal ──────────────────────────────────────────
+  // ─── Auth: Firebase Auth state ────────────────────────────────────────────
   useEffect(() => {
-    const sess = getLocalSession();
-    if (sess) {
-      setSession({ user: { id: sess.user.id, username: sess.user.username } });
-      loadAllData(sess.user.id);
-    } else {
-      setSession(null);
-      setDataReady(true);
+    // Shiko sesionin lokal të ruajtur (për shpejtësi të fillimit)
+    const cached = getLocalSession();
+    if (cached) {
+      setSession({ user: { id: cached.id, username: cached.username } });
+      loadAllData(cached.id);
     }
-  }, [loadAllData]);
+    // Firebase Auth listener — burimi i vërtetë i auth-it
+    const unsub = cloudOnAuthChange((user) => {
+      if (user) {
+        const u = { id: user.uid, username: user.username };
+        setLocalSession(u);
+        setSession({ user: u });
+        if (!cached) loadAllData(user.uid);
+      } else {
+        clearLocalSession();
+        if (!cached) { setSession(null); setDataReady(true); }
+      }
+    });
+    return unsub;
+  }, [loadAllData]); // eslint-disable-line
 
   // ─── Migrim: cakto kode klientëve ekzistues pa kod ───────────────────────
   useEffect(() => {
@@ -290,19 +301,17 @@ const App: React.FC = () => {
     const handleOnline = () => {
       setIsOnline(true);
       if (!session || !CLOUD_ENABLED || isGuest) return;
-      const uid     = session.user.id;
-      const cloudId = session.user.username.toLowerCase().trim();
-      // Gjithmonë sinkronizo kur kthehet interneti — jo vetëm kur pendingSync
+      const uid = session.user.id;
       Promise.all([
-        cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices')),
-        cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients')),
-        cloudSave(cloudId, 'items',         local.getAll(uid, 'items')),
-        cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries')),
-        cloudSaveConfig(cloudId,            local.getConfig(uid)),
+        cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices')),
+        cloudSave(uid, 'clients',       local.getAll(uid, 'clients')),
+        cloudSave(uid, 'items',         local.getAll(uid, 'items')),
+        cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries')),
+        cloudSaveConfig(uid,            local.getConfig(uid)),
       ]).then(() => {
-        pendingSync.current = false; // vetëm pas suksesit
+        pendingSync.current = false;
       }).catch(() => {
-        pendingSync.current = true; // provo sërish herën tjetër
+        pendingSync.current = true;
       });
     };
     const handleOffline = () => setIsOnline(false);
@@ -344,19 +353,17 @@ const App: React.FC = () => {
       };
       localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
 
-      // ─── Cloud sync: ruaj edhe në Supabase me cloudId (username) ────
       if (CLOUD_ENABLED && session && !isGuest) {
-        const cloudId = session.user.username.toLowerCase().trim();
         if (!navigator.onLine) { pendingSync.current = true; }
         else {
           if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
           cloudSyncTimer.current = setTimeout(async () => {
             try {
-              await cloudSave(cloudId, 'invoices',      local.getAll(uid, 'invoices'));
-              await cloudSave(cloudId, 'clients',       local.getAll(uid, 'clients'));
-              await cloudSave(cloudId, 'items',         local.getAll(uid, 'items'));
-              await cloudSave(cloudId, 'stock_entries', local.getAll(uid, 'stock_entries'));
-              await cloudSaveConfig(cloudId,            local.getConfig(uid));
+              await cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices'));
+              await cloudSave(uid, 'clients',       local.getAll(uid, 'clients'));
+              await cloudSave(uid, 'items',         local.getAll(uid, 'items'));
+              await cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries'));
+              await cloudSaveConfig(uid,            local.getConfig(uid));
               pendingSync.current = false;
             } catch {
               pendingSync.current = true;
@@ -370,8 +377,7 @@ const App: React.FC = () => {
   // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
   useEffect(() => {
     if (!session || !dataReady || !CLOUD_ENABLED || isGuest) return;
-    const uid      = session.user.id;                                   // local storage key
-    const cloudId  = session.user.username.toLowerCase().trim();        // çelës i përbashkët cloud (i njëjtë në të gjitha pajisjet)
+    const uid = session.user.id;
 
     // Apliko të dhënat nga cloud VETËM nëse janë më të reja se localStorage
     // getLastLocalWrite() është SINKRON — vendoset menjëherë nga local.setAll()
@@ -404,10 +410,10 @@ const App: React.FC = () => {
 
     // Startup: tërhiq nga cloud — canApplyRemote() mbron nga overwrite nëse
     // ka ndryshime lokale të papushuar (pendingSync=true ose shkrim i fundit < 30s)
-    cloudLoadAll(cloudId).then(applyRemote);
+    cloudLoadAll(uid).then(applyRemote);
 
     // Real-time: merr ndryshimet nga pajisja tjetër — vetëm kur pendingSync=false
-    cloudChannelRef.current = cloudSubscribe(cloudId, (tableName, data) => {
+    cloudChannelRef.current = cloudSubscribe(uid, (tableName, data) => {
       if (!canApplyRemote()) return;
       isApplyingRemote.current = true;
       if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
@@ -420,7 +426,7 @@ const App: React.FC = () => {
 
     // Polling fallback: çdo 5s — vetëm kur online dhe pa ndryshime lokale pending
     const pollInterval = setInterval(() => {
-      if (navigator.onLine && !pendingSync.current) cloudLoadAll(cloudId).then(applyRemote);
+      if (navigator.onLine && !pendingSync.current) cloudLoadAll(uid).then(applyRemote);
     }, 5000);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
@@ -508,8 +514,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     clearLocalSession();
+    if (!isGuest) await cloudLogout().catch(() => {});
     setSession(null);
     setClients([]); setItems([]); setInvoices([]); setStockEntries([]);
     setConfig(DEFAULT_CONFIG);

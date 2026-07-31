@@ -1,17 +1,23 @@
-// ─── localStorage layer — punon offline ──────────────────────────────────────
-
 const k = (userId: string, table: string) => `intal_${userId}_${table}`;
 
-// Timestamp i fundit i shkrimit lokal — vendoset SINKRONISHT para çdo async operacioni
-// Kjo garanton që cloud kurrë nuk mbishkruan pas një shkrimit lokal
 let _lastLocalWrite = 0;
 export const getLastLocalWrite = () => _lastLocalWrite;
 
 const touch = (userId: string) => {
   const now = new Date().toISOString();
-  localStorage.setItem(`intal_${userId}_last_modified`, now);
-  _lastLocalWrite = Date.now(); // sinkron — pa pritur React render
+  try { localStorage.setItem(`intal_${userId}_last_modified`, now); } catch {}
+  _lastLocalWrite = Date.now();
 };
+
+function safeSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e: any) {
+    if (e?.name === 'QuotaExceededError') {
+      console.warn('[localDb] QuotaExceeded for', key, '— skipping local cache');
+    } else throw e;
+  }
+}
 
 export const local = {
   getAll: <T>(userId: string, table: string): T[] => {
@@ -20,17 +26,16 @@ export const local = {
   },
 
   setAll: <T>(userId: string, table: string, data: T[]): void => {
-    localStorage.setItem(k(userId, table), JSON.stringify(data));
+    safeSet(k(userId, table), JSON.stringify(data));
     touch(userId);
   },
 
-  // Shkruan pa prekur _lastLocalWrite — për sync remote, që të mos bllokohet sync-u vijues
   setAllSilent: <T>(userId: string, table: string, data: T[]): void => {
-    localStorage.setItem(k(userId, table), JSON.stringify(data));
+    safeSet(k(userId, table), JSON.stringify(data));
   },
 
   setConfigSilent: (userId: string, config: any): void => {
-    localStorage.setItem(`intal_${userId}_config`, JSON.stringify(config));
+    safeSet(`intal_${userId}_config`, JSON.stringify(config));
   },
 
   upsert: <T extends { id: string }>(userId: string, table: string, record: T): void => {
@@ -55,7 +60,7 @@ export const local = {
   },
 
   setConfig: (userId: string, config: any): void => {
-    localStorage.setItem(`intal_${userId}_config`, JSON.stringify(config));
+    safeSet(`intal_${userId}_config`, JSON.stringify(config));
     touch(userId);
   },
 

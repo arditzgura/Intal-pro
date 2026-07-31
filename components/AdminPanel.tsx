@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Shield, Users, RefreshCw, FileText, Clock, Trash2, Lock, Unlock, KeyRound, X, AlertTriangle } from 'lucide-react';
 import { cloudGetAllUsers, cloudDeleteUser, cloudLockUser, cloudResetPassword, CLOUD_ENABLED } from '../utils/cloudSync';
 
-interface UserRow { username: string; invoiceCount: number; lastSync: string; locked: boolean; }
+interface UserRow { username: string; uid: string; invoiceCount: number; lastSync: string; locked: boolean; createdAt?: string; }
 
 type DialogType = 'delete' | 'lock' | 'unlock' | 'reset' | null;
 
@@ -16,7 +16,8 @@ const AdminPanel: React.FC = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
-    setUsers(await cloudGetAllUsers());
+    const raw = await cloudGetAllUsers();
+    setUsers(raw.map(u => ({ ...u, invoiceCount: 0, lastSync: u.createdAt || '', locked: false })));
     setLoading(false);
   };
 
@@ -38,7 +39,7 @@ const AdminPanel: React.FC = () => {
     setActionLoading(true);
     try {
       if (dialog.type === 'delete') {
-        await cloudDeleteUser(dialog.user.username);
+        await cloudDeleteUser(dialog.user.uid, dialog.user.username);
         showFeedback(`"${dialog.user.username}" u fshi.`);
       } else if (dialog.type === 'lock') {
         await cloudLockUser(dialog.user.username, true);

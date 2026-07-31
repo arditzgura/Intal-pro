@@ -6,7 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isElectron = process.env.BUILD_TARGET === 'electron';
-    const base = isElectron ? './' : '/Intal-pro/';
+    const isNetlify = process.env.DEPLOY_TARGET === 'netlify';
+    const base = isElectron ? './' : isNetlify ? '/' : '/Intal-pro/';
     return {
       base,
       build: {
