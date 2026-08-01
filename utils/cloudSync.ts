@@ -39,7 +39,6 @@ export async function cloudRegister(username: string, password: string): Promise
 
 export async function cloudLogin(username: string, password: string): Promise<{ uid: string; username: string }> {
   const cred = await signInWithEmailAndPassword(auth, toEmail(username), password);
-  console.log('[cloudLogin] UID:', cred.user.uid, '| email:', cred.user.email);
   return { uid: cred.user.uid, username };
 }
 
@@ -119,8 +118,6 @@ export async function cloudLoadAll(uid: string): Promise<Record<string, CloudRow
       result[table] = { data, updatedAt };
     }
   }
-  const counts = Object.fromEntries(Object.entries(result).map(([k,v]) => [k, v.data.length]));
-  console.log('[cloudSync] loadAll uid:', uid, '| counts:', counts);
   return result;
 }
 

@@ -1082,15 +1082,13 @@ const App: React.FC = () => {
                 onCloudPush={async () => {
                   if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
                   const fuid = session.user.id;
-                  console.log('[cloudPush] uid:', fuid, '| invoices:', invoices.length, '| clients:', clients.length, '| stock:', stockEntries.length);
                   try {
-                    await cloudSave(fuid, 'invoices',      invoices);      console.log('[cloudPush] invoices ✓');
-                    await cloudSave(fuid, 'clients',       clients);       console.log('[cloudPush] clients ✓');
-                    await cloudSave(fuid, 'items',         items);         console.log('[cloudPush] items ✓');
-                    await cloudSave(fuid, 'stock_entries', stockEntries);  console.log('[cloudPush] stock_entries ✓');
-                    await cloudSaveConfig(fuid,            config);        console.log('[cloudPush] config ✓');
+                    await cloudSave(fuid, 'invoices',      invoices);
+                    await cloudSave(fuid, 'clients',       clients);
+                    await cloudSave(fuid, 'items',         items);
+                    await cloudSave(fuid, 'stock_entries', stockEntries);
+                    await cloudSaveConfig(fuid,            config);
                   } catch(e: any) {
-                    console.error('[cloudPush] GABIM:', e?.code, e?.message, e);
                     throw e;
                   }
                 }}
