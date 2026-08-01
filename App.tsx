@@ -397,9 +397,13 @@ const App: React.FC = () => {
 
     // Sync në cloud me debounce 2s
     setSyncStatus('pending');
+    pendingSync.current = true;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
-      if (!navigator.onLine) { pendingSync.current = true; setSyncStatus('err'); return; }
+      if (!navigator.onLine) { setSyncStatus('err'); return; }
+      // Blloko onSnapshot të desktop-it gjatë shkrimit
+      isApplyingRemote.current = true;
+      importLockUntil.current = Date.now() + 10000; // blloko 10s
       try {
         await cloudSave(uid, 'invoices',      invoices);
         await cloudSave(uid, 'clients',       clients);
@@ -410,8 +414,10 @@ const App: React.FC = () => {
         setSyncStatus('ok');
       } catch(e) {
         console.error('[sync] dështoi:', e);
-        pendingSync.current = true;
         setSyncStatus('err');
+      } finally {
+        // Çblloko pas 3s (koha që onSnapshot të marrë ndryshimet e plota)
+        setTimeout(() => { isApplyingRemote.current = false; }, 3000);
       }
     }, 2000);
   }, [clients, items, invoices, stockEntries, config]); // eslint-disable-line

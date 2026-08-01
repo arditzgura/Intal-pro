@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import {
   doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 
@@ -64,32 +65,40 @@ export function cloudOnAuthChange(callback: (user: { uid: string; username: stri
 const TABLES = ['invoices', 'clients', 'items', 'stock_entries', 'config'] as const;
 const CHUNK = 400;
 
-// Shkruan chunks: tableName, tableName_1, tableName_2, ...
+// Shkruan chunks atomikisht me WriteBatch (max 500 ops/batch)
 export async function cloudSave(uid: string, tableName: string, data: any[]): Promise<void> {
   const now = new Date().toISOString();
   const chunks: any[][] = [];
   for (let i = 0; i < Math.max(1, Math.ceil(data.length / CHUNK)); i++) {
     chunks.push(data.slice(i * CHUNK, (i + 1) * CHUNK));
   }
-  // Shkruaj chunks
+
+  // Gjej chunks të vjetra për fshirje
+  const oldDocIds: string[] = [];
+  for (let i = chunks.length; i < chunks.length + 20; i++) {
+    const docId = i === 0 ? tableName : `${tableName}_${i}`;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'tables', docId));
+      if (!snap.exists()) break;
+      oldDocIds.push(docId);
+    } catch { break; }
+  }
+
+  // Shkruaj TË GJITHA chunks në një batch (atomik — onSnapshot aktivizohet një herë)
+  const batch = writeBatch(db);
   for (let i = 0; i < chunks.length; i++) {
     const docId = i === 0 ? tableName : `${tableName}_${i}`;
-    await setDoc(doc(db, 'users', uid, 'tables', docId), {
+    batch.set(doc(db, 'users', uid, 'tables', docId), {
       data: chunks[i],
       chunkIndex: i,
       totalChunks: chunks.length,
       updatedAt: now,
     });
   }
-  // Fshi chunks të vjetra (nëse të dhënat u zvogëluan)
-  for (let i = chunks.length; i < chunks.length + 10; i++) {
-    try {
-      const old = doc(db, 'users', uid, 'tables', `${tableName}_${i}`);
-      const snap = await getDoc(old);
-      if (!snap.exists()) break;
-      await deleteDoc(old);
-    } catch { break; }
+  for (const docId of oldDocIds) {
+    batch.delete(doc(db, 'users', uid, 'tables', docId));
   }
+  await batch.commit();
 }
 
 // Lexon të gjitha chunks dhe i bashkon
