@@ -447,6 +447,23 @@ const App: React.FC = () => {
     return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
   }, [dataReady, session?.user?.id]); // eslint-disable-line
 
+  // ─── Safety-net: nëse sesioni aktiv por nuk ka të dhëna, tërhiq nga Firestore ──
+  useEffect(() => {
+    if (!session || isGuest || !CLOUD_ENABLED || !dataReady) return;
+    if (invoices.length > 0 || clients.length > 0 || items.length > 0) return;
+    const uid = session.user.id;
+    console.log('[safety-net] state bosh me sesion aktiv — tërhiq nga Firestore');
+    cloudLoadAll(uid).then(remote => {
+      const r = (key: string) => remote[key]?.data;
+      console.log('[safety-net] result:', Object.keys(remote), 'invoices:', r('invoices')?.length ?? 0);
+      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
+      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
+      if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
+      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
+      if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(uid, r('config')![0]); }
+    }).catch(e => console.error('[safety-net] error:', e));
+  }, [session?.user?.id, dataReady, invoices.length, clients.length]); // eslint-disable-line
+
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   const doBackup = useCallback((isAuto = false) => {
     if (!session) return;
@@ -794,6 +811,7 @@ const App: React.FC = () => {
         if (attempt < 3) await new Promise(r => setTimeout(r, 800));
       }
       const r = (key: string) => remote[key]?.data;
+      console.log('[onAuth] invoices count:', r('invoices')?.length ?? 0, 'clients:', r('clients')?.length ?? 0);
       if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
       if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
       if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
