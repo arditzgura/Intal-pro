@@ -131,24 +131,75 @@ const App: React.FC = () => {
   // ─── Auth: ngarko sesionin ────────────────────────────────────────────────
   useEffect(() => {
     const cached = getLocalSession();
-    if (cached) {
-      // Pajisje ekzistuese: ngarko nga localStorage menjëherë
-      setSession({ user: { id: cached.id, username: cached.username } });
-      loadAllData(cached.id);
-    } else {
-      // Firebase Auth listener — për rastin kur sesioni Firebase ekziston por jo localStorage
-      const unsub = cloudOnAuthChange((user) => {
-        if (user) {
-          const u = { id: user.uid, username: user.username };
-          setLocalSession(u);
-          // Nuk thirrim loadAllData — onAuth e bën këtë
-        } else {
-          setSession(null);
-          setDataReady(true);
+    // Gjithmonë dëgjo Firebase Auth për të verifikuar UID-in aktual
+    const unsub = cloudOnAuthChange(async (firebaseUser) => {
+      if (!firebaseUser) {
+        // Jo i kyçur në Firebase
+        if (cached) {
+          // Sesion lokal por jo Firebase — pastro dhe shfaq login
+          clearLocalSession();
         }
-      });
-      return unsub;
-    }
+        setSession(null);
+        setDataReady(true);
+        return;
+      }
+
+      const firebaseUid = firebaseUser.uid;
+      const username    = firebaseUser.username;
+
+      if (cached && cached.id === firebaseUid) {
+        // UID-i cache-uar përputhet me Firebase — ngarko normalisht
+        setSession({ user: { id: firebaseUid, username: cached.username || username } });
+        loadAllData(firebaseUid);
+      } else {
+        // UID ndryshe (llogari e re ose projekt i vjetër) — migro
+        console.log('[auth] UID ndryshoi nga', cached?.id, 'në', firebaseUid, '— duke migruar...');
+        const newSession = { id: firebaseUid, username: cached?.username || username };
+        setLocalSession(newSession);
+
+        // Ngarko nga Firestore
+        let remote: Record<string, any> = {};
+        try { remote = await cloudLoadAll(firebaseUid); } catch {}
+        const r = (k: string) => remote[k]?.data;
+        const remoteHasData = (r('invoices')?.length || 0) > 0 || (r('clients')?.length || 0) > 0;
+
+        if (remoteHasData) {
+          if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(firebaseUid,'invoices',      r('invoices')!); }
+          if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(firebaseUid,'clients',       r('clients')!); }
+          if (r('items')?.length)         { setItems(r('items')!);                local.setAll(firebaseUid,'items',         r('items')!); }
+          if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(firebaseUid,'stock_entries', r('stock_entries')!); }
+          if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(firebaseUid, r('config')![0]); }
+          console.log('[auth] ngarkova nga Firestore:', r('invoices')?.length, 'fatura');
+        } else if (cached?.id) {
+          // Firestore bosh — migro të dhënat lokale nga UID i vjetër
+          const oldInvs  = local.getAll<any>(cached.id, 'invoices');
+          const oldCls   = local.getAll<any>(cached.id, 'clients');
+          const oldItms  = local.getAll<any>(cached.id, 'items');
+          const oldStock = local.getAll<any>(cached.id, 'stock_entries');
+          const oldCfg   = local.getConfig(cached.id);
+          console.log('[auth] migrim lokal:', oldInvs.length, 'fatura nga', cached.id, '→', firebaseUid);
+          if (oldInvs.length > 0 || oldCls.length > 0) {
+            setInvoices(oldInvs);       local.setAll(firebaseUid,'invoices',      oldInvs);
+            setClients(oldCls);         local.setAll(firebaseUid,'clients',       oldCls);
+            setItems(oldItms);          local.setAll(firebaseUid,'items',         oldItms);
+            setStockEntries(oldStock);  local.setAll(firebaseUid,'stock_entries', oldStock);
+            if (oldCfg) { setConfig(c => ({ ...c, ...oldCfg })); local.setConfig(firebaseUid, oldCfg); }
+            try {
+              await cloudSave(firebaseUid,'invoices',      oldInvs);
+              await cloudSave(firebaseUid,'clients',       oldCls);
+              await cloudSave(firebaseUid,'items',         oldItms);
+              await cloudSave(firebaseUid,'stock_entries', oldStock);
+              if (oldCfg) await cloudSaveConfig(firebaseUid, oldCfg);
+              console.log('[auth] migrim në Firestore i suksesshëm!');
+            } catch(e) { console.warn('[auth] migrim Firestore dështoi:', e); }
+          }
+        }
+
+        setSession({ user: { id: firebaseUid, username: newSession.username } });
+        setDataReady(true);
+      }
+    });
+    return unsub;
   }, [loadAllData]); // eslint-disable-line
 
   // ─── Migrim: cakto kode klientëve ekzistues pa kod ───────────────────────
