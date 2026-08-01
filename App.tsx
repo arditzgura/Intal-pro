@@ -357,11 +357,11 @@ const App: React.FC = () => {
       if (!session || !CLOUD_ENABLED || isGuest) return;
       const uid = session.user.id;
       Promise.all([
-        cloudSave(uid, 'invoices',      local.getAll(uid, 'invoices')),
-        cloudSave(uid, 'clients',       local.getAll(uid, 'clients')),
-        cloudSave(uid, 'items',         local.getAll(uid, 'items')),
-        cloudSave(uid, 'stock_entries', local.getAll(uid, 'stock_entries')),
-        cloudSaveConfig(uid,            local.getConfig(uid)),
+        cloudSave(uid, 'invoices',      invoices),
+        cloudSave(uid, 'clients',       clients),
+        cloudSave(uid, 'items',         items),
+        cloudSave(uid, 'stock_entries', stockEntries),
+        cloudSaveConfig(uid,            config),
       ]).then(() => {
         pendingSync.current = false;
       }).catch(() => {
@@ -377,56 +377,44 @@ const App: React.FC = () => {
     };
   }, [session]); // eslint-disable-line
 
-  // ─── Auto-backup në localStorage pas çdo veprimi ─────────────────────────
-  const autoBackupTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudSyncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ─── Auto-sync: çdo ndryshim → cloud pas 2s ──────────────────────────────
+  const syncTimer        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudChannelRef  = useRef<CloudChannel>(null);
-  const importLockUntil  = useRef<number>(0); // bllokon cloud overwrite pas importit
-  const pendingSync      = useRef<boolean>(false); // shënon nëse ka ndryshime lokale pa sync
+  const importLockUntil  = useRef<number>(0);
+  const pendingSync      = useRef<boolean>(false);
   const [isOnline,       setIsOnline]       = useState<boolean>(navigator.onLine);
+  const [syncStatus,     setSyncStatus]     = useState<'ok'|'pending'|'err'>('ok');
 
   useEffect(() => {
-    if (!session || !dataReady) return;
+    if (!session || !dataReady || isGuest || !CLOUD_ENABLED) return;
     const uid = session.user.id;
 
-    // _lastLocalWrite (në localDb) shënohet sinkronisht nga çdo shkrim lokal i përdoruesit
-    // dhe bllokoi canApplyRemote() për 30s — importLockUntil nuk nevojitet këtu
+    // Ruaj në localStorage
+    try { localStorage.setItem('intal_auto_backup', JSON.stringify({
+      savedAt: new Date().toISOString(), version: 1, user: session.user.username,
+      invoices, clients, items, stock_entries: stockEntries, config,
+    })); } catch {}
 
-    if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
-    autoBackupTimer.current = setTimeout(() => {
-      const uid = session.user.id;
-      const snapshot = {
-        savedAt: new Date().toISOString(),
-        version: 1,
-        user: session.user.username,
-        invoices:      local.getAll(uid, 'invoices'),
-        clients:       local.getAll(uid, 'clients'),
-        items:         local.getAll(uid, 'items'),
-        stock_entries: local.getAll(uid, 'stock_entries'),
-        config:        local.getConfig(uid),
-      };
-      try { localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot)); } catch {}
-
-      if (CLOUD_ENABLED && session && !isGuest) {
-        if (!navigator.onLine) { pendingSync.current = true; }
-        else {
-          if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
-          cloudSyncTimer.current = setTimeout(async () => {
-            try {
-              await cloudSave(uid, 'invoices',      invoices);
-              await cloudSave(uid, 'clients',       clients);
-              await cloudSave(uid, 'items',         items);
-              await cloudSave(uid, 'stock_entries', stockEntries);
-              await cloudSaveConfig(uid,            config);
-              pendingSync.current = false;
-            } catch {
-              pendingSync.current = true;
-            }
-          }, 500);
-        }
+    // Sync në cloud me debounce 2s
+    setSyncStatus('pending');
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(async () => {
+      if (!navigator.onLine) { pendingSync.current = true; setSyncStatus('err'); return; }
+      try {
+        await cloudSave(uid, 'invoices',      invoices);
+        await cloudSave(uid, 'clients',       clients);
+        await cloudSave(uid, 'items',         items);
+        await cloudSave(uid, 'stock_entries', stockEntries);
+        await cloudSaveConfig(uid,            config);
+        pendingSync.current = false;
+        setSyncStatus('ok');
+      } catch(e) {
+        console.error('[sync] dështoi:', e);
+        pendingSync.current = true;
+        setSyncStatus('err');
       }
     }, 2000);
-  }, [clients, items, invoices, stockEntries]); // eslint-disable-line
+  }, [clients, items, invoices, stockEntries, config]); // eslint-disable-line
 
   // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
   useEffect(() => {
@@ -971,7 +959,12 @@ const App: React.FC = () => {
           </div>
           {!isOnline
             ? <div className="flex items-center justify-center gap-1.5 bg-amber-500/20 border border-amber-500/30 rounded-lg px-3 py-1.5 mt-1"><WifiOff size={11} className="text-amber-400"/><span className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Offline — Lokal</span></div>
-            : <p className="text-[9px] text-slate-600 text-center font-bold uppercase tracking-widest">Versioni 2.0 — Cloud</p>
+            : <div className="flex items-center justify-center gap-1.5 mt-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${syncStatus==='ok'?'bg-emerald-500':syncStatus==='pending'?'bg-amber-400 animate-pulse':'bg-red-500'}`}/>
+                <p className={`text-[9px] font-black uppercase tracking-widest ${syncStatus==='ok'?'text-emerald-600':syncStatus==='pending'?'text-amber-500':'text-red-500'}`}>
+                  {syncStatus==='ok'?'Cloud — i sinkronizuar':syncStatus==='pending'?'Duke sinkronizuar...':'Sync dështoi'}
+                </p>
+              </div>
           }
         </div>
       </aside>
