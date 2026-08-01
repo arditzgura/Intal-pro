@@ -60,24 +60,63 @@ export function cloudOnAuthChange(callback: (user: { uid: string; username: stri
   });
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ─── Data (chunks: max 400 rekorde / dokument për limitin 1MB) ───────────────
 
 const TABLES = ['invoices', 'clients', 'items', 'stock_entries', 'config'] as const;
+const CHUNK = 400;
 
+// Shkruan chunks: tableName, tableName_1, tableName_2, ...
 export async function cloudSave(uid: string, tableName: string, data: any[]): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'tables', tableName), {
-    data,
-    updatedAt: new Date().toISOString(),
-  });
+  const now = new Date().toISOString();
+  const chunks: any[][] = [];
+  for (let i = 0; i < Math.max(1, Math.ceil(data.length / CHUNK)); i++) {
+    chunks.push(data.slice(i * CHUNK, (i + 1) * CHUNK));
+  }
+  // Shkruaj chunks
+  for (let i = 0; i < chunks.length; i++) {
+    const docId = i === 0 ? tableName : `${tableName}_${i}`;
+    await setDoc(doc(db, 'users', uid, 'tables', docId), {
+      data: chunks[i],
+      chunkIndex: i,
+      totalChunks: chunks.length,
+      updatedAt: now,
+    });
+  }
+  // Fshi chunks të vjetra (nëse të dhënat u zvogëluan)
+  for (let i = chunks.length; i < chunks.length + 10; i++) {
+    try {
+      const old = doc(db, 'users', uid, 'tables', `${tableName}_${i}`);
+      const snap = await getDoc(old);
+      if (!snap.exists()) break;
+      await deleteDoc(old);
+    } catch { break; }
+  }
+}
+
+// Lexon të gjitha chunks dhe i bashkon
+async function loadTable(uid: string, tableName: string): Promise<any[]> {
+  const first = await getDoc(doc(db, 'users', uid, 'tables', tableName));
+  if (!first.exists()) return [];
+  const d0 = first.data();
+  if (!Array.isArray(d0.data)) return [];
+  const total = d0.totalChunks || 1;
+  const result = [...d0.data];
+  for (let i = 1; i < total; i++) {
+    const snap = await getDoc(doc(db, 'users', uid, 'tables', `${tableName}_${i}`));
+    if (snap.exists() && Array.isArray(snap.data().data)) result.push(...snap.data().data);
+  }
+  return result;
 }
 
 export async function cloudLoadAll(uid: string): Promise<Record<string, CloudRow>> {
   const result: Record<string, CloudRow> = {};
+  const now = new Date().toISOString();
   for (const table of TABLES) {
-    const snap = await getDoc(doc(db, 'users', uid, 'tables', table));
-    if (snap.exists()) {
-      const d = snap.data();
-      if (Array.isArray(d.data)) result[table] = { data: d.data, updatedAt: d.updatedAt || '' };
+    const data = await loadTable(uid, table);
+    if (data.length > 0 || table === 'config') {
+      const snap = await getDoc(doc(db, 'users', uid, 'tables', table));
+      const updatedAt = snap.exists() ? (snap.data().updatedAt || now) : now;
+      result[table] = { data, updatedAt };
     }
   }
   const counts = Object.fromEntries(Object.entries(result).map(([k,v]) => [k, v.data.length]));
@@ -90,12 +129,23 @@ export function cloudSubscribe(
   onChange: (tableName: string, data: any[]) => void
 ): CloudChannel {
   const tablesCol = collection(db, 'users', uid, 'tables');
+  const pending: Record<string, ReturnType<typeof setTimeout>> = {};
   return onSnapshot(tablesCol, (snapshot) => {
+    const changed = new Set<string>();
     snapshot.docChanges().forEach(change => {
       if (change.type === 'modified' || change.type === 'added') {
-        const d = change.doc.data();
-        if (Array.isArray(d.data)) onChange(change.doc.id, d.data);
+        // Merr emrin bazë (invoices_1 → invoices)
+        const base = change.doc.id.replace(/_\d+$/, '');
+        changed.add(base);
       }
+    });
+    // Bashko chunks para se të njoftojmë
+    changed.forEach(base => {
+      if (pending[base]) clearTimeout(pending[base]);
+      pending[base] = setTimeout(async () => {
+        const data = await loadTable(uid, base);
+        onChange(base, data);
+      }, 200);
     });
   });
 }
