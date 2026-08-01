@@ -2,6 +2,7 @@ const k = (userId: string, table: string) => `intal_${userId}_${table}`;
 
 let _lastLocalWrite = 0;
 export const getLastLocalWrite = () => _lastLocalWrite;
+export const touchNow = () => { _lastLocalWrite = Date.now(); };
 
 const touch = (userId: string) => {
   const now = new Date().toISOString();

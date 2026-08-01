@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
-import { local, getLastLocalWrite } from './utils/localDb';
+import { local, getLastLocalWrite, touchNow } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
@@ -126,6 +126,8 @@ const App: React.FC = () => {
     setStockEntries(stock);
     if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
     setDataReady(true);
+    // Blloko cloud nga mbishkrimi i të dhënave lokale për 30s pas ngarkimit
+    if (invs.length > 0 || cls.length > 0 || itms.length > 0) touchNow();
   }, []);
 
   // ─── Auth: ngarko sesionin ────────────────────────────────────────────────
@@ -416,8 +418,9 @@ const App: React.FC = () => {
         console.error('[sync] dështoi:', e);
         setSyncStatus('err');
       } finally {
-        // Çblloko pas 3s (koha që onSnapshot të marrë ndryshimet e plota)
-        setTimeout(() => { isApplyingRemote.current = false; }, 3000);
+        // Rifresko bllokimin PAS përfundimit të të gjitha shkrimeve
+        importLockUntil.current = Date.now() + 15000;
+        setTimeout(() => { isApplyingRemote.current = false; }, 5000);
       }
     }, 2000);
   }, [clients, items, invoices, stockEntries, config]); // eslint-disable-line
@@ -431,9 +434,9 @@ const App: React.FC = () => {
     // getLastLocalWrite() është SINKRON — vendoset menjëherë nga local.setAll()
     // pa pritur React render ose useEffect, duke eliminuar çdo dritare race
     const canApplyRemote = (): boolean => {
+      if (isApplyingRemote.current) return false;          // Desktop po shkruan tani
       if (Date.now() <= importLockUntil.current) return false;
       if (Date.now() - getLastLocalWrite() < 30000) return false;
-      // Mos mbishkruaj nëse ka ndryshime lokale pa sync ende
       if (pendingSync.current) return false;
       return true;
     };
@@ -484,12 +487,7 @@ const App: React.FC = () => {
       setTimeout(() => { isApplyingRemote.current = false; }, 0);
     });
 
-    // Polling fallback: çdo 5s — vetëm kur online dhe pa ndryshime lokale pending
-    const pollInterval = setInterval(() => {
-      if (navigator.onLine && !pendingSync.current) cloudLoadAll(uid).then(applyRemote);
-    }, 5000);
-
-    return () => { cloudUnsubscribe(cloudChannelRef.current); clearInterval(pollInterval); };
+    return () => { cloudUnsubscribe(cloudChannelRef.current); };
   }, [dataReady, session?.user?.id]); // eslint-disable-line
 
   // ─── Safety-net: nëse sesioni aktiv por nuk ka të dhëna, tërhiq nga Firestore ──
