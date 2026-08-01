@@ -80,7 +80,8 @@ export async function cloudLoadAll(uid: string): Promise<Record<string, CloudRow
       if (Array.isArray(d.data)) result[table] = { data: d.data, updatedAt: d.updatedAt || '' };
     }
   }
-  console.log('[cloudSync] loadAll result tables:', Object.keys(result));
+  const counts = Object.fromEntries(Object.entries(result).map(([k,v]) => [k, v.data.length]));
+  console.log('[cloudSync] loadAll uid:', uid, '| counts:', counts);
   return result;
 }
 
