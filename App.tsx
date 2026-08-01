@@ -1081,14 +1081,13 @@ const App: React.FC = () => {
                 }}
                 onCloudPush={async () => {
                   if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
-                  const cid = session.user.username.toLowerCase().trim();
-                  await Promise.all([
-                    cloudSave(cid, 'invoices',      local.getAll(uid, 'invoices')),
-                    cloudSave(cid, 'clients',       local.getAll(uid, 'clients')),
-                    cloudSave(cid, 'items',         local.getAll(uid, 'items')),
-                    cloudSave(cid, 'stock_entries', local.getAll(uid, 'stock_entries')),
-                    cloudSaveConfig(cid,            local.getConfig(uid)),
-                  ]);
+                  const fuid = session.user.id;
+                  // Përdor React state — ka TË GJITHA të dhënat e shfaqura tani
+                  await cloudSave(fuid, 'invoices',      invoices);
+                  await cloudSave(fuid, 'clients',       clients);
+                  await cloudSave(fuid, 'items',         items);
+                  await cloudSave(fuid, 'stock_entries', stockEntries);
+                  await cloudSaveConfig(fuid,            config);
                 }}
                 onImport={async (file) => {
                   try {
