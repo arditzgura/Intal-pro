@@ -354,7 +354,7 @@ const App: React.FC = () => {
         stock_entries: local.getAll(uid, 'stock_entries'),
         config:        local.getConfig(uid),
       };
-      localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot));
+      try { localStorage.setItem('intal_auto_backup', JSON.stringify(snapshot)); } catch {}
 
       if (CLOUD_ENABLED && session && !isGuest) {
         if (!navigator.onLine) { pendingSync.current = true; }
