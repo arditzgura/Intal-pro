@@ -39,6 +39,7 @@ export async function cloudRegister(username: string, password: string): Promise
 
 export async function cloudLogin(username: string, password: string): Promise<{ uid: string; username: string }> {
   const cred = await signInWithEmailAndPassword(auth, toEmail(username), password);
+  console.log('[cloudLogin] UID:', cred.user.uid, '| email:', cred.user.email);
   return { uid: cred.user.uid, username };
 }
 
