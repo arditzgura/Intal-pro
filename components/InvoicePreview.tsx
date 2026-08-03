@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
+import html2pdf from 'html2pdf.js';
 import { Invoice, Client, BusinessConfig } from '../types';
 import { X, Printer, FileCheck, Loader2, Star, Image as ImageIcon, Instagram, MapPin, Coins, Send, Pencil, Save, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -185,7 +187,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           outputType: 'blob',
         };
-        // @ts-ignore
         const pdfBlob: Blob = await html2pdf().set(opt).from(element).outputPdf('blob');
         const ab = await pdfBlob.arrayBuffer();
         await eAPI.savePdf(Array.from(new Uint8Array(ab)), fileName);
@@ -202,7 +203,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           }},
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         };
-        // @ts-ignore
         await html2pdf().set(opt).from(element).save();
       }
     } finally { setIsPdfExporting(false); }
@@ -265,7 +265,6 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     // Prit font-et të ngarkohen plotësisht
     await document.fonts.ready;
 
-    // @ts-ignore
     const canvas = await html2canvas(source, {
       scale: 2,
       useCORS: true,
