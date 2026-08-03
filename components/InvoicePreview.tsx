@@ -353,8 +353,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
         </div>
       </div>
 
-      <div ref={scaleWrapRef} className="mt-16 print:mt-0 w-full flex justify-center" onClick={e => e.stopPropagation()}>
-        <div style={{ zoom: invoiceZoom }} className="print:zoom-[1]">
+      <div ref={scaleWrapRef} className="mt-16 print:mt-0 w-full flex justify-center">
+        <div style={{ zoom: invoiceZoom }} className="print:zoom-[1]" onClick={e => e.stopPropagation()}>
         <div id="invoice-printable" className="bg-white shadow-2xl print:shadow-none flex flex-col" style={{ width: '210mm', minHeight: '297mm', padding: '10mm 15mm', position: 'relative', boxSizing: 'border-box', overflow: 'hidden' }}>
           
           {/* Watermark */}
