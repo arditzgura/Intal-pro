@@ -304,9 +304,9 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         <div className="bg-slate-900 rounded-[32px] p-8 text-white shadow-xl relative overflow-hidden border-b-8 border-[#D81B60]">
            <div className="absolute right-0 top-0 p-8 opacity-10"><ShoppingCart size={80} /></div>
            <div className="relative z-10">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Njësi të shitura ({filterMode === 'all' ? 'Gjithë Kohës' : 'Periudha'})</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Njësi të shitura ({filterMode === 'all' ? 'Gjithë Kohës' : 'Periudha'}){originFilter !== 'all' ? ` · ${originFilter}` : ''}</p>
               <div className="flex items-baseline gap-3">
-                 <p className="text-5xl font-black tracking-tighter">{itemStats.globalTotalUnitsSold.toLocaleString()}</p>
+                 <p className="text-5xl font-black tracking-tighter">{sortedAndFilteredItems.reduce((s, i) => s + (itemStats.salesStats[i.id] || 0), 0).toLocaleString()}</p>
                  <p className="text-xs font-black text-indigo-300 uppercase tracking-widest">Njësi</p>
               </div>
            </div>
@@ -315,9 +315,9 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm relative overflow-hidden border-b-8 border-slate-200">
            <div className="absolute right-0 top-0 p-8 opacity-5 text-slate-900"><Layers size={80} /></div>
            <div className="relative z-10">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Numri i artikujve (Zëra)</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Numri i artikujve (Zëra){originFilter !== 'all' ? ` · ${originFilter}` : ''}</p>
               <div className="flex items-baseline gap-3">
-                 <p className="text-5xl font-black text-slate-900 tracking-tighter">{items.length}</p>
+                 <p className="text-5xl font-black text-slate-900 tracking-tighter">{sortedAndFilteredItems.length}</p>
                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Artikuj unikë</p>
               </div>
            </div>
