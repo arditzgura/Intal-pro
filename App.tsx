@@ -432,9 +432,12 @@ const App: React.FC = () => {
     };
 
     // Startup: nëse localStorage bosh (pajisje e re) → ngarko nga Firestore
-    const localHasData = local.getAll(uid, 'invoices').length > 0
-                      || local.getAll(uid, 'clients').length > 0;
+    const localInvoices = local.getAll<any>(uid, 'invoices');
+    const localClients  = local.getAll<any>(uid, 'clients');
+    const localHasData  = localInvoices.length > 0 || localClients.length > 0;
+
     if (!localHasData) {
+      // Pajisje e re: merr nga Firestore
       cloudLoadAll(uid).then(remote => {
         applyingRemote.current = true;
         const r = (key: string) => remote[key]?.data;
@@ -445,6 +448,17 @@ const App: React.FC = () => {
         if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
         setTimeout(() => { applyingRemote.current = false; }, 0);
       });
+    } else {
+      // Ka të dhëna lokale → push menjëherë në Firestore (pa pritur debounce 2s)
+      // Kjo siguron që pajisjet e tjera marrin të dhënat sapo ky device hapet
+      const localItems  = local.getAll<any>(uid, 'items');
+      const localStock  = local.getAll<any>(uid, 'stock_entries');
+      const localConfig = local.getConfig(uid);
+      cloudSave(uid, 'invoices',      localInvoices).catch(() => {});
+      cloudSave(uid, 'clients',       localClients).catch(() => {});
+      if (localItems.length)  cloudSave(uid, 'items',         localItems).catch(() => {});
+      if (localStock.length)  cloudSave(uid, 'stock_entries', localStock).catch(() => {});
+      if (localConfig)        cloudSaveConfig(uid, localConfig).catch(() => {});
     }
 
     // Real-time: ndryshimet nga pajisja TJETËR (desktop-i filtron shkrimet e veta me DEVICE_ID)

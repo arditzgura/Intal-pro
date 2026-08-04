@@ -140,7 +140,14 @@ export function cloudSubscribe(
 ): CloudChannel {
   const tablesCol = collection(db, 'users', uid, 'tables');
   const pending: Record<string, ReturnType<typeof setTimeout>> = {};
+  // Snapshot i parë përmban TË GJITHA dokumentet si 'added' (gjendja aktuale e Firestore).
+  // E injorojmë — nuk duam të mbishkruajmë localStorage me të dhëna të vjetra.
+  // Vetëm ndryshimet PASUESE (nga pajisje të tjera) aplikohen.
+  let initialDone = false;
+
   return onSnapshot(tablesCol, (snapshot) => {
+    if (!initialDone) { initialDone = true; return; }
+
     const changed = new Set<string>();
     snapshot.docChanges().forEach(change => {
       if (change.type === 'modified' || change.type === 'added') {
