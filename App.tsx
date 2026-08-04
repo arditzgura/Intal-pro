@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
-import { local, getLastLocalWrite, touchNow } from './utils/localDb';
+import { local, touchNow } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
@@ -322,9 +322,8 @@ const App: React.FC = () => {
   }, [invoices]); // eslint-disable-line
 
   // ─── Auto-save: pasqyron çdo ndryshim state → localStorage menjëherë ───────
-  // Ndaj remote sync (setAllSilent) nga veprimet e përdoruesit (setAll+touch)
-  // Kjo garanton që asnjë veprim nuk humbet, edhe nëse handleri harron setAll()
-  const isApplyingRemote = useRef(false);
+  // Auto-save çdo ndryshim state → localStorage menjëherë (backup lokal)
+  const applyingRemote = useRef(false);
   useEffect(() => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
@@ -332,10 +331,8 @@ const App: React.FC = () => {
     local.setAllSilent(uid, 'clients',       clients);
     local.setAllSilent(uid, 'items',         items);
     local.setAllSilent(uid, 'stock_entries', stockEntries);
-    // Shëno sync si pending menjëherë kur ndryshon state nga veprimi i përdoruesit
-    // (jo kur aplikohet remote) — kjo mbron localStorage nga mbishkrim i cloud-it
-    if (!isApplyingRemote.current && CLOUD_ENABLED && !isGuest) {
-      // Mos vendos pendingSync=true kur të dhënat janë bosh (pajisje e re)
+    // Shëno pending VETËM kur ndryshimi vjen nga veprimi i përdoruesit (jo nga remote)
+    if (!applyingRemote.current && CLOUD_ENABLED && !isGuest) {
       if (invoices.length > 0 || clients.length > 0 || items.length > 0 || stockEntries.length > 0) {
         pendingSync.current = true;
       }
@@ -379,33 +376,28 @@ const App: React.FC = () => {
     };
   }, [session]); // eslint-disable-line
 
-  // ─── Auto-sync: çdo ndryshim → cloud pas 2s ──────────────────────────────
-  const syncTimer        = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudChannelRef  = useRef<CloudChannel>(null);
-  const importLockUntil  = useRef<number>(0);
-  const pendingSync      = useRef<boolean>(false);
-  const [isOnline,       setIsOnline]       = useState<boolean>(navigator.onLine);
-  const [syncStatus,     setSyncStatus]     = useState<'ok'|'pending'|'err'>('ok');
+  // ─── Auto-sync: çdo ndryshim state → cloud pas 2s ───────────────────────────
+  const syncTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudChannelRef = useRef<CloudChannel>(null);
+  const pendingSync     = useRef<boolean>(false);
+  const [isOnline,      setIsOnline]  = useState<boolean>(navigator.onLine);
+  const [syncStatus,    setSyncStatus] = useState<'ok'|'pending'|'err'>('ok');
 
   useEffect(() => {
     if (!session || !dataReady || isGuest || !CLOUD_ENABLED) return;
     const uid = session.user.id;
 
-    // Ruaj në localStorage
+    // Backup lokal i plotë
     try { localStorage.setItem('intal_auto_backup', JSON.stringify({
       savedAt: new Date().toISOString(), version: 1, user: session.user.username,
       invoices, clients, items, stock_entries: stockEntries, config,
     })); } catch {}
 
-    // Sync në cloud me debounce 2s
     setSyncStatus('pending');
     pendingSync.current = true;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       if (!navigator.onLine) { setSyncStatus('err'); return; }
-      // Blloko onSnapshot të desktop-it gjatë shkrimit
-      isApplyingRemote.current = true;
-      importLockUntil.current = Date.now() + 10000; // blloko 10s
       try {
         await cloudSave(uid, 'invoices',      invoices);
         await cloudSave(uid, 'clients',       clients);
@@ -417,75 +409,46 @@ const App: React.FC = () => {
       } catch(e) {
         console.error('[sync] dështoi:', e);
         setSyncStatus('err');
-      } finally {
-        // Rifresko bllokimin PAS përfundimit të të gjitha shkrimeve
-        importLockUntil.current = Date.now() + 15000;
-        setTimeout(() => { isApplyingRemote.current = false; }, 5000);
+        pendingSync.current = false;
       }
     }, 2000);
   }, [clients, items, invoices, stockEntries, config]); // eslint-disable-line
 
-  // ─── Cloud subscribe: merr ndryshimet në kohë reale (pajisje tjetër) ────────
+  // ─── Cloud subscribe: merr ndryshimet nga pajisje të tjera në kohë reale ────
   useEffect(() => {
     if (!session || !dataReady || !CLOUD_ENABLED || isGuest) return;
     const uid = session.user.id;
 
-    // Apliko të dhënat nga cloud VETËM nëse janë më të reja se localStorage
-    // getLastLocalWrite() është SINKRON — vendoset menjëherë nga local.setAll()
-    // pa pritur React render ose useEffect, duke eliminuar çdo dritare race
-    const canApplyRemote = (): boolean => {
-      if (isApplyingRemote.current) return false;          // Desktop po shkruan tani
-      if (Date.now() <= importLockUntil.current) return false;
-      if (Date.now() - getLastLocalWrite() < 30000) return false;
-      if (pendingSync.current) return false;
-      return true;
+    // Apliko nga Firestore VETËM nëse nuk ka ndryshime lokale pending
+    const applyFromFirestore = (tableName: string, data: any[]) => {
+      if (pendingSync.current) return; // Ka veprime lokale pa sync — mos mbishkruaj
+      applyingRemote.current = true;
+      if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
+      if (tableName === 'clients')       { setClients(data);      local.setAllSilent(uid,'clients',       data); }
+      if (tableName === 'items')         { setItems(data);        local.setAllSilent(uid,'items',         data); }
+      if (tableName === 'stock_entries') { setStockEntries(data); local.setAllSilent(uid,'stock_entries', data); }
+      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
+      setTimeout(() => { applyingRemote.current = false; }, 0);
     };
 
-    const applyRemote = (remote: Record<string, CloudRow>) => {
-      if (!canApplyRemote()) return;
-      isApplyingRemote.current = true;
-      const r = (key: string) => remote[key]?.data;
-      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
-      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
-      if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
-      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
-      if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
-      setTimeout(() => { isApplyingRemote.current = false; }, 0);
-    };
-
-    // ── Startup sync: local gjithmonë fiton ────────────────────────────────
-    // Nëse lokale ka të dhëna → shtyjmë LOCAL→CLOUD (jo anasjelltas).
-    // Vetëm kur lokale është bosh tërhiqemi nga cloud.
+    // Startup: nëse localStorage bosh (pajisje e re) → ngarko nga Firestore
     const localHasData = local.getAll(uid, 'invoices').length > 0
                       || local.getAll(uid, 'clients').length > 0;
-
-    // Startup: nëse localStorage është bosh (pajisje e re), apliko GJITHMONË nga Firestore
-    cloudLoadAll(uid).then(remote => {
-      if (!localHasData) {
-        isApplyingRemote.current = true;
+    if (!localHasData) {
+      cloudLoadAll(uid).then(remote => {
+        applyingRemote.current = true;
         const r = (key: string) => remote[key]?.data;
         if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
         if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
         if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
         if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
         if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
-        setTimeout(() => { isApplyingRemote.current = false; }, 0);
-      } else {
-        applyRemote(remote);
-      }
-    });
+        setTimeout(() => { applyingRemote.current = false; }, 0);
+      });
+    }
 
-    // Real-time: merr ndryshimet nga pajisja tjetër — vetëm kur pendingSync=false
-    cloudChannelRef.current = cloudSubscribe(uid, (tableName, data) => {
-      if (!canApplyRemote()) return;
-      isApplyingRemote.current = true;
-      if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
-      if (tableName === 'clients')       { setClients(data);      local.setAllSilent(uid,'clients',       data); }
-      if (tableName === 'items')         { setItems(data);        local.setAllSilent(uid,'items',         data); }
-      if (tableName === 'stock_entries') { setStockEntries(data); local.setAllSilent(uid,'stock_entries', data); }
-      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
-      setTimeout(() => { isApplyingRemote.current = false; }, 0);
-    });
+    // Real-time: ndryshimet nga pajisja TJETËR (desktop-i filtron shkrimet e veta me DEVICE_ID)
+    cloudChannelRef.current = cloudSubscribe(uid, applyFromFirestore);
 
     return () => { cloudUnsubscribe(cloudChannelRef.current); };
   }, [dataReady, session?.user?.id]); // eslint-disable-line
@@ -736,7 +699,7 @@ const App: React.FC = () => {
       return { ...inv, status };
     });
     const recalced = recalcClientStatuses(getInvClientKey(target), base);
-    importLockUntil.current = Date.now() + 10000;
+    
     setInvoices(recalced);
     local.setAll(uid, 'invoices', recalced);
   };
@@ -806,7 +769,7 @@ const App: React.FC = () => {
       ? invoices.map(inv => inv.id === final.id ? final : inv)
       : [final, ...invoices];
     const newInvoices = recalcClientStatuses(getInvClientKey(final), base);
-    importLockUntil.current = Date.now() + 10000;
+    
     setInvoices(newInvoices);
     local.setAll(uid, 'invoices', newInvoices);
 
@@ -1055,7 +1018,7 @@ const App: React.FC = () => {
                     const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
                     // Bllokon cloud override për 30 sekonda
-                    importLockUntil.current = Date.now() + 30000;
+                    
                     if (cl.length)  { setClients(cl);       local.setAll(uid, 'clients', cl); }
                     if (it.length)  { setItems(it);         local.setAll(uid, 'items', it); }
                     if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
@@ -1102,7 +1065,7 @@ const App: React.FC = () => {
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
                     if (!cl.length && !it.length && !inv.length) return false; // skedar i pavlefshëm
                     // Blloko cloud override 60 sekonda
-                    importLockUntil.current = Date.now() + 60000;
+                    
                     // Ruaj gjithmonë (edhe nëse lista bosh — rishkruaj)
                     setClients(cl);       local.setAll(uid, 'clients', cl);
                     setItems(it);         local.setAll(uid, 'items', it);

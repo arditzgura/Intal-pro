@@ -65,6 +65,9 @@ export function cloudOnAuthChange(callback: (user: { uid: string; username: stri
 const TABLES = ['invoices', 'clients', 'items', 'stock_entries', 'config'] as const;
 const CHUNK = 400;
 
+// ID unik për këtë pajisje/tab — filtroni shkrimet tuaja nga onSnapshot
+export const DEVICE_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
 // Shkruan chunks atomikisht me WriteBatch (max 500 ops/batch)
 export async function cloudSave(uid: string, tableName: string, data: any[]): Promise<void> {
   const now = new Date().toISOString();
@@ -93,6 +96,7 @@ export async function cloudSave(uid: string, tableName: string, data: any[]): Pr
       chunkIndex: i,
       totalChunks: chunks.length,
       updatedAt: now,
+      deviceId: DEVICE_ID,
     });
   }
   for (const docId of oldDocIds) {
@@ -140,6 +144,8 @@ export function cloudSubscribe(
     const changed = new Set<string>();
     snapshot.docChanges().forEach(change => {
       if (change.type === 'modified' || change.type === 'added') {
+        // Injorojmë shkrimet tona (nga ky tab/pajisje)
+        if (change.doc.data().deviceId === DEVICE_ID) return;
         // Merr emrin bazë (invoices_1 → invoices)
         const base = change.doc.id.replace(/_\d+$/, '');
         changed.add(base);
