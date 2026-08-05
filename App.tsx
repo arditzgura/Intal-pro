@@ -1040,13 +1040,12 @@ const App: React.FC = () => {
                     if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
                     // Push në cloud pa await (onRestoreAutoBackup nuk është async)
                     if (CLOUD_ENABLED) {
-                      const cid = session?.user.username.toLowerCase().trim() || uid;
                       Promise.all([
-                        cl.length  ? cloudSave(cid,'clients',cl)         : Promise.resolve(),
-                        it.length  ? cloudSave(cid,'items',it)           : Promise.resolve(),
-                        inv.length ? cloudSave(cid,'invoices',inv)       : Promise.resolve(),
-                        se.length  ? cloudSave(cid,'stock_entries',se)   : Promise.resolve(),
-                        cf         ? cloudSaveConfig(cid,cf)             : Promise.resolve(),
+                        cl.length  ? cloudSave(uid,'clients',cl)         : Promise.resolve(),
+                        it.length  ? cloudSave(uid,'items',it)           : Promise.resolve(),
+                        inv.length ? cloudSave(uid,'invoices',inv)       : Promise.resolve(),
+                        se.length  ? cloudSave(uid,'stock_entries',se)   : Promise.resolve(),
+                        cf         ? cloudSaveConfig(uid,cf)             : Promise.resolve(),
                       ]);
                     }
                     handleNavigate('dashboard');
@@ -1088,13 +1087,12 @@ const App: React.FC = () => {
                     if (cf) { setConfig(cf); local.setConfig(uid, cf); }
                     // Push await në cloud — sinkronizon para navigimit
                     if (CLOUD_ENABLED) {
-                      const cid = session?.user.username.toLowerCase().trim() || uid;
                       await Promise.all([
-                        cloudSave(cid,'clients',       cl),
-                        cloudSave(cid,'items',         it),
-                        cloudSave(cid,'invoices',      inv),
-                        cloudSave(cid,'stock_entries', se),
-                        cf ? cloudSaveConfig(cid,cf) : Promise.resolve(),
+                        cloudSave(uid,'clients',       cl),
+                        cloudSave(uid,'items',         it),
+                        cloudSave(uid,'invoices',      inv),
+                        cloudSave(uid,'stock_entries', se),
+                        cf ? cloudSaveConfig(uid,cf) : Promise.resolve(),
                       ]);
                     }
                     alert(`✅ Import u krye:\n📄 Faturat: ${inv.length} | 👥 Klientët: ${cl.length} | 📦 Artikujt: ${it.length} | 🏭 Fletëhyrjet: ${se.length}`);
