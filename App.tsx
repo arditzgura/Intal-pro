@@ -465,24 +465,19 @@ const App: React.FC = () => {
   }, [session?.user?.id, dataReady, invoices.length, clients.length]); // eslint-disable-line
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────
-  // Ref që gjithmonë mban gjendjen aktuale — shmang stale closure në useCallback
-  const latestDataRef = useRef({ invoices, clients, items, stockEntries, config, session });
-  useEffect(() => {
-    latestDataRef.current = { invoices, clients, items, stockEntries, config, session };
-  });
-
-  const doBackup = useCallback((isAuto = false) => {
-    const { invoices: inv, clients: cl, items: it, stockEntries: se, config: cfg, session: sess } = latestDataRef.current;
-    if (!sess) return;
+  // _doBackupFn rikrijohet çdo render — ka gjithmonë gjendjen e fundit në closure
+  const _doBackupFn = useRef<(isAuto?: boolean) => void>(null!);
+  _doBackupFn.current = (isAuto = false) => {
+    if (!session) return;
     const data = {
       exportedAt:    new Date().toISOString(),
       version:       2,
-      user:          sess.user.username,
-      invoices:      inv,
-      clients:       cl,
-      items:         it,
-      stock_entries: se,
-      config:        cfg,
+      user:          session.user.username,
+      invoices,
+      clients,
+      items,
+      stock_entries: stockEntries,
+      config,
     };
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
@@ -495,12 +490,14 @@ const App: React.FC = () => {
     localStorage.setItem('intal_last_backup', Date.now().toString());
     if (!isAuto) alert(
       `✅ Backup u ruajt: intal-backup-${date}.json\n\n` +
-      `📄 Faturat:     ${inv.length}\n` +
-      `👥 Klientët:   ${cl.length}\n` +
-      `📦 Artikujt:   ${it.length}\n` +
-      `🏭 Fletëhyrjet: ${se.length}`
+      `📄 Faturat:     ${invoices.length}\n` +
+      `👥 Klientët:   ${clients.length}\n` +
+      `📦 Artikujt:   ${items.length}\n` +
+      `🏭 Fletëhyrjet: ${stockEntries.length}`
     );
-  }, []); // eslint-disable-line — lexon nga ref, gjithmonë aktual
+  };
+  // doBackup ka referencë stabile (nuk shkakton re-render të SettingsPanel)
+  const doBackup = useCallback((isAuto = false) => _doBackupFn.current(isAuto), []);
 
   // Auto-backup çdo 24 orë kur hapet app-i
   useEffect(() => {
