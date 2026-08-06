@@ -12,7 +12,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 
-export const CLOUD_ENABLED = true;
+export const CLOUD_ENABLED = false;
 export const CLOUD_INIT_ERROR = '';
 
 export interface CloudRow { data: any[]; updatedAt: string; }

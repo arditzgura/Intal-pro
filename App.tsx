@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
-import { local, touchNow } from './utils/localDb';
+import { local, touchNow, preloadUserData } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
@@ -81,44 +81,16 @@ const App: React.FC = () => {
   const mainRef         = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
 
-  // ─── Ngarko të dhënat nga localStorage ──────────────────────────────────────
-  const loadAllData = useCallback((userId: string) => {
+  // ─── Ngarko të dhënat nga IndexedDB → memCache → state ──────────────────────
+  const loadAllData = useCallback(async (userId: string) => {
+    // Prit që IndexedDB të ngarkohet në memCache para leximeve sinkrone
+    await preloadUserData(userId);
+
     let invs  = local.getAll<Invoice>(userId, 'invoices');
     let cls   = local.getAll<Client>(userId, 'clients');
     let itms  = local.getAll<Item>(userId, 'items');
     let stock = local.getAll<StockEntry>(userId, 'stock_entries');
     let cfg   = local.getConfig(userId);
-
-    // Migrim: nëse nuk ka të dhëna nën userId aktual, kërko nën ID të tjera
-    // Siguria: nëse burimi është local-XXX, migro vetëm nëse është i vetmi user lokal
-    // (sesion i ri pas reinstalimit të PWA) — jo nga user tjetër
-    if (!invs.length) {
-      const registeredUsers: {id:string}[] = (() => { try { return JSON.parse(localStorage.getItem('intal_local_users')||'[]'); } catch{return[];} })();
-      const otherLocalIds = registeredUsers.filter((u:any) => u.id !== userId).map((u:any) => u.id);
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i) || '';
-        const m = key.match(/^intal_(.+)_invoices$/);
-        if (!m || m[1] === userId) continue;
-        const oldId = m[1];
-        // Blloko migrim nga ID-të e users të tjerë të regjistruar
-        if (otherLocalIds.includes(oldId)) continue;
-        const oldInvs = local.getAll<Invoice>(oldId, 'invoices');
-        if (oldInvs.length > 0) {
-          cls   = local.getAll<Client>(oldId, 'clients');
-          itms  = local.getAll<Item>(oldId, 'items');
-          invs  = oldInvs;
-          stock = local.getAll<StockEntry>(oldId, 'stock_entries');
-          cfg   = local.getConfig(oldId) ?? cfg;
-          local.setAll(userId, 'clients',       cls);
-          local.setAll(userId, 'items',         itms);
-          local.setAll(userId, 'invoices',      invs);
-          local.setAll(userId, 'stock_entries', stock);
-          if (cfg) local.setConfig(userId, cfg);
-          console.log(`[migrate] ${oldInvs.length} invoices nga ${oldId} → ${userId}`);
-          break;
-        }
-      }
-    }
 
     setClients(cls);
     setItems(itms);
@@ -126,7 +98,6 @@ const App: React.FC = () => {
     setStockEntries(stock);
     if (cfg) setConfig({ ...DEFAULT_CONFIG, ...cfg });
     setDataReady(true);
-    // Blloko cloud nga mbishkrimi i të dhënave lokale për 30s pas ngarkimit
     if (invs.length > 0 || cls.length > 0 || itms.length > 0) touchNow();
   }, []);
 
@@ -321,9 +292,9 @@ const App: React.FC = () => {
     }
   }, [invoices]); // eslint-disable-line
 
-  // ─── Auto-save: pasqyron çdo ndryshim state → localStorage menjëherë ───────
-  // Auto-save çdo ndryshim state → localStorage menjëherë (backup lokal)
+  // ─── Auto-save: pasqyron çdo ndryshim state → localStorage + auto-backup ────
   const applyingRemote = useRef(false);
+  const autoBackupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!session || !dataReady) return;
     const uid = session.user.id;
@@ -331,12 +302,21 @@ const App: React.FC = () => {
     local.setAllSilent(uid, 'clients',       clients);
     local.setAllSilent(uid, 'items',         items);
     local.setAllSilent(uid, 'stock_entries', stockEntries);
-    // Shëno pending VETËM kur ndryshimi vjen nga veprimi i përdoruesit (jo nga remote)
-    if (!applyingRemote.current && CLOUD_ENABLED && !isGuest) {
-      if (invoices.length > 0 || clients.length > 0 || items.length > 0 || stockEntries.length > 0) {
-        pendingSync.current = true;
-      }
-    }
+    // Auto-backup i plotë pas çdo veprimi (debounce 2s)
+    if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
+    autoBackupTimer.current = setTimeout(() => {
+      try {
+        const snap = JSON.stringify({
+          exportedAt: new Date().toISOString(),
+          version: 2,
+          user: session.user.username,
+          invoices, clients, items,
+          stock_entries: stockEntries,
+          config,
+        });
+        local.saveAutoBackup(snap);
+      } catch { /* localStorage plot — injorojmë */ }
+    }, 2000);
   }, [invoices, clients, items, stockEntries]); // eslint-disable-line
 
   // ─── Config auto-save ──────────────────────────────────────────────────────
@@ -485,18 +465,19 @@ const App: React.FC = () => {
   }, [session?.user?.id, dataReady, invoices.length, clients.length]); // eslint-disable-line
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────
+  // Ref që gjithmonë mban gjendjen aktuale — shmang stale closure në useCallback
+  const latestDataRef = useRef({ invoices, clients, items, stockEntries, config, session });
+  useEffect(() => {
+    latestDataRef.current = { invoices, clients, items, stockEntries, config, session };
+  });
+
   const doBackup = useCallback((isAuto = false) => {
-    if (!session) return;
-    const uid = session.user.id;
-    const inv = local.getAll(uid, 'invoices');
-    const cl  = local.getAll(uid, 'clients');
-    const it  = local.getAll(uid, 'items');
-    const se  = local.getAll(uid, 'stock_entries');
-    const cfg = local.getConfig(uid);
+    const { invoices: inv, clients: cl, items: it, stockEntries: se, config: cfg, session: sess } = latestDataRef.current;
+    if (!sess) return;
     const data = {
       exportedAt:    new Date().toISOString(),
       version:       2,
-      user:          session.user.username,
+      user:          sess.user.username,
       invoices:      inv,
       clients:       cl,
       items:         it,
@@ -514,12 +495,12 @@ const App: React.FC = () => {
     localStorage.setItem('intal_last_backup', Date.now().toString());
     if (!isAuto) alert(
       `✅ Backup u ruajt: intal-backup-${date}.json\n\n` +
-      `📄 Faturat:     ${(inv as any[]).length}\n` +
-      `👥 Klientët:   ${(cl  as any[]).length}\n` +
-      `📦 Artikujt:   ${(it  as any[]).length}\n` +
-      `🏭 Fletëhyrjet: ${(se  as any[]).length}`
+      `📄 Faturat:     ${inv.length}\n` +
+      `👥 Klientët:   ${cl.length}\n` +
+      `📦 Artikujt:   ${it.length}\n` +
+      `🏭 Fletëhyrjet: ${se.length}`
     );
-  }, [session]);
+  }, []); // eslint-disable-line — lexon nga ref, gjithmonë aktual
 
   // Auto-backup çdo 24 orë kur hapet app-i
   useEffect(() => {
@@ -1023,7 +1004,7 @@ const App: React.FC = () => {
                 onExport={() => doBackup(false)}
                 onRestoreAutoBackup={() => {
                   try {
-                    const raw = localStorage.getItem('intal_auto_backup');
+                    const raw = local.getAutoBackup();
                     if (!raw) return false;
                     const bk = JSON.parse(raw);
                     const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
@@ -1076,29 +1057,33 @@ const App: React.FC = () => {
                     const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries
                               : Array.isArray(bk.stockEntries)   ? bk.stockEntries  : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    if (!cl.length && !it.length && !inv.length) return false; // skedar i pavlefshëm
-                    // Blloko cloud override 60 sekonda
-                    
-                    // Ruaj gjithmonë (edhe nëse lista bosh — rishkruaj)
+                    if (!cl.length && !it.length && !inv.length) return false;
+
+                    // 1. Ruaj LOCAL menjëherë (gjithmonë sukses)
                     setClients(cl);       local.setAll(uid, 'clients', cl);
                     setItems(it);         local.setAll(uid, 'items', it);
                     setInvoices(inv);     local.setAll(uid, 'invoices', inv);
                     setStockEntries(se);  local.setAll(uid, 'stock_entries', se);
                     if (cf) { setConfig(cf); local.setConfig(uid, cf); }
-                    // Push await në cloud — sinkronizon para navigimit
+
+                    // 2. Push cloud — best-effort, nuk bllokon importin
                     if (CLOUD_ENABLED) {
-                      await Promise.all([
+                      Promise.all([
                         cloudSave(uid,'clients',       cl),
                         cloudSave(uid,'items',         it),
                         cloudSave(uid,'invoices',      inv),
                         cloudSave(uid,'stock_entries', se),
                         cf ? cloudSaveConfig(uid,cf) : Promise.resolve(),
-                      ]);
+                      ]).catch(e => console.warn('[import] cloud push failed (jo kritik):', e));
                     }
+
                     alert(`✅ Import u krye:\n📄 Faturat: ${inv.length} | 👥 Klientët: ${cl.length} | 📦 Artikujt: ${it.length} | 🏭 Fletëhyrjet: ${se.length}`);
                     handleNavigate('dashboard');
                     return true;
-                  } catch { return false; }
+                  } catch(e) {
+                    console.error('[import] error:', e);
+                    return false;
+                  }
                 }}
               />
             )}
