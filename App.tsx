@@ -795,72 +795,9 @@ const App: React.FC = () => {
   // Pa sesion → ekrani i login-it
   if (!session) return <AuthScreen onAuth={async (user) => {
     const uid = user.id;
-    if (uid !== 'guest') {
-      // Provo max 3 herë me 800ms ndërmjet
-      let remote: Record<string, any> = {};
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          remote = await cloudLoadAll(uid);
-          console.log(`[onAuth] attempt ${attempt} — keys:`, Object.keys(remote));
-          if (Object.keys(remote).length > 0) break; // u gjet diçka
-        } catch (e: any) {
-          console.error(`[onAuth] attempt ${attempt} error:`, e?.code, e?.message);
-        }
-        if (attempt < 3) await new Promise(r => setTimeout(r, 800));
-      }
-      const r = (key: string) => remote[key]?.data;
-      const remoteHasData = (r('invoices')?.length || 0) > 0 || (r('clients')?.length || 0) > 0;
-
-      if (remoteHasData) {
-        // Firestore ka të dhëna — ngarko
-        if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
-        if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
-        if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
-        if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
-        if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(uid, r('config')![0]); }
-        console.log('[onAuth] ngarkova nga Firestore — invoices:', r('invoices')?.length);
-      } else {
-        // Firestore bosh — kërko të dhëna lokale nga UID i vjetër dhe migro
-        console.log('[onAuth] Firestore bosh — duke kërkuar të dhëna lokale të vjetra...');
-        let migratedInvs: any[] = [], migratedCls: any[] = [], migratedItms: any[] = [],
-            migratedStock: any[] = [], migratedCfg: any = null, oldUid = '';
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i) || '';
-          const m = key.match(/^intal_(.+)_invoices$/);
-          if (!m || m[1] === uid) continue;
-          const candidate = local.getAll<any>(m[1], 'invoices');
-          if (candidate.length > migratedInvs.length) {
-            oldUid = m[1];
-            migratedInvs  = candidate;
-            migratedCls   = local.getAll<any>(oldUid, 'clients');
-            migratedItms  = local.getAll<any>(oldUid, 'items');
-            migratedStock = local.getAll<any>(oldUid, 'stock_entries');
-            migratedCfg   = local.getConfig(oldUid);
-          }
-        }
-        if (migratedInvs.length > 0) {
-          console.log('[onAuth] migrim nga UID i vjetër:', oldUid, '→', uid, '| invoices:', migratedInvs.length);
-          setInvoices(migratedInvs);       local.setAll(uid,'invoices',      migratedInvs);
-          setClients(migratedCls);         local.setAll(uid,'clients',       migratedCls);
-          setItems(migratedItms);          local.setAll(uid,'items',         migratedItms);
-          setStockEntries(migratedStock);  local.setAll(uid,'stock_entries', migratedStock);
-          if (migratedCfg) { setConfig(c => ({ ...c, ...migratedCfg })); local.setConfig(uid, migratedCfg); }
-          // Ruaj menjëherë në Firestore
-          try {
-            await cloudSave(uid, 'invoices',      migratedInvs);
-            await cloudSave(uid, 'clients',       migratedCls);
-            await cloudSave(uid, 'items',         migratedItms);
-            await cloudSave(uid, 'stock_entries', migratedStock);
-            if (migratedCfg) await cloudSaveConfig(uid, migratedCfg);
-            console.log('[onAuth] migrim i suksesshëm në Firestore!');
-          } catch(e) { console.warn('[onAuth] migrim Firestore dështoi:', e); }
-        } else {
-          console.log('[onAuth] asnjë të dhënë lokale të vjetra — llogari e re');
-        }
-      }
-    }
+    // Ngarko të dhënat nga IndexedDB (burimi i vetëm i të dhënave — cloud është çaktivizuar)
+    await loadAllData(uid);
     setSession({ user: { id: uid, username: user.username } });
-    setDataReady(true);
   }} />;
 
   // Me sesion por të dhënat nuk janë gati
