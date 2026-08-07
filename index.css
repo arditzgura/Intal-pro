@@ -11,27 +11,62 @@ body {
   color: #0f172a !important;
 }
 
-/* FORCO font-weight bold në të gjitha elementet */
+/* Font bold global */
 *, *::before, *::after {
-  font-weight: 700 !important;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* Vetëm ikonat dhe SVG-të të mos preken */
-svg, svg * { font-weight: normal !important; }
-
-/* Teksti gri i lehtë → shumë më i errët */
-.text-slate-300 { color: #475569 !important; }
-.text-slate-400 { color: #334155 !important; }
-.text-slate-500 { color: #1e293b !important; }
-.text-slate-600 { color: #0f172a !important; }
-.text-gray-300  { color: #475569 !important; }
-.text-gray-400  { color: #334155 !important; }
-.text-gray-500  { color: #1e293b !important; }
-
 /* Numrat — font-variant tabular për kolonat */
 td, .tabular { font-variant-numeric: tabular-nums; }
+
+/* ── CONTENT AREA (sfond i bardhë/gri i lehtë) ──────────────────────────
+   Synon vetëm elementet brenda kontejnerëve të bardhë/të çelët,
+   NUK prek sidebar-in e errët apo login screen-in.                    */
+
+/* Gri i lehtë → gri i errët / i zi */
+.bg-white .text-slate-300,
+.bg-slate-50 .text-slate-300,
+.bg-gray-50 .text-slate-300  { color: #334155 !important; }
+
+.bg-white .text-slate-400,
+.bg-slate-50 .text-slate-400,
+.bg-gray-50 .text-slate-400,
+.bg-white .text-gray-400,
+.bg-slate-50 .text-gray-400  { color: #1e293b !important; }
+
+.bg-white .text-slate-500,
+.bg-slate-50 .text-slate-500,
+.bg-gray-50 .text-slate-500,
+.bg-white .text-gray-500,
+.bg-slate-50 .text-gray-500  { color: #0f172a !important; }
+
+/* Jeshile e lehtë → jeshile e fortë (brenda content area) */
+.bg-white .text-green-400,
+.bg-white .text-green-500,
+.bg-slate-50 .text-green-400,
+.bg-slate-50 .text-green-500,
+.bg-white .text-emerald-400,
+.bg-white .text-emerald-500  { color: #15803d !important; }
+
+/* E kuqe e lehtë → e kuqe e fortë */
+.bg-white .text-red-400,
+.bg-white .text-red-500,
+.bg-slate-50 .text-red-400,
+.bg-slate-50 .text-red-500,
+.bg-white .text-rose-400,
+.bg-white .text-rose-500      { color: #b91c1c !important; }
+
+/* Amber/portokalli e lehtë → e fortë */
+.bg-white .text-amber-400,
+.bg-white .text-amber-500,
+.bg-slate-50 .text-amber-400  { color: #b45309 !important; }
+
+/* Tabelat — rreshtat alternativë dhe teksti */
+tr.bg-white td,
+tr.bg-slate-50 td,
+td.text-slate-500,
+td.text-slate-600              { color: #0f172a !important; }
 
 .roll-only { display: none !important; }
 
