@@ -2,7 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+html { color-scheme: light only; }
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #0f172a;
+}
+
+/* Forco ngjyrat — parandalon Chrome nga "zbehja" e tyre */
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Teksti gri i lehte → i errët */
+.text-slate-400 { color: #475569 !important; }
+.text-slate-500 { color: #334155 !important; }
+.text-slate-600 { color: #1e293b !important; }
+.text-gray-400  { color: #475569 !important; }
+.text-gray-500  { color: #334155 !important; }
+
+/* Të gjitha inputet dhe tekstet — font bold */
+input, select, textarea, button, td, th, p, span, div, h1, h2, h3, h4, h5, h6, label {
+  font-weight: inherit;
+}
+
+/* Numrat — font-variant tabular për kolonat */
+.tabular-nums, td { font-variant-numeric: tabular-nums; }
 
 .roll-only { display: none !important; }
 
