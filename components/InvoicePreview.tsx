@@ -604,51 +604,46 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           <div className="roll-only" style={{ width: '100%', padding: '0', color: '#000', fontFamily: 'Inter, sans-serif' }}>
 
              <div style={{ textAlign: 'center', marginBottom: '2px' }}>
-                <h2 style={{ fontSize: '18pt', margin: '0', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{business.name}</h2>
-                <div style={{ fontSize: '10pt', margin: '2px 0', lineHeight: '1.1' }}>{business.address}</div>
-                <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>Tel: {business.phone}</div>
-                {business.website && <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>{business.website}</div>}
+                <h2 style={{ fontSize: '17pt', margin: '0', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{business.name}</h2>
+                <div style={{ fontSize: '9pt', margin: '2px 0', lineHeight: '1.1' }}>{business.address}</div>
+                <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>Tel: {business.phone}</div>
+                {business.website && <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{business.website}</div>}
              </div>
-             
+
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
-             
-             <div style={{ fontSize: '11pt', marginBottom: '1px', display: 'flex', justifyContent: 'space-between' }}>
+
+             <div style={{ fontSize: '10pt', marginBottom: '1px', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 'bold' }}>FATURË NR:</span>
                 <span style={{ fontWeight: 'bold' }}>#{invoice.invoiceNumber}</span>
              </div>
-             <div style={{ fontSize: '11pt', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+             <div style={{ fontSize: '10pt', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
                 <span>DATA:</span>
                 <span>{formatDate(invoice.date)}</span>
              </div>
-             
-             {/* Kuadrat i vetëm për Klientin dhe Pikët: Emri dhe Qyteti paralel brenda tij */}
+
              <div style={{ display: 'flex', border: '2px solid #000', marginBottom: '4px', overflow: 'hidden' }}>
-                {/* Majtas: Klienti (Emri BOLD dhe Qyteti në krah me të njëjtën madhësi pa bold) */}
                 <div style={{ flex: '2.5', padding: '5px', display: 'flex', flexDirection: 'column', borderRight: '2px solid #000' }}>
-                    <span style={{ fontSize: '8pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>KLIENTI</span>
+                    <span style={{ fontSize: '7pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>KLIENTI</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap' }}>
-                       <span style={{ fontSize: '12pt', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{invoice.clientName}</span>
-                       <span style={{ fontSize: '12pt', fontWeight: 'normal', textTransform: 'uppercase', opacity: 0.85 }}>({displayCity})</span>
+                       <span style={{ fontSize: '11pt', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1' }}>{invoice.clientName}</span>
+                       <span style={{ fontSize: '11pt', fontWeight: 'normal', textTransform: 'uppercase', opacity: 0.85 }}>({displayCity})</span>
                     </div>
                 </div>
-                
-                {/* Djathtas: Pikët - vetëm për klientë të regjistruar */}
                 {client && invoice.clientId !== 'manual' && (
                 <div style={{ flex: '1', padding: '5px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', background: '#f8f8f8' }}>
-                    <span style={{ fontSize: '8pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>PIKËT</span>
-                    <span style={{ fontSize: '16pt', fontWeight: '900', lineHeight: '1' }}>{client.points || 0}</span>
+                    <span style={{ fontSize: '7pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>PIKËT</span>
+                    <span style={{ fontSize: '15pt', fontWeight: '900', lineHeight: '1' }}>{client.points || 0}</span>
                 </div>
                 )}
              </div>
-             
+
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
-             
-             {/* Lista e Artikujve 80mm - Hapësira minimale dhe +2pt shkrim */}
+
              <div style={{ marginBottom: '4px' }}>
                 {invoice.items.map((item, i) => (
                   <div key={i} style={{ marginBottom: '2px', borderBottom: '0.2px solid #eee' }}>
-                    <div style={{ fontSize: '12.5pt', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: '1' }}>{item.name}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5pt', paddingLeft: '2px', marginTop: '1px' }}>
+                    <div style={{ fontSize: '11.5pt', fontWeight: 'bold', textTransform: 'uppercase', lineHeight: '1' }}>{item.name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5pt', paddingLeft: '2px', marginTop: '1px' }}>
                       <span>{item.quantity} x {item.originalPrice && item.originalPrice !== item.price
                         ? <><StrikePrice orig={item.originalPrice!} curr="" style={{ marginRight:'2px', opacity:0.7 }} /><strong>{item.price.toLocaleString()}</strong></>
                         : item.price.toLocaleString()
@@ -658,43 +653,41 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                   </div>
                 ))}
              </div>
-             
+
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
-             
-             {/* Totali 80mm - +2pt shkrim */}
+
              <div style={{ lineHeight: '1.3' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
                    <span>NËNTOTALI:</span>
                    <span>{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span>
                 </div>
                 {invoice.previousBalance !== 0 && (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
                       <span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || 'GJENDJA'}:</span>
                       <span>{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span>
                    </div>
                 )}
                 {invoice.amountPaid !== 0 && (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11pt' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
                       <span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || 'PAGUAR'}:</span>
                       <span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
                    </div>
                 )}
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '16pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
-                  <span style={{ fontSize: '12pt' }}>{isSurplus ? 'TEPRICA:' : 'TOTALI:'}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '15pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
+                  <span style={{ fontSize: '11pt' }}>{isSurplus ? 'TEPRICA:' : 'TOTALI:'}</span>
                   <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
                 </div>
              </div>
 
-             {/* Statusi i Pageses ne fund - +2pt shkrim */}
+             {/* Statusi — gjithmonë shfaqet në fund */}
              <div style={{ marginTop: '8px', textAlign: 'center', border: '2px solid #000', padding: '4px' }}>
-                <span style={{ fontSize: '13pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                   STATUSI: {invoice.status === 'E paguar' ? 'PAGUAR' : 'PA PAGUAR'}
+                <span style={{ fontSize: '12pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                   STATUSI: {invoice.status === 'E paguar' ? '✓ PAGUAR' : '✗ PA PAGUAR'}
                 </span>
              </div>
 
              {invoice.notes && (
-               <div style={{ marginTop: '6px', fontSize: '10pt', fontStyle: 'italic', border: '1px dashed #ccc', padding: '3px', lineHeight: '1.1' }}>
+               <div style={{ marginTop: '6px', fontSize: '9pt', fontStyle: 'italic', border: '1px dashed #ccc', padding: '3px', lineHeight: '1.1' }}>
                   <strong>SHËNIME:</strong> {invoice.notes}
                </div>
              )}
@@ -704,8 +697,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                    <img src={business.qrCodeUrl} alt="QR Code" style={{ maxWidth: '30mm', height: 'auto', margin: '0 auto', display: 'block', filter: 'grayscale(100%)' }} />
                 </div>
              )}
-             
-             <div style={{ textAlign: 'center', fontSize: '10pt', fontWeight: 'bold', marginTop: '10px', borderTop: '1px dashed #000', paddingTop: '6px' }}>
+
+             <div style={{ textAlign: 'center', fontSize: '9pt', fontWeight: 'bold', marginTop: '10px', borderTop: '1px dashed #000', paddingTop: '6px' }}>
                 FALEMINDERIT! JU MIRËPRESIM PËRSËRI!
              </div>
           </div>

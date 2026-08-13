@@ -13,6 +13,14 @@ body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparen
 @media print {
     .print\:hidden { display: none !important; }
     body { background: white; margin: 0; padding: 0; }
+
+    /* 80mm: lejo faturën të printojë deri në fund pa prerje */
+    .format-80mm #invoice-printable {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+    }
     #invoice-printable { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm !important; box-sizing: border-box; display: block !important; }
     .format-80mm #invoice-printable { width: 76mm !important; min-height: auto !important; padding: 2mm 2mm !important; margin: 0 !important; border: none !important; box-shadow: none !important; display: block !important; font-family: 'Inter', sans-serif !important; font-size: 10pt !important; }
     .format-80mm .roll-hide { display: none !important; }
