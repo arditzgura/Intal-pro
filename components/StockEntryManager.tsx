@@ -169,33 +169,28 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
             </div>
           </div>
 
-          {/* Filter furnitorët - dropdown custom */}
+          {/* Filter furnitorët */}
           {availableOrigins.length >= 1 && (
-            <div className="pt-2" ref={originDropdownRef}>
-              <div className="relative inline-block min-w-[220px]">
-                <button onClick={() => setOriginDropdownOpen(o => !o)}
-                  className="w-full flex items-center gap-2 pl-4 pr-3 py-3 bg-white/10 border border-white/20 rounded-xl text-[10px] font-black uppercase text-white hover:bg-white/20 transition-colors">
-                  <Warehouse size={14} className="text-indigo-300 shrink-0" />
-                  <span className="flex-1 text-left">
-                    {originFilter === 'all' ? 'Të gjithë furnitorët' : originFilter}
-                  </span>
-                  <svg className={`w-3 h-3 text-indigo-300 transition-transform ${originDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                {originDropdownOpen && (
-                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-                    <button onClick={() => { setOriginFilter('all'); setOriginDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${originFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
-                      Të gjithë furnitorët
-                    </button>
-                    {availableOrigins.map(o => (
-                      <button key={o} onClick={() => { setOriginFilter(o); setOriginDropdownOpen(false); }}
-                        className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2 ${originFilter === o ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Filter size={11}/> Furnitori:</span>
+              <button
+                onClick={() => setOriginFilter('all')}
+                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all ${originFilter === 'all' ? 'bg-white text-slate-900 shadow-md' : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}
+              >
+                Të Gjithë
+              </button>
+              {availableOrigins.map(o => {
+                const isMag = o === 'MAGAZINA QENDRORE';
+                const isActive = originFilter === o;
+                const cnt = entries.filter(e => e.origin.toUpperCase() === o && (filterMode === 'month' ? e.date.slice(0,7) === selectedMonth : e.date.slice(0,4) === selectedYear)).length;
+                return (
+                  <button key={o} onClick={() => setOriginFilter(isActive ? 'MAGAZINA QENDRORE' : o)}
+                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all flex items-center gap-2 ${isActive ? (isMag ? 'bg-indigo-600 text-white shadow-md' : 'bg-amber-500 text-white shadow-md') : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}
+                  >
+                    <Warehouse size={11}/> {o} <span className="opacity-60">({cnt})</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
