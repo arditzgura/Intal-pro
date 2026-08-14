@@ -32,6 +32,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const [sortBy, setSortBy] = useState<SortOption>('alphabetical');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [cityFilter, setCityFilter] = useState<string>('all');
+  const [debtFilter, setDebtFilter] = useState<'all' | 'with_debt' | 'no_debt'>('all');
   
   const [formData, setFormData] = useState<Omit<Client, 'id'>>({
     name: '',
@@ -168,7 +169,9 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
       const q = normalize(search.trim());
       const matchesSearch = normalize(c.name).includes(q) || (c.city && normalize(c.city).includes(q));
       const matchesCity = cityFilter === 'all' || c.city === cityFilter;
-      return matchesSearch && matchesCity;
+      const debt = clientFinancials[c.id]?.debt ?? 0;
+      const matchesDebt = debtFilter === 'all' || (debtFilter === 'with_debt' ? debt > 0 : debt <= 0);
+      return matchesSearch && matchesCity && matchesDebt;
     });
 
     if (sortBy === 'alphabetical') {
@@ -179,9 +182,9 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
       if (sortBy === 'highest_debt') result.sort((a, b) => (clientFinancials[b.id].debt   - clientFinancials[a.id].debt)   * dir);
       if (sortBy === 'profit')       result.sort((a, b) => (clientFinancials[b.id].profit - clientFinancials[a.id].profit) * dir);
     }
-    
+
     return result;
-  }, [clients, search, sortBy, cityFilter, clientFinancials]);
+  }, [clients, search, sortBy, sortDir, cityFilter, debtFilter, clientFinancials]);
 
   return (
     <div className="space-y-6">
@@ -216,13 +219,13 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
                 {uniqueCities.map(city => <option key={city} value={city}>{city}</option>)}
               </select>
             </div>
-            <div className="relative">
-              <SortAsc className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)} className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[10px] font-black uppercase appearance-none">
-                <option value="alphabetical">Rendit: A-Z</option>
-                <option value="most_billed">Më i faturuari</option>
-                <option value="highest_debt">Detyrim më i lartë</option>
-              </select>
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-black uppercase">
+              {([['all','Të gjithë'],['with_debt','Me detyrim'],['no_debt','Pa detyrim']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setDebtFilter(val)}
+                  className={`flex-1 py-3 px-2 transition-colors ${debtFilter === val ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
