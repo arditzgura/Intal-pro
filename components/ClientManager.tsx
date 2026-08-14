@@ -172,7 +172,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
     });
 
     if (sortBy === 'alphabetical') {
-      result.sort((a, b) => a.name.localeCompare(b.name));
+      result.sort((a, b) => sortDir === 'asc' ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
     } else {
       const dir = sortDir === 'desc' ? 1 : -1;
       if (sortBy === 'most_billed')  result.sort((a, b) => (clientFinancials[b.id].spent  - clientFinancials[a.id].spent)  * dir);
@@ -285,7 +285,12 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
           <table className="w-full text-left min-w-[800px]">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
               <tr>
-                <th className="px-8 py-5">Informacioni i Klientit</th>
+                <th className="px-8 py-5 cursor-pointer select-none hover:text-indigo-500 transition-colors"
+                  onClick={() => { if (sortBy === 'alphabetical') setSortDir(d => d==='desc'?'asc':'desc'); else { setSortBy('alphabetical'); setSortDir('desc'); } }}>
+                  <span className="flex items-center gap-1">
+                    Informacioni i Klientit {sortBy === 'alphabetical' ? (sortDir==='desc'?'↓ A-Z':'↑ Z-A') : <span className="opacity-30">A-Z</span>}
+                  </span>
+                </th>
                 {([['profit','Fitimi','emerald'],['most_billed','Totali Blerjeve','slate'],['highest_debt','Detyrimi','slate']] as const).map(([col, label, color]) => {
                   const active = sortBy === col;
                   return (
