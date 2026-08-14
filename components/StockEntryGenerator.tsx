@@ -244,7 +244,7 @@ const StockEntryGenerator: React.FC<Props> = ({ items, invoices, stockEntries = 
           </div>
           {showOriginDropdown && (
             <div className="absolute top-full left-0 right-0 bg-white border-2 border-indigo-500 rounded-2xl shadow-2xl z-50 overflow-hidden mt-1">
-              {knownOrigins.filter(o => o.includes(origin.toUpperCase()) || origin === '').map(o => (
+              {knownOrigins.map(o => (
                 <button key={o} type="button"
                   onMouseDown={() => { setOrigin(o); setShowOriginDropdown(false); }}
                   className={`w-full text-left px-5 py-3 text-sm font-black uppercase tracking-wide transition-all border-b border-slate-50 last:border-none hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-3 ${o === 'MAGAZINA QENDRORE' ? 'text-indigo-600' : 'text-slate-700'}`}
