@@ -33,6 +33,8 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [debtFilter, setDebtFilter] = useState<'all' | 'with_debt' | 'no_debt'>('all');
+  const [debtDropdownOpen, setDebtDropdownOpen] = useState(false);
+  const debtDropdownRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState<Omit<Client, 'id'>>({
     name: '',
@@ -45,6 +47,16 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
 
   const [stagedItemPrices, setStagedItemPrices] = useState<Record<string, number>>({});
   
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (debtDropdownRef.current && !debtDropdownRef.current.contains(e.target as Node)) {
+        setDebtDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   useEffect(() => {
     if (editingId) {
       const initialPrices: Record<string, number> = {};
@@ -219,13 +231,25 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
                 {uniqueCities.map(city => <option key={city} value={city}>{city}</option>)}
               </select>
             </div>
-            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-black uppercase">
-              {([['all','Të gjithë'],['with_debt','Me detyrim'],['no_debt','Pa detyrim']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => setDebtFilter(val)}
-                  className={`flex-1 py-3 px-2 transition-colors ${debtFilter === val ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
-                  {label}
-                </button>
-              ))}
+            <div className="relative" ref={debtDropdownRef}>
+              <button onClick={() => setDebtDropdownOpen(o => !o)}
+                className="w-full flex items-center gap-2 pl-4 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-700 hover:border-indigo-300 transition-colors">
+                <Filter size={14} className="text-slate-400 shrink-0" />
+                <span className="flex-1 text-left">
+                  {debtFilter === 'all' ? 'Të gjithë klientët' : debtFilter === 'with_debt' ? 'Me detyrim' : 'Pa detyrim'}
+                </span>
+                <svg className={`w-3 h-3 text-slate-400 transition-transform ${debtDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {debtDropdownOpen && (
+                <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                  {([['all','Të gjithë klientët'],['with_debt','Me detyrim'],['no_debt','Pa detyrim']] as const).map(([val, label]) => (
+                    <button key={val} onClick={() => { setDebtFilter(val); setDebtDropdownOpen(false); }}
+                      className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${debtFilter === val ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
