@@ -12,7 +12,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 
-export const CLOUD_ENABLED = false;
+export const CLOUD_ENABLED = true;
 export const CLOUD_INIT_ERROR = '';
 
 export interface CloudRow { data: any[]; updatedAt: string; }
@@ -188,6 +188,15 @@ export async function cloudDeleteUser(uid: string, username: string): Promise<vo
     await deleteDoc(doc(db, 'users', uid, 'tables', table));
   }
   await deleteDoc(doc(db, 'users', uid, 'profile', 'data'));
+}
+
+// ─── Pastrim total i të dhënave cloud për një user ────────────────────────────
+export async function cloudClearAll(uid: string): Promise<void> {
+  const tablesCol = collection(db, 'users', uid, 'tables');
+  const snap = await getDocs(tablesCol);
+  const batch = writeBatch(db);
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
 }
 
 // Aliases

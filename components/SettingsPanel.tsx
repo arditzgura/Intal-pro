@@ -54,6 +54,7 @@ interface Props {
   onRestoreAutoBackup: () => boolean;
   onQRSync: () => void;
   onCloudPush?: () => Promise<void>;
+  onCloudReset?: () => Promise<void>;
 }
 
 const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
@@ -309,31 +310,32 @@ const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; o
   );
 };
 
-const CloudPushButton: React.FC<{ onCloudPush: () => Promise<void> }> = ({ onCloudPush }) => {
+const CloudPushButton: React.FC<{ onCloudPush: () => Promise<void>; label?: string; sublabel?: string; color?: 'emerald'|'amber' }> = ({ onCloudPush, label = 'Dërgo në Cloud', sublabel = 'Shtyp për të sinkronizuar', color = 'emerald' }) => {
   const [status, setStatus] = useState<'idle'|'loading'|'ok'|'err'>('idle');
   const handle = useCallback(async () => {
     setStatus('loading');
     try { await onCloudPush(); setStatus('ok'); } catch { setStatus('err'); }
     setTimeout(() => setStatus('idle'), 3000);
   }, [onCloudPush]);
+  const c = color === 'amber' ? 'amber' : 'emerald';
   return (
     <button onClick={handle} disabled={status === 'loading'}
-      className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-emerald-700/40 hover:bg-slate-700 transition-all group disabled:opacity-60"
+      className={`flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-${c}-700/40 hover:bg-slate-700 transition-all group disabled:opacity-60`}
     >
-      <span className="text-emerald-400 text-2xl group-hover:scale-110 transition-transform">
+      <span className={`text-${c}-400 text-2xl group-hover:scale-110 transition-transform`}>
         {status === 'loading' ? '⏳' : status === 'ok' ? '✓' : status === 'err' ? '✗' : '☁'}
       </span>
       <div className="text-center">
-        <span className={`block font-bold ${status === 'ok' ? 'text-emerald-300' : status === 'err' ? 'text-rose-300' : 'text-emerald-300'}`}>
-          {status === 'loading' ? 'Duke dërguar...' : status === 'ok' ? 'U dërgua!' : status === 'err' ? 'Dështoi' : 'Dërgo në Cloud'}
+        <span className={`block font-bold ${status === 'ok' ? `text-${c}-300` : status === 'err' ? 'text-rose-300' : `text-${c}-300`}`}>
+          {status === 'loading' ? 'Duke punuar...' : status === 'ok' ? '✓ U krye!' : status === 'err' ? '✗ Dështoi' : label}
         </span>
-        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Shtyp për të sinkronizuar</span>
+        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{sublabel}</span>
       </div>
     </button>
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync, onCloudPush }) => {
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync, onCloudPush, onCloudReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -597,6 +599,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
 
 
                {onCloudPush && <CloudPushButton onCloudPush={onCloudPush} />}
+               {onCloudReset && <CloudPushButton onCloudPush={onCloudReset} label="Rifresko Sync Cloud" sublabel="Pastro & ringjesh të dhënat" color="amber" />}
 
                <input
                  type="file"

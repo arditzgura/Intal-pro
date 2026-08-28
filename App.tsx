@@ -26,7 +26,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local, touchNow, preloadUserData, electronLoadAll } from './utils/localDb';
 import { fsApiSupported, loadSavedFileHandle, pickSaveFile, clearFileHandle, hasFileHandle, writeToFile } from './utils/fileSync';
-import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
+import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, cloudClearAll, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
 
@@ -1021,15 +1021,23 @@ const App: React.FC = () => {
                 onCloudPush={async () => {
                   if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
                   const fuid = session.user.id;
-                  try {
-                    await cloudSave(fuid, 'invoices',      invoices);
-                    await cloudSave(fuid, 'clients',       clients);
-                    await cloudSave(fuid, 'items',         items);
-                    await cloudSave(fuid, 'stock_entries', stockEntries);
-                    await cloudSaveConfig(fuid,            config);
-                  } catch(e: any) {
-                    throw e;
-                  }
+                  await cloudSave(fuid, 'invoices',      invoices);
+                  await cloudSave(fuid, 'clients',       clients);
+                  await cloudSave(fuid, 'items',         items);
+                  await cloudSave(fuid, 'stock_entries', stockEntries);
+                  await cloudSaveConfig(fuid,            config);
+                }}
+                onCloudReset={async () => {
+                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
+                  const fuid = session.user.id;
+                  // 1. Fshi TË GJITHA të dhënat e vjetra nga Firestore
+                  await cloudClearAll(fuid);
+                  // 2. Ringjesh me të dhënat lokale të fundit (lokali gjithmonë fiton)
+                  await cloudSave(fuid, 'invoices',      invoices);
+                  await cloudSave(fuid, 'clients',       clients);
+                  await cloudSave(fuid, 'items',         items);
+                  await cloudSave(fuid, 'stock_entries', stockEntries);
+                  await cloudSaveConfig(fuid,            config);
                 }}
                 onImport={async (file) => {
                   try {
