@@ -337,7 +337,7 @@ const CloudPushButton: React.FC<{ onCloudPush: () => Promise<void>; label?: stri
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync, onCloudPush, onCloudReset }) => {
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync, onCloudPush, onCloudReset, onCloudPull }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
