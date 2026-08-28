@@ -25,6 +25,7 @@ import {
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local, touchNow, preloadUserData, electronLoadAll } from './utils/localDb';
+import { fsApiSupported, loadSavedFileHandle, pickSaveFile, clearFileHandle, hasFileHandle, writeToFile } from './utils/fileSync';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
@@ -79,6 +80,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [saveIndicator, setSaveIndicator] = useState<'saving'|'saved'|'idle'>('idle');
   const saveIndicatorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fileSyncActive, setFileSyncActive] = useState(false);
 
   const mainRef         = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
@@ -89,6 +91,9 @@ const App: React.FC = () => {
     await electronLoadAll();
     // Prit që IDB/localStorage të ngarkohet në memCache para leximeve sinkrone
     await preloadUserData(userId);
+    // File System Access: rikthe lidhjen me skedarin e zgjedhur
+    const ok = await loadSavedFileHandle();
+    setFileSyncActive(ok);
 
     let invs  = local.getAll<Invoice>(userId, 'invoices');
     let cls   = local.getAll<Client>(userId, 'clients');
@@ -323,6 +328,8 @@ const App: React.FC = () => {
           config,
         });
         local.saveAutoBackup(snap);
+        // Shkruaj automatikisht në skedarin e zgjedhur (nëse është konfiguruar)
+        if (hasFileHandle()) writeToFile(snap);
       } catch { /* localStorage plot — injorojmë */ }
       setSaveIndicator('saved');
       saveIndicatorTimer.current = setTimeout(() => setSaveIndicator('idle'), 2500);
@@ -908,6 +915,23 @@ const App: React.FC = () => {
                     <><span>✓</span> U ruajt</>
                   )}
                 </div>
+              )}
+              {fsApiSupported && (
+                fileSyncActive ? (
+                  <button
+                    onClick={async () => { await clearFileHandle(); setFileSyncActive(false); }}
+                    title="Backup automatik aktiv — klik për ta çaktivizuar"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest hover:bg-emerald-100">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"/>  Auto-Ruajtje ON
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => { const ok = await pickSaveFile(); setFileSyncActive(ok); }}
+                    title="Aktivizo ruajtjen automatike në skedar"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 border border-transparent hover:border-emerald-300 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest">
+                    <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"/> Auto-Ruajtje
+                  </button>
+                )
               )}
               <button onClick={() => doBackup(false)} title="Eksporto Backup JSON"
                 className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest border border-transparent hover:border-blue-200">
