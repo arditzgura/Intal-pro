@@ -1064,15 +1064,16 @@ const App: React.FC = () => {
                 onImport={async (file) => {
                   try {
                     const text = await file.text();
-                    const bk = JSON.parse(text);
-                    if (!bk || typeof bk !== 'object') return false;
+                    let bk: any;
+                    try { bk = JSON.parse(text); } catch { throw new Error('JSON i pavlefshëm'); }
+                    if (!bk || typeof bk !== 'object' || Array.isArray(bk)) throw new Error('Format i gabuar');
                     const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
                     const it  = Array.isArray(bk.items)          ? bk.items         : [];
                     const inv = Array.isArray(bk.invoices)       ? bk.invoices      : [];
                     const se  = Array.isArray(bk.stock_entries)  ? bk.stock_entries
                               : Array.isArray(bk.stockEntries)   ? bk.stockEntries  : [];
                     const cf  = bk.config && typeof bk.config === 'object' ? { ...DEFAULT_CONFIG, ...bk.config } : null;
-                    if (!cl.length && !it.length && !inv.length) return false;
+                    if (!cl.length && !it.length && !inv.length) throw new Error(`Skedar bosh (çelësat: ${Object.keys(bk).join(', ')})`);
 
                     // 1. Ruaj LOCAL menjëherë (gjithmonë sukses)
                     setClients(cl);       local.setAll(uid, 'clients', cl);
