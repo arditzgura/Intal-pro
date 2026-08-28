@@ -61,26 +61,31 @@ export async function preloadUserData(userId: string): Promise<void> {
   const tables = ['invoices','clients','items','stock_entries','config','last_modified'];
   await Promise.all(tables.map(async t => {
     const key = cacheKey(userId, t);
-    const val = await idbGet(key);
-    if (val !== null) memCache[key] = val;
-    // Migro nga localStorage nëse ekziston ende aty
-    else {
-      const ls = localStorage.getItem(key);
-      if (ls) {
-        memCache[key] = ls;
-        await idbSet(key, ls).catch(() => {});
-        localStorage.removeItem(key);
-      }
+    const idbVal = await idbGet(key);
+    const lsVal  = localStorage.getItem(key);
+
+    if (idbVal !== null) {
+      // IDB ka të dhëna — prefero IDB (më i ri nga sinkronimi i fundit)
+      memCache[key] = idbVal;
+      // Nëse localStorage mungon ose ka të vjetër, rifresko atë
+      if (!lsVal) try { localStorage.setItem(key, idbVal); } catch { /* */ }
+    } else if (lsVal !== null) {
+      // IDB bosh — ngarkojmë nga localStorage dhe shkruajmë në IDB
+      memCache[key] = lsVal;
+      await idbSet(key, lsVal).catch(() => {});
+      // Mbaje localStorage si backup — mos e fshi
     }
   }));
 
-  // Migro intal_auto_backup nga localStorage → IDB nëse ekziston
+  // Auto-backup: ngarko nga IDB ose localStorage
   const abKey = 'intal_auto_backup';
+  const abIdb = await idbGet(abKey);
   const abLs  = localStorage.getItem(abKey);
-  if (abLs) {
+  if (abIdb !== null) {
+    memCache[abKey] = abIdb;
+  } else if (abLs !== null) {
     memCache[abKey] = abLs;
     await idbSet(abKey, abLs).catch(() => {});
-    localStorage.removeItem(abKey);
   }
 }
 
@@ -100,11 +105,15 @@ const touch = (userId: string) => {
 
 function syncSet(key: string, value: string): void {
   memCache[key] = value;
+  // localStorage si backup sinkron i shpejtë (fallback nëse IDB dështon)
+  try { localStorage.setItem(key, value); } catch { /* quota exceeded — ok, IDB e mban */ }
+  // IDB si storage kryesor (kapacitet i pakufizuar)
   idbSet(key, value).catch(e => console.warn('[localDb] IDB write error:', key, e));
 }
 
 function syncDel(key: string): void {
   delete memCache[key];
+  try { localStorage.removeItem(key); } catch { /* */ }
   idbDel(key).catch(() => {});
 }
 
@@ -160,6 +169,7 @@ export const local = {
   // Ruaj auto-backup të plotë (thirrur nga App.tsx)
   saveAutoBackup: (data: string): void => {
     memCache['intal_auto_backup'] = data;
+    try { localStorage.setItem('intal_auto_backup', data); } catch { /* quota */ }
     idbSet('intal_auto_backup', data).catch(e => console.warn('[localDb] auto-backup write error:', e));
   },
 
