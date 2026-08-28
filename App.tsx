@@ -1063,9 +1063,13 @@ const App: React.FC = () => {
                 }}
                 onImport={async (file) => {
                   try {
-                    const text = await file.text();
+                    const raw = await file.text();
+                    // Hiq BOM dhe hapësira të tepërta
+                    const text = raw.replace(/^﻿/, '').trim();
                     let bk: any;
-                    try { bk = JSON.parse(text); } catch { throw new Error('JSON i pavlefshëm'); }
+                    try { bk = JSON.parse(text); } catch (je: any) {
+                      throw new Error(`JSON gabim: ${je.message} | Fillimi: ${text.slice(0,80)}`);
+                    }
                     if (!bk || typeof bk !== 'object' || Array.isArray(bk)) throw new Error('Format i gabuar');
                     const cl  = Array.isArray(bk.clients)       ? bk.clients       : [];
                     const it  = Array.isArray(bk.items)          ? bk.items         : [];
