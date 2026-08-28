@@ -1096,9 +1096,9 @@ const App: React.FC = () => {
                     alert(`✅ Import u krye:\n📄 Faturat: ${inv.length} | 👥 Klientët: ${cl.length} | 📦 Artikujt: ${it.length} | 🏭 Fletëhyrjet: ${se.length}`);
                     handleNavigate('dashboard');
                     return true;
-                  } catch(e) {
+                  } catch(e: any) {
                     console.error('[import] error:', e);
-                    return false;
+                    throw e;
                   }
                 }}
               />
