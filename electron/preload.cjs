@@ -6,4 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePdf:         (buffer, fileName) => ipcRenderer.invoke('save-pdf',        { buffer, fileName }),
   printWithDialog: (options)          => ipcRenderer.invoke('print-with-dialog', options),
   getPrinters:     ()                 => ipcRenderer.invoke('get-printers'),
+  // File-based data persistence
+  dbRead:  ()     => ipcRenderer.invoke('db-read'),
+  dbWrite: (json) => ipcRenderer.invoke('db-write', json),
+  dbPath:  ()     => ipcRenderer.invoke('db-path'),
 });

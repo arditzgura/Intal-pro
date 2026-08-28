@@ -120,6 +120,31 @@ ipcMain.handle('get-printers', async () => {
   return mainWindow.webContents.getPrintersAsync();
 });
 
+// ─── IPC: File-based data persistence ────────────────────────────────────────
+const DATA_FILE = path.join(app.getPath('userData'), 'intal-data.json');
+
+ipcMain.handle('db-read', async () => {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return null;
+    return fs.readFileSync(DATA_FILE, 'utf8');
+  } catch (e) {
+    console.error('[db-read] error:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('db-write', async (_event, json) => {
+  try {
+    fs.writeFileSync(DATA_FILE, json, 'utf8');
+    return { ok: true };
+  } catch (e) {
+    console.error('[db-write] error:', e);
+    return { ok: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('db-path', async () => DATA_FILE);
+
 // Hiq menunë e Electron-it (File, Edit, View, etj.)
 Menu.setApplicationMenu(null);
 

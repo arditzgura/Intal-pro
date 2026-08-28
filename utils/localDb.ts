@@ -1,6 +1,38 @@
-// ─── IndexedDB store (zëvendëson localStorage për të dhëna kryesore) ─────────
-// localStorage mbushet lehtë me 2000+ fatura. IndexedDB ka limit praktikisht të
-// pakufizuar (qindra MB). API-ja mbetet e njëjtë për pjesën tjetër të kodit.
+// ─── Storage: Electron (skedar JSON) → IndexedDB → localStorage ───────────────
+// Renditja e prioritetit: Electron file > IDB > localStorage
+
+// Detektor Electron
+const eAPI = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+const IS_ELECTRON = !!(eAPI?.dbRead && eAPI?.dbWrite);
+
+// ─── Electron file store ──────────────────────────────────────────────────────
+// Lexon/shkruan një skedar JSON të vetëm në %APPDATA%\INTAL PRO\intal-data.json
+let _fileCache: Record<string, string> = {};   // cache RAM për reads sinkronë
+let _fileDirty = false;
+let _fileWriteTimer: ReturnType<typeof setTimeout> | null = null;
+
+function electronWrite(): void {
+  if (!IS_ELECTRON) return;
+  if (_fileWriteTimer) clearTimeout(_fileWriteTimer);
+  _fileWriteTimer = setTimeout(() => {
+    eAPI.dbWrite(JSON.stringify(_fileCache)).catch((e: any) =>
+      console.warn('[electron] dbWrite error:', e)
+    );
+    _fileDirty = false;
+  }, 300); // debounce 300ms
+}
+
+export async function electronLoadAll(): Promise<void> {
+  if (!IS_ELECTRON) return;
+  try {
+    const raw = await eAPI.dbRead();
+    if (raw) _fileCache = JSON.parse(raw);
+  } catch (e) {
+    console.warn('[electron] dbRead error:', e);
+  }
+}
+
+// ─── IndexedDB store ──────────────────────────────────────────────────────────
 
 const DB_NAME = 'intal_db';
 const DB_VER  = 1;
@@ -58,6 +90,17 @@ function cacheKey(userId: string, table: string) {
 
 // Ngarko të gjitha të dhënat e një userId nga IDB → memCache (thirrur gjatë login)
 export async function preloadUserData(userId: string): Promise<void> {
+  if (IS_ELECTRON) {
+    // Electron: ngarko nga skedari JSON (tashmë i ngarkuar nga electronLoadAll)
+    const tables = ['invoices','clients','items','stock_entries','config','last_modified','intal_auto_backup'];
+    for (const t of tables) {
+      const key = t === 'intal_auto_backup' ? t : cacheKey(userId, t);
+      if (_fileCache[key] !== undefined) memCache[key] = _fileCache[key];
+    }
+    return;
+  }
+
+  // Web: IDB → localStorage fallback
   const tables = ['invoices','clients','items','stock_entries','config','last_modified'];
   await Promise.all(tables.map(async t => {
     const key = cacheKey(userId, t);
@@ -65,19 +108,15 @@ export async function preloadUserData(userId: string): Promise<void> {
     const lsVal  = localStorage.getItem(key);
 
     if (idbVal !== null) {
-      // IDB ka të dhëna — prefero IDB (më i ri nga sinkronimi i fundit)
       memCache[key] = idbVal;
-      // Nëse localStorage mungon ose ka të vjetër, rifresko atë
       if (!lsVal) try { localStorage.setItem(key, idbVal); } catch { /* */ }
     } else if (lsVal !== null) {
-      // IDB bosh — ngarkojmë nga localStorage dhe shkruajmë në IDB
       memCache[key] = lsVal;
       await idbSet(key, lsVal).catch(() => {});
-      // Mbaje localStorage si backup — mos e fshi
     }
   }));
 
-  // Auto-backup: ngarko nga IDB ose localStorage
+  // Auto-backup
   const abKey = 'intal_auto_backup';
   const abIdb = await idbGet(abKey);
   const abLs  = localStorage.getItem(abKey);
@@ -105,16 +144,26 @@ const touch = (userId: string) => {
 
 function syncSet(key: string, value: string): void {
   memCache[key] = value;
-  // localStorage si backup sinkron i shpejtë (fallback nëse IDB dështon)
-  try { localStorage.setItem(key, value); } catch { /* quota exceeded — ok, IDB e mban */ }
-  // IDB si storage kryesor (kapacitet i pakufizuar)
-  idbSet(key, value).catch(e => console.warn('[localDb] IDB write error:', key, e));
+  if (IS_ELECTRON) {
+    // Electron: shkruaj në skedarin JSON
+    _fileCache[key] = value;
+    electronWrite();
+  } else {
+    // Web: localStorage backup sinkron + IDB kryesor
+    try { localStorage.setItem(key, value); } catch { /* quota */ }
+    idbSet(key, value).catch(e => console.warn('[localDb] IDB write error:', key, e));
+  }
 }
 
 function syncDel(key: string): void {
   delete memCache[key];
-  try { localStorage.removeItem(key); } catch { /* */ }
-  idbDel(key).catch(() => {});
+  if (IS_ELECTRON) {
+    delete _fileCache[key];
+    electronWrite();
+  } else {
+    try { localStorage.removeItem(key); } catch { /* */ }
+    idbDel(key).catch(() => {});
+  }
 }
 
 export const local = {
@@ -169,8 +218,13 @@ export const local = {
   // Ruaj auto-backup të plotë (thirrur nga App.tsx)
   saveAutoBackup: (data: string): void => {
     memCache['intal_auto_backup'] = data;
-    try { localStorage.setItem('intal_auto_backup', data); } catch { /* quota */ }
-    idbSet('intal_auto_backup', data).catch(e => console.warn('[localDb] auto-backup write error:', e));
+    if (IS_ELECTRON) {
+      _fileCache['intal_auto_backup'] = data;
+      electronWrite();
+    } else {
+      try { localStorage.setItem('intal_auto_backup', data); } catch { /* quota */ }
+      idbSet('intal_auto_backup', data).catch(e => console.warn('[localDb] auto-backup write error:', e));
+    }
   },
 
   getAutoBackup: (): string | null => {

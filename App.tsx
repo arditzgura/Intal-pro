@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
-import { local, touchNow, preloadUserData } from './utils/localDb';
+import { local, touchNow, preloadUserData, electronLoadAll } from './utils/localDb';
 import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, CLOUD_ENABLED } from './utils/cloudSync';
 import type { CloudRow, CloudChannel } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
@@ -77,13 +77,17 @@ const App: React.FC = () => {
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
   const [selectedProfileItem,   setSelectedProfileItem]   = useState<Item | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [saveIndicator, setSaveIndicator] = useState<'saving'|'saved'|'idle'>('idle');
+  const saveIndicatorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mainRef         = useRef<HTMLDivElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
 
   // ─── Ngarko të dhënat nga IndexedDB → memCache → state ──────────────────────
   const loadAllData = useCallback(async (userId: string) => {
-    // Prit që IndexedDB të ngarkohet në memCache para leximeve sinkrone
+    // Electron: ngarko skedarin JSON para çdo gjëje tjetër
+    await electronLoadAll();
+    // Prit që IDB/localStorage të ngarkohet në memCache para leximeve sinkrone
     await preloadUserData(userId);
 
     let invs  = local.getAll<Invoice>(userId, 'invoices');
@@ -302,6 +306,10 @@ const App: React.FC = () => {
     local.setAllSilent(uid, 'clients',       clients);
     local.setAllSilent(uid, 'items',         items);
     local.setAllSilent(uid, 'stock_entries', stockEntries);
+    // Trego "Duke ruajtur..." menjëherë
+    setSaveIndicator('saving');
+    if (saveIndicatorTimer.current) clearTimeout(saveIndicatorTimer.current);
+
     // Auto-backup i plotë pas çdo veprimi (debounce 2s)
     if (autoBackupTimer.current) clearTimeout(autoBackupTimer.current);
     autoBackupTimer.current = setTimeout(() => {
@@ -316,6 +324,8 @@ const App: React.FC = () => {
         });
         local.saveAutoBackup(snap);
       } catch { /* localStorage plot — injorojmë */ }
+      setSaveIndicator('saved');
+      saveIndicatorTimer.current = setTimeout(() => setSaveIndicator('idle'), 2500);
     }, 2000);
   }, [invoices, clients, items, stockEntries]); // eslint-disable-line
 
@@ -889,6 +899,16 @@ const App: React.FC = () => {
               </div>
             )}
             <div className="hidden lg:flex items-center gap-3">
+              {/* Treguesi i ruajtjes automatike */}
+              {saveIndicator !== 'idle' && (
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${saveIndicator === 'saved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                  {saveIndicator === 'saving' ? (
+                    <><Loader2 size={11} className="animate-spin"/> Duke ruajtur...</>
+                  ) : (
+                    <><span>✓</span> U ruajt</>
+                  )}
+                </div>
+              )}
               <button onClick={() => doBackup(false)} title="Eksporto Backup JSON"
                 className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest border border-transparent hover:border-blue-200">
                 <Download size={14}/> Backup
