@@ -433,30 +433,40 @@ const App: React.FC = () => {
     const localClients  = local.getAll<any>(uid, 'clients');
     const localHasData  = localInvoices.length > 0 || localClients.length > 0;
 
-    if (!localHasData) {
-      // Pajisje e re: merr nga Firestore
-      cloudLoadAll(uid).then(remote => {
+    // Startup: krahaso timestamp lokal vs cloud — fiton i reja
+    cloudLoadAll(uid).then(remote => {
+      const r = (key: string) => remote[key]?.data;
+      const remoteHasData = (r('invoices')?.length || 0) > 0 || (r('clients')?.length || 0) > 0;
+      const localModified  = local.getLastModified(uid); // ISO string
+      const remoteModified = remote['invoices']?.updatedAt || remote['clients']?.updatedAt || '1970-01-01T00:00:00.000Z';
+      const cloudIsNewer   = remoteHasData && remoteModified > localModified;
+
+      if (!localHasData || cloudIsNewer) {
+        // Pajisje e re ose cloud ka të dhëna më të reja → pull nga Firestore
+        console.log('[sync] cloud është më i ri ose lokal bosh — duke tërhequr nga cloud');
         applyingRemote.current = true;
-        const r = (key: string) => remote[key]?.data;
         if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
         if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
         if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
         if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
         if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
         setTimeout(() => { applyingRemote.current = false; }, 0);
-      });
-    } else {
-      // Ka të dhëna lokale → push menjëherë në Firestore (pa pritur debounce 2s)
-      // Kjo siguron që pajisjet e tjera marrin të dhënat sapo ky device hapet
-      const localItems  = local.getAll<any>(uid, 'items');
-      const localStock  = local.getAll<any>(uid, 'stock_entries');
-      const localConfig = local.getConfig(uid);
-      cloudSave(uid, 'invoices',      localInvoices).catch(() => {});
-      cloudSave(uid, 'clients',       localClients).catch(() => {});
-      if (localItems.length)  cloudSave(uid, 'items',         localItems).catch(() => {});
-      if (localStock.length)  cloudSave(uid, 'stock_entries', localStock).catch(() => {});
-      if (localConfig)        cloudSaveConfig(uid, localConfig).catch(() => {});
-    }
+      } else {
+        // Lokali është më i ri (ose cloud bosh) → push në Firestore
+        console.log('[sync] lokali është më i ri — duke ngarkuar në cloud');
+        const localItems  = local.getAll<any>(uid, 'items');
+        const localStock  = local.getAll<any>(uid, 'stock_entries');
+        const localConfig = local.getConfig(uid);
+        cloudSave(uid, 'invoices',      localInvoices).catch(() => {});
+        cloudSave(uid, 'clients',       localClients).catch(() => {});
+        if (localItems.length)  cloudSave(uid, 'items',         localItems).catch(() => {});
+        if (localStock.length)  cloudSave(uid, 'stock_entries', localStock).catch(() => {});
+        if (localConfig)        cloudSaveConfig(uid, localConfig).catch(() => {});
+      }
+    }).catch(() => {
+      // Firebase jo i disponueshëm — vazhdo me të dhënat lokale
+      console.warn('[sync] cloudLoadAll dështoi — po përdor të dhënat lokale');
+    });
 
     // Real-time: ndryshimet nga pajisja TJETËR (desktop-i filtron shkrimet e veta me DEVICE_ID)
     cloudChannelRef.current = cloudSubscribe(uid, applyFromFirestore);
