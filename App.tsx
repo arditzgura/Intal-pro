@@ -20,7 +20,7 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {error: strin
 }
 import {
   LayoutDashboard, FileText, Users, Package, PlusCircle,
-  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield, WifiOff, Wifi
+  Menu, Settings, X as CloseIcon, Warehouse, ArrowLeft, LogOut, Loader2, Shield, WifiOff, Wifi, Download
 } from 'lucide-react';
 import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } from './types';
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
@@ -479,14 +479,17 @@ const App: React.FC = () => {
       stock_entries: stockEntries,
       config,
     };
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     const date = new Date().toLocaleDateString('en-CA');
     a.href     = url;
     a.download = `intal-backup-${date}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     localStorage.setItem('intal_last_backup', Date.now().toString());
     if (!isAuto) alert(
       `✅ Backup u ruajt: intal-backup-${date}.json\n\n` +
@@ -886,6 +889,10 @@ const App: React.FC = () => {
               </div>
             )}
             <div className="hidden lg:flex items-center gap-3">
+              <button onClick={() => doBackup(false)} title="Eksporto Backup JSON"
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest border border-transparent hover:border-blue-200">
+                <Download size={14}/> Backup
+              </button>
               <div className="text-right">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">I kyçur si</p>
                 <p className="text-sm font-black text-slate-800 uppercase tracking-tighter">{username}</p>
