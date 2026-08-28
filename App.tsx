@@ -396,15 +396,26 @@ const App: React.FC = () => {
     syncTimer.current = setTimeout(async () => {
       if (!navigator.onLine) { setSyncStatus('err'); return; }
       try {
-        await cloudSave(uid, 'invoices',      invoices);
-        await cloudSave(uid, 'clients',       clients);
-        await cloudSave(uid, 'items',         items);
-        await cloudSave(uid, 'stock_entries', stockEntries);
-        await cloudSaveConfig(uid,            config);
+        const tables: [string, any[]][] = [
+          ['invoices', invoices],
+          ['clients', clients],
+          ['items', items],
+          ['stock_entries', stockEntries],
+        ];
+        for (const [name, data] of tables) {
+          try {
+            await cloudSave(uid, name, data);
+            console.log(`[sync] ✓ ${name}: ${data.length} rekorde`);
+          } catch(e: any) {
+            console.error(`[sync] ✗ ${name} (${data.length} rekorde): ${e?.message || e}`);
+            throw new Error(`${name}: ${e?.message || e}`);
+          }
+        }
+        await cloudSaveConfig(uid, config);
         pendingSync.current = false;
         setSyncStatus('ok');
-      } catch(e) {
-        console.error('[sync] dështoi:', e);
+      } catch(e: any) {
+        console.error('[sync] dështoi:', e?.message || e);
         setSyncStatus('err');
         pendingSync.current = false;
       }
