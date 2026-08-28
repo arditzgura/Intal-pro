@@ -1037,12 +1037,24 @@ const App: React.FC = () => {
                   await cloudSave(fuid, 'stock_entries', stockEntries);
                   await cloudSaveConfig(fuid,            config);
                 }}
+                onCloudPull={async () => {
+                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
+                  const fuid = session.user.id;
+                  const remote = await cloudLoadAll(fuid);
+                  const r = (key: string) => remote[key]?.data;
+                  if (!r('invoices')?.length && !r('clients')?.length) throw new Error('Cloud bosh');
+                  applyingRemote.current = true;
+                  if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(fuid,'invoices',      r('invoices')!); }
+                  if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(fuid,'clients',       r('clients')!); }
+                  if (r('items')?.length)         { setItems(r('items')!);                local.setAll(fuid,'items',         r('items')!); }
+                  if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(fuid,'stock_entries', r('stock_entries')!); }
+                  if (r('config')?.[0])           { setConfig(c => ({...DEFAULT_CONFIG,...r('config')![0]})); local.setConfig(fuid, r('config')![0]); }
+                  setTimeout(() => { applyingRemote.current = false; }, 0);
+                }}
                 onCloudReset={async () => {
                   if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
                   const fuid = session.user.id;
-                  // 1. Fshi TË GJITHA të dhënat e vjetra nga Firestore
                   await cloudClearAll(fuid);
-                  // 2. Ringjesh me të dhënat lokale të fundit (lokali gjithmonë fiton)
                   await cloudSave(fuid, 'invoices',      invoices);
                   await cloudSave(fuid, 'clients',       clients);
                   await cloudSave(fuid, 'items',         items);

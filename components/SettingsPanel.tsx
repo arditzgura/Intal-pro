@@ -56,6 +56,7 @@ interface Props {
   onQRSync: () => void;
   onCloudPush?: () => Promise<void>;
   onCloudReset?: () => Promise<void>;
+  onCloudPull?: () => Promise<void>;
 }
 
 const LiveInvoicePaper: React.FC<{ invoice: Invoice; business: BusinessConfig; onUpdate?: (c: BusinessConfig) => void }> = ({ invoice, business, onUpdate }) => {
@@ -600,6 +601,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
 
 
                {onCloudPush && <CloudPushButton onCloudPush={onCloudPush} />}
+               {onCloudPull && <CloudPushButton onCloudPush={onCloudPull} label="Merr nga Cloud" sublabel="Zëvendëso lokalen me cloud" color="amber" />}
                {onCloudReset && <CloudPushButton onCloudPush={onCloudReset} label="Rifresko Sync Cloud" sublabel="Pastro & ringjesh të dhënat" color="amber" />}
 
                <input
