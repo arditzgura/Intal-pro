@@ -2,6 +2,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { BusinessConfig, Invoice } from '../types';
 import { Save, Download, Upload, Info, Building2, Phone, Mail, Globe, MapPin, Tag, ImageIcon, Trash2, FileText, Play, X, Layers, Printer } from 'lucide-react';
+import { local } from '../utils/localDb';
 
 const SAMPLE_INVOICE: Invoice = {
   id: 'sample',
@@ -592,7 +593,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                   <div className="text-center">
                     <span className="block font-bold text-amber-300">Rikthe nga Auto-Backup</span>
                     <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">
-                      {(() => { try { const b = localStorage.getItem('intal_auto_backup'); if (!b) return 'Nuk ka backup'; const d = JSON.parse(b); return 'Ruajtur: ' + new Date(d.savedAt).toLocaleString('sq-AL'); } catch { return 'Nuk ka backup'; } })()}
+                      {(() => { try { const b = local.getAutoBackup(); if (!b) return 'Nuk ka backup'; const d = JSON.parse(b); const ts = d.savedAt || d.date || d.timestamp; if (!ts) return 'Nuk ka backup'; const dt = new Date(ts); if (isNaN(dt.getTime())) return 'Nuk ka backup'; return 'Ruajtur: ' + dt.toLocaleString('sq-AL'); } catch { return 'Nuk ka backup'; } })()}
                     </span>
                   </div>
                </button>
