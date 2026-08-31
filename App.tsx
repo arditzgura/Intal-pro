@@ -323,6 +323,7 @@ const App: React.FC = () => {
   }, [config]); // eslint-disable-line
 
   // ─── Online / Offline detektor ───────────────────────────────────────────
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   useEffect(() => {
     const handleOnline  = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
