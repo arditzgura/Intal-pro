@@ -26,8 +26,7 @@ import { Client, Item, Invoice, StockEntry, View, BusinessConfig, InvoiceItem } 
 import { clearData, STORAGE_KEYS, normalize } from './utils/storage';
 import { local, touchNow, preloadUserData, electronLoadAll } from './utils/localDb';
 import { fsApiSupported, loadSavedFileHandle, pickSaveFile, clearFileHandle, hasFileHandle, writeToFile } from './utils/fileSync';
-import { cloudSave, cloudSaveConfig, cloudLoadAll, cloudSubscribe, cloudUnsubscribe, cloudLogout, cloudOnAuthChange, cloudClearAll, CLOUD_ENABLED } from './utils/cloudSync';
-import type { CloudRow, CloudChannel } from './utils/cloudSync';
+import { cloudLogout, cloudOnAuthChange } from './utils/cloudSync';
 import { getLocalSession, clearLocalSession, setLocalSession, GUEST_USER } from './components/AuthScreen';
 
 import Dashboard       from './components/Dashboard';
@@ -139,41 +138,19 @@ const App: React.FC = () => {
         const newSession = { id: firebaseUid, username: cached?.username || username };
         setLocalSession(newSession);
 
-        // Ngarko nga Firestore
-        let remote: Record<string, any> = {};
-        try { remote = await cloudLoadAll(firebaseUid); } catch {}
-        const r = (k: string) => remote[k]?.data;
-        const remoteHasData = (r('invoices')?.length || 0) > 0 || (r('clients')?.length || 0) > 0;
-
-        if (remoteHasData) {
-          if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(firebaseUid,'invoices',      r('invoices')!); }
-          if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(firebaseUid,'clients',       r('clients')!); }
-          if (r('items')?.length)         { setItems(r('items')!);                local.setAll(firebaseUid,'items',         r('items')!); }
-          if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(firebaseUid,'stock_entries', r('stock_entries')!); }
-          if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(firebaseUid, r('config')![0]); }
-          console.log('[auth] ngarkova nga Firestore:', r('invoices')?.length, 'fatura');
-        } else if (cached?.id) {
-          // Firestore bosh — migro të dhënat lokale nga UID i vjetër
+        // Migro të dhënat lokale nga UID i vjetër (nëse ka)
+        if (cached?.id) {
           const oldInvs  = local.getAll<any>(cached.id, 'invoices');
           const oldCls   = local.getAll<any>(cached.id, 'clients');
           const oldItms  = local.getAll<any>(cached.id, 'items');
           const oldStock = local.getAll<any>(cached.id, 'stock_entries');
           const oldCfg   = local.getConfig(cached.id);
-          console.log('[auth] migrim lokal:', oldInvs.length, 'fatura nga', cached.id, '→', firebaseUid);
           if (oldInvs.length > 0 || oldCls.length > 0) {
             setInvoices(oldInvs);       local.setAll(firebaseUid,'invoices',      oldInvs);
             setClients(oldCls);         local.setAll(firebaseUid,'clients',       oldCls);
             setItems(oldItms);          local.setAll(firebaseUid,'items',         oldItms);
             setStockEntries(oldStock);  local.setAll(firebaseUid,'stock_entries', oldStock);
             if (oldCfg) { setConfig(c => ({ ...c, ...oldCfg })); local.setConfig(firebaseUid, oldCfg); }
-            try {
-              await cloudSave(firebaseUid,'invoices',      oldInvs);
-              await cloudSave(firebaseUid,'clients',       oldCls);
-              await cloudSave(firebaseUid,'items',         oldItms);
-              await cloudSave(firebaseUid,'stock_entries', oldStock);
-              if (oldCfg) await cloudSaveConfig(firebaseUid, oldCfg);
-              console.log('[auth] migrim në Firestore i suksesshëm!');
-            } catch(e) { console.warn('[auth] migrim Firestore dështoi:', e); }
           }
         }
 
@@ -302,7 +279,6 @@ const App: React.FC = () => {
   }, [invoices]); // eslint-disable-line
 
   // ─── Auto-save: pasqyron çdo ndryshim state → localStorage + auto-backup ────
-  const applyingRemote = useRef(false);
   const autoBackupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!session || !dataReady) return;
@@ -346,24 +322,9 @@ const App: React.FC = () => {
     }, 800);
   }, [config]); // eslint-disable-line
 
-  // ─── Online / Offline detektor + sync kur kthehet interneti ─────────────
+  // ─── Online / Offline detektor ───────────────────────────────────────────
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      if (!session || !CLOUD_ENABLED || isGuest) return;
-      const uid = session.user.id;
-      Promise.all([
-        cloudSave(uid, 'invoices',      invoices),
-        cloudSave(uid, 'clients',       clients),
-        cloudSave(uid, 'items',         items),
-        cloudSave(uid, 'stock_entries', stockEntries),
-        cloudSaveConfig(uid,            config),
-      ]).then(() => {
-        pendingSync.current = false;
-      }).catch(() => {
-        pendingSync.current = true;
-      });
-    };
+    const handleOnline  = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online',  handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -371,136 +332,7 @@ const App: React.FC = () => {
       window.removeEventListener('online',  handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [session]); // eslint-disable-line
-
-  // ─── Auto-sync: çdo ndryshim state → cloud pas 2s ───────────────────────────
-  const syncTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudChannelRef = useRef<CloudChannel>(null);
-  const pendingSync     = useRef<boolean>(false);
-  const [isOnline,      setIsOnline]  = useState<boolean>(navigator.onLine);
-  const [syncStatus,    setSyncStatus] = useState<'ok'|'pending'|'err'>('ok');
-
-  useEffect(() => {
-    if (!session || !dataReady || isGuest || !CLOUD_ENABLED) return;
-    const uid = session.user.id;
-
-    // Backup lokal i plotë
-    try { localStorage.setItem('intal_auto_backup', JSON.stringify({
-      savedAt: new Date().toISOString(), version: 1, user: session.user.username,
-      invoices, clients, items, stock_entries: stockEntries, config,
-    })); } catch {}
-
-    setSyncStatus('pending');
-    pendingSync.current = true;
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      if (!navigator.onLine) { setSyncStatus('err'); return; }
-      try {
-        const tables: [string, any[]][] = [
-          ['invoices', invoices],
-          ['clients', clients],
-          ['items', items],
-          ['stock_entries', stockEntries],
-        ];
-        for (const [name, data] of tables) {
-          try {
-            await cloudSave(uid, name, data);
-            console.log(`[sync] ✓ ${name}: ${data.length} rekorde`);
-          } catch(e: any) {
-            console.error(`[sync] ✗ ${name} (${data.length} rekorde): ${e?.message || e}`);
-            throw new Error(`${name}: ${e?.message || e}`);
-          }
-        }
-        await cloudSaveConfig(uid, config);
-        pendingSync.current = false;
-        setSyncStatus('ok');
-      } catch(e: any) {
-        console.error('[sync] dështoi:', e?.message || e);
-        setSyncStatus('err');
-        pendingSync.current = false;
-      }
-    }, 2000);
-  }, [clients, items, invoices, stockEntries, config]); // eslint-disable-line
-
-  // ─── Cloud subscribe: merr ndryshimet nga pajisje të tjera në kohë reale ────
-  useEffect(() => {
-    if (!session || !dataReady || !CLOUD_ENABLED || isGuest) return;
-    const uid = session.user.id;
-
-    // Apliko nga Firestore VETËM nëse nuk ka ndryshime lokale pending
-    const applyFromFirestore = (tableName: string, data: any[]) => {
-      if (pendingSync.current) return; // Ka veprime lokale pa sync — mos mbishkruaj
-      applyingRemote.current = true;
-      if (tableName === 'invoices')      { setInvoices(data);     local.setAllSilent(uid,'invoices',      data); }
-      if (tableName === 'clients')       { setClients(data);      local.setAllSilent(uid,'clients',       data); }
-      if (tableName === 'items')         { setItems(data);        local.setAllSilent(uid,'items',         data); }
-      if (tableName === 'stock_entries') { setStockEntries(data); local.setAllSilent(uid,'stock_entries', data); }
-      if (tableName === 'config' && data[0]) { setConfig(c => ({...c,...data[0]})); local.setConfigSilent(uid, data[0]); }
-      setTimeout(() => { applyingRemote.current = false; }, 0);
-    };
-
-    // Startup: nëse localStorage bosh (pajisje e re) → ngarko nga Firestore
-    const localInvoices = local.getAll<any>(uid, 'invoices');
-    const localClients  = local.getAll<any>(uid, 'clients');
-    const localHasData  = localInvoices.length > 0 || localClients.length > 0;
-
-    // Startup: krahaso timestamp lokal vs cloud — fiton i reja
-    cloudLoadAll(uid).then(remote => {
-      const r = (key: string) => remote[key]?.data;
-      const remoteHasData = (r('invoices')?.length || 0) > 0 || (r('clients')?.length || 0) > 0;
-      const localModified  = local.getLastModified(uid); // ISO string
-      const remoteModified = remote['invoices']?.updatedAt || remote['clients']?.updatedAt || '1970-01-01T00:00:00.000Z';
-      const cloudIsNewer   = remoteHasData && remoteModified > localModified;
-
-      if (!localHasData || cloudIsNewer) {
-        // Pajisje e re ose cloud ka të dhëna më të reja → pull nga Firestore
-        console.log('[sync] cloud është më i ri ose lokal bosh — duke tërhequr nga cloud');
-        applyingRemote.current = true;
-        if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAllSilent(uid,'invoices',      r('invoices')!); }
-        if (r('clients')?.length)       { setClients(r('clients')!);            local.setAllSilent(uid,'clients',       r('clients')!); }
-        if (r('items')?.length)         { setItems(r('items')!);                local.setAllSilent(uid,'items',         r('items')!); }
-        if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAllSilent(uid,'stock_entries', r('stock_entries')!); }
-        if (r('config')?.[0])           { setConfig(c => ({...c,...r('config')![0]})); local.setConfigSilent(uid, r('config')![0]); }
-        setTimeout(() => { applyingRemote.current = false; }, 0);
-      } else {
-        // Lokali është më i ri (ose cloud bosh) → push në Firestore
-        console.log('[sync] lokali është më i ri — duke ngarkuar në cloud');
-        const localItems  = local.getAll<any>(uid, 'items');
-        const localStock  = local.getAll<any>(uid, 'stock_entries');
-        const localConfig = local.getConfig(uid);
-        cloudSave(uid, 'invoices',      localInvoices).catch(() => {});
-        cloudSave(uid, 'clients',       localClients).catch(() => {});
-        if (localItems.length)  cloudSave(uid, 'items',         localItems).catch(() => {});
-        if (localStock.length)  cloudSave(uid, 'stock_entries', localStock).catch(() => {});
-        if (localConfig)        cloudSaveConfig(uid, localConfig).catch(() => {});
-      }
-    }).catch(() => {
-      // Firebase jo i disponueshëm — vazhdo me të dhënat lokale
-      console.warn('[sync] cloudLoadAll dështoi — po përdor të dhënat lokale');
-    });
-
-    // Real-time: ndryshimet nga pajisja TJETËR (desktop-i filtron shkrimet e veta me DEVICE_ID)
-    cloudChannelRef.current = cloudSubscribe(uid, applyFromFirestore);
-
-    return () => { cloudUnsubscribe(cloudChannelRef.current); };
-  }, [dataReady, session?.user?.id]); // eslint-disable-line
-
-  // ─── Safety-net: nëse sesioni aktiv por nuk ka të dhëna, tërhiq nga Firestore ──
-  useEffect(() => {
-    if (!session || isGuest || !CLOUD_ENABLED || !dataReady) return;
-    if (invoices.length > 0 || clients.length > 0 || items.length > 0) return;
-    const uid = session.user.id;
-    console.log('[safety-net] state bosh me sesion aktiv — tërhiq nga Firestore');
-    cloudLoadAll(uid).then(remote => {
-      const r = (key: string) => remote[key]?.data;
-      console.log('[safety-net] result:', Object.keys(remote), 'invoices:', r('invoices')?.length ?? 0);
-      if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(uid,'invoices',      r('invoices')!); }
-      if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(uid,'clients',       r('clients')!); }
-      if (r('items')?.length)         { setItems(r('items')!);                local.setAll(uid,'items',         r('items')!); }
-      if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(uid,'stock_entries', r('stock_entries')!); }
-      if (r('config')?.[0])           { setConfig(c => ({ ...c, ...r('config')![0] })); local.setConfig(uid, r('config')![0]); }
-    }).catch(e => console.error('[safety-net] error:', e));
-  }, [session?.user?.id, dataReady, invoices.length, clients.length]); // eslint-disable-line
+  }, []);
 
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   // _doBackupFn rikrijohet çdo render — ka gjithmonë gjendjen e fundit në closure
@@ -897,10 +729,8 @@ const App: React.FC = () => {
           {!isOnline
             ? <div className="flex items-center justify-center gap-1.5 bg-amber-500/20 border border-amber-500/30 rounded-lg px-3 py-1.5 mt-1"><WifiOff size={11} className="text-amber-400"/><span className="text-[9px] text-amber-400 font-black uppercase tracking-widest">Offline — Lokal</span></div>
             : <div className="flex items-center justify-center gap-1.5 mt-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${syncStatus==='ok'?'bg-emerald-500':syncStatus==='pending'?'bg-amber-400 animate-pulse':'bg-red-500'}`}/>
-                <p className={`text-[9px] font-black uppercase tracking-widest ${syncStatus==='ok'?'text-emerald-600':syncStatus==='pending'?'text-amber-500':'text-red-500'}`}>
-                  {syncStatus==='ok'?'Cloud — i sinkronizuar':syncStatus==='pending'?'Duke sinkronizuar...':'Sync dështoi'}
-                </p>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>
+                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Ruajtur lokalisht</p>
               </div>
           }
         </div>
@@ -1025,52 +855,9 @@ const App: React.FC = () => {
                     if (inv.length) { setInvoices(inv);     local.setAll(uid, 'invoices', inv); }
                     if (se.length)  { setStockEntries(se);  local.setAll(uid, 'stock_entries', se); }
                     if (cf)         { setConfig(cf);        local.setConfig(uid, cf); }
-                    // Push në cloud pa await (onRestoreAutoBackup nuk është async)
-                    if (CLOUD_ENABLED) {
-                      Promise.all([
-                        cl.length  ? cloudSave(uid,'clients',cl)         : Promise.resolve(),
-                        it.length  ? cloudSave(uid,'items',it)           : Promise.resolve(),
-                        inv.length ? cloudSave(uid,'invoices',inv)       : Promise.resolve(),
-                        se.length  ? cloudSave(uid,'stock_entries',se)   : Promise.resolve(),
-                        cf         ? cloudSaveConfig(uid,cf)             : Promise.resolve(),
-                      ]);
-                    }
                     handleNavigate('dashboard');
                     return true;
                   } catch { return false; }
-                }}
-                onCloudPush={async () => {
-                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
-                  const fuid = session.user.id;
-                  await cloudSave(fuid, 'invoices',      invoices);
-                  await cloudSave(fuid, 'clients',       clients);
-                  await cloudSave(fuid, 'items',         items);
-                  await cloudSave(fuid, 'stock_entries', stockEntries);
-                  await cloudSaveConfig(fuid,            config);
-                }}
-                onCloudPull={async () => {
-                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
-                  const fuid = session.user.id;
-                  const remote = await cloudLoadAll(fuid);
-                  const r = (key: string) => remote[key]?.data;
-                  if (!r('invoices')?.length && !r('clients')?.length) throw new Error('Cloud bosh');
-                  applyingRemote.current = true;
-                  if (r('invoices')?.length)      { setInvoices(r('invoices')!);          local.setAll(fuid,'invoices',      r('invoices')!); }
-                  if (r('clients')?.length)       { setClients(r('clients')!);            local.setAll(fuid,'clients',       r('clients')!); }
-                  if (r('items')?.length)         { setItems(r('items')!);                local.setAll(fuid,'items',         r('items')!); }
-                  if (r('stock_entries')?.length) { setStockEntries(r('stock_entries')!); local.setAll(fuid,'stock_entries', r('stock_entries')!); }
-                  if (r('config')?.[0])           { setConfig(c => ({...DEFAULT_CONFIG,...r('config')![0]})); local.setConfig(fuid, r('config')![0]); }
-                  setTimeout(() => { applyingRemote.current = false; }, 0);
-                }}
-                onCloudReset={async () => {
-                  if (!CLOUD_ENABLED) throw new Error('Cloud jo aktiv');
-                  const fuid = session.user.id;
-                  await cloudClearAll(fuid);
-                  await cloudSave(fuid, 'invoices',      invoices);
-                  await cloudSave(fuid, 'clients',       clients);
-                  await cloudSave(fuid, 'items',         items);
-                  await cloudSave(fuid, 'stock_entries', stockEntries);
-                  await cloudSaveConfig(fuid,            config);
                 }}
                 onImport={async (file) => {
                   try {
@@ -1096,17 +883,6 @@ const App: React.FC = () => {
                     setInvoices(inv);     local.setAll(uid, 'invoices', inv);
                     setStockEntries(se);  local.setAll(uid, 'stock_entries', se);
                     if (cf) { setConfig(cf); local.setConfig(uid, cf); }
-
-                    // 2. Push cloud — best-effort, nuk bllokon importin
-                    if (CLOUD_ENABLED) {
-                      Promise.all([
-                        cloudSave(uid,'clients',       cl),
-                        cloudSave(uid,'items',         it),
-                        cloudSave(uid,'invoices',      inv),
-                        cloudSave(uid,'stock_entries', se),
-                        cf ? cloudSaveConfig(uid,cf) : Promise.resolve(),
-                      ]).catch(e => console.warn('[import] cloud push failed (jo kritik):', e));
-                    }
 
                     alert(`✅ Import u krye:\n📄 Faturat: ${inv.length} | 👥 Klientët: ${cl.length} | 📦 Artikujt: ${it.length} | 🏭 Fletëhyrjet: ${se.length}`);
                     handleNavigate('dashboard');
