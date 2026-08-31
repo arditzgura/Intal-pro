@@ -36,6 +36,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [currency, setCurrency] = useState<'Lek' | 'EUR'>('Lek');
   const [previousBalance, setPreviousBalance] = useState<number | string>(0);
   const [amountPaid, setAmountPaid] = useState<number | string>(0);
+  const originalAmountPaid = React.useRef<number>(0);
   const [notes, setNotes] = useState('');
   
   const [prevBalanceLabel, setPrevBalanceLabel] = useState('Gjendja (+)');
@@ -129,6 +130,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       setInvoiceDate(initialData.date);
       setPreviousBalance(initialData.previousBalance || 0);
       setAmountPaid(initialData.amountPaid || 0);
+      originalAmountPaid.current = initialData.amountPaid || 0;
       setShipTo(initialData.clientPhone || '');
       setCurrency(initialData.currency || 'Lek');
       setPrevBalanceLabel(initialData.previousBalanceLabel || 'Gjendja (+)');
@@ -429,7 +431,12 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       total: finalSubtotal,
       status: finalStatus,
       notes: notes.trim() || undefined,
-      paymentDate: paymentDate || finalDate.slice(0, 10)
+      paymentDate: (() => {
+        const today = new Date().toLocaleDateString('en-CA');
+        // Nëse pagesa u rrit sot (edit i faturës ekzistuese) → regjistro sot
+        if (initialData && finalPaid > originalAmountPaid.current) return today;
+        return paymentDate || finalDate.slice(0, 10);
+      })()
     });
   };
 
