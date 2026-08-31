@@ -180,12 +180,11 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           margin: 0,
           filename: fileName,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 3, useCORS: true, onclone: (doc: any) => {
+          html2canvas: { scale: 3, useCORS: true, allowTaint: true, width: 794, windowWidth: 1280, onclone: (doc: any) => {
             const el = doc.getElementById('invoice-printable');
-            if (el) { el.style.transform = 'none'; el.style.boxShadow = 'none'; if (el.parentElement) el.parentElement.style.zoom = '1'; }
+            if (el) { el.style.transform = 'none'; el.style.boxShadow = 'none'; el.style.width = '794px'; el.style.minWidth = '794px'; if (el.parentElement) { el.parentElement.style.zoom = '1'; el.parentElement.style.transform = 'none'; el.parentElement.style.width = '794px'; } el.querySelectorAll('.roll-only').forEach((e: any) => e.style.display='none'); el.querySelectorAll('.roll-hide').forEach((e: any) => e.style.display='flex'); }
           }},
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          outputType: 'blob',
         };
         const pdfBlob: Blob = await html2pdf().set(opt).from(element).outputPdf('blob');
         const ab = await pdfBlob.arrayBuffer();
@@ -197,9 +196,9 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
         const opt = {
           margin: 0, filename: fileName,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 3, useCORS: true, onclone: (doc: any) => {
+          html2canvas: { scale: 3, useCORS: true, allowTaint: true, width: 794, windowWidth: 1280, onclone: (doc: any) => {
             const el = doc.getElementById('invoice-printable');
-            if (el) { el.style.transform = 'none'; if (el.parentElement) el.parentElement.style.zoom = '1'; }
+            if (el) { el.style.transform = 'none'; el.style.boxShadow = 'none'; el.style.width = '794px'; el.style.minWidth = '794px'; if (el.parentElement) { el.parentElement.style.zoom = '1'; el.parentElement.style.transform = 'none'; el.parentElement.style.width = '794px'; } el.querySelectorAll('.roll-only').forEach((e: any) => e.style.display='none'); el.querySelectorAll('.roll-hide').forEach((e: any) => e.style.display='flex'); }
           }},
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         };
@@ -262,35 +261,43 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     const source = document.getElementById('invoice-printable');
     if (!source) return null;
 
-    // Prit font-et të ngarkohen plotësisht
     await document.fonts.ready;
 
+    const A4_PX = 794; // A4 gjerësia në 96dpi
+
     const canvas = await html2canvas(source, {
-      scale: 2,
+      scale: 3,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
       imageTimeout: 0,
-      // windowWidth: 1280 → Tailwind aplikon lg:scale-100 (transform:scale(1) = asgjë)
       windowWidth: 1280,
+      width: A4_PX,
       onclone: (clonedDoc: Document) => {
         const el = clonedDoc.getElementById('invoice-printable');
         if (!el) return;
 
-        // Hiq vetëm transform/boxShadow inline — mos prek className (Tailwind duhet)
+        // Hiq të gjitha transformimet — renderim i pastër
         el.style.transform = 'none';
         el.style.boxShadow = 'none';
+        el.style.width = A4_PX + 'px';
+        el.style.minWidth = A4_PX + 'px';
+        el.style.maxWidth = A4_PX + 'px';
+        el.style.margin = '0';
+        el.style.padding = '0';
 
-        // Wrapper: hiq vetëm transform/zoom inline, jo className
         const wrap = el.parentElement;
         if (wrap) {
           wrap.style.transform = 'none';
-          wrap.style.zoom = '1';
+          (wrap.style as any).zoom = '1';
           wrap.style.margin = '0';
+          wrap.style.padding = '0';
+          wrap.style.width = A4_PX + 'px';
+          wrap.style.overflow = 'visible';
         }
 
-        // A4 të jenë visible, 80mm të fshihen
+        // A4 format: shfaq A4, fshi 80mm
         el.querySelectorAll<HTMLElement>('.roll-only').forEach(e => (e.style.display = 'none'));
         el.querySelectorAll<HTMLElement>('.roll-hide').forEach(e => (e.style.display = 'flex'));
       },
