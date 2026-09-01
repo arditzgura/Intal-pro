@@ -559,7 +559,7 @@ const App: React.FC = () => {
     const base = invoices.map(inv => {
       if (inv.id !== id) return inv;
       if (status === 'E paguar')
-        return { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: inv.paymentDate || today };
+        return { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: today };
       if (status === 'Pa paguar')
         return { ...inv, status: 'Pa paguar' as const, paymentDate: undefined };
       return { ...inv, status };
