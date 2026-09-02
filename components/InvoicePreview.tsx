@@ -263,38 +263,42 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
     await document.fonts.ready;
 
-    const A4_PX = 794; // A4 gjerësia në 96dpi
+    const PAD = 24;   // hapësira rreth faturës (px)
+    const A4_PX = 794;
 
     const canvas = await html2canvas(source, {
       scale: 3,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#ffffff',
+      backgroundColor: '#f1f5f9', // sfond gri i lehtë si preview
       logging: false,
       imageTimeout: 0,
       windowWidth: 1280,
-      width: A4_PX,
+      width: A4_PX + PAD * 2,
       onclone: (clonedDoc: Document) => {
         const el = clonedDoc.getElementById('invoice-printable');
         if (!el) return;
 
-        // Hiq të gjitha transformimet — renderim i pastër
         el.style.transform = 'none';
-        el.style.boxShadow = 'none';
+        el.style.boxShadow = '0 4px 24px rgba(0,0,0,0.10)';
         el.style.width = A4_PX + 'px';
         el.style.minWidth = A4_PX + 'px';
         el.style.maxWidth = A4_PX + 'px';
+        el.style.borderRadius = '8px';
         el.style.margin = '0';
-        el.style.padding = '0';
 
         const wrap = el.parentElement;
         if (wrap) {
           wrap.style.transform = 'none';
           (wrap.style as any).zoom = '1';
-          wrap.style.margin = '0';
-          wrap.style.padding = '0';
-          wrap.style.width = A4_PX + 'px';
+          wrap.style.display = 'flex';
+          wrap.style.justifyContent = 'center';
+          wrap.style.alignItems = 'flex-start';
+          wrap.style.padding = PAD + 'px';
+          wrap.style.width = (A4_PX + PAD * 2) + 'px';
+          wrap.style.minWidth = (A4_PX + PAD * 2) + 'px';
           wrap.style.overflow = 'visible';
+          wrap.style.background = '#f1f5f9';
         }
 
         // A4 format: shfaq A4, fshi 80mm
