@@ -270,7 +270,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
       scale: 3,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#f1f5f9', // sfond gri i lehtë si preview
+      backgroundColor: '#ffffff',
       logging: false,
       imageTimeout: 0,
       windowWidth: 1280,
@@ -298,7 +298,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
           wrap.style.width = (A4_PX + PAD * 2) + 'px';
           wrap.style.minWidth = (A4_PX + PAD * 2) + 'px';
           wrap.style.overflow = 'visible';
-          wrap.style.background = '#f1f5f9';
+          wrap.style.background = '#ffffff';
         }
 
         // A4 format: shfaq A4, fshi 80mm
