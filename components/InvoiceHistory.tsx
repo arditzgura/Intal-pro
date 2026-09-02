@@ -192,7 +192,12 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         // Detyrimet: vetëm fatura e fundit 'Pa paguar' e çdo klienti (jo e absorbuar, jo 'Pasuar')
         const absorbedSt = getAbsorbedStatus(inv);
         if (absorbedSt === 'none' && inv.status === 'Pa paguar') {
-          const debt = Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency));
+          // Ditor: vetëm borxhi i ri i shtuar atë ditë (pa previousBalance)
+          // Mujor/vjetor/të gjitha: borxhi total (duke përfshirë previousBalance)
+          const isDailyFilter = filterMode === 'day' || filterMode === 'today';
+          const debt = isDailyFilter
+            ? Math.max(0, getConvVal(inv.subtotal, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency))
+            : Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency));
           totalUnpaid += debt;
         }
       }
