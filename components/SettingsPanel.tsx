@@ -51,6 +51,7 @@ interface Props {
   config: BusinessConfig;
   onUpdate: (c: BusinessConfig) => void;
   onExport: () => void;
+  onExportDemo: () => void;
   onImport: (file: File) => Promise<boolean>;
   onRestoreAutoBackup: () => boolean;
   onQRSync: () => void;
@@ -334,7 +335,7 @@ const CloudPushButton: React.FC<{ onCloudPush: () => Promise<void>; label?: stri
   );
 };
 
-const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, onRestoreAutoBackup, onQRSync }) => {
+const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onExportDemo, onImport, onRestoreAutoBackup, onQRSync }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -554,7 +555,7 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
             </p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               <button 
+               <button
                  onClick={onExport}
                  className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-slate-700 hover:bg-slate-700 transition-all group"
                >
@@ -562,6 +563,17 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                   <div className="text-center">
                     <span className="block font-bold">Eksporto Backup</span>
                     <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Ruaj në Disk (.json)</span>
+                  </div>
+               </button>
+
+               <button
+                 onClick={onExportDemo}
+                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-violet-700/40 hover:bg-slate-700 transition-all group"
+               >
+                  <Download className="text-violet-400 group-hover:scale-110 transition-transform" size={32} />
+                  <div className="text-center">
+                    <span className="block font-bold text-violet-300">Demo Backup</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Artikujt + 20 Fatura</span>
                   </div>
                </button>
 
@@ -597,6 +609,40 @@ const SettingsPanel: React.FC<Props> = ({ config, onUpdate, onExport, onImport, 
                </button>
 
 
+
+               <button
+                 onClick={() => {
+                   navigator.serviceWorker?.getRegistration().then(reg => reg?.update()).then(() => {
+                     setTimeout(() => window.location.reload(), 500);
+                   }).catch(() => window.location.reload());
+                 }}
+                 className="flex flex-col items-center gap-3 p-6 bg-slate-800 rounded-2xl border border-indigo-700/40 hover:bg-slate-700 transition-all group"
+               >
+                  <span className="text-indigo-400 text-2xl group-hover:scale-110 transition-transform">🔄</span>
+                  <div className="text-center">
+                    <span className="block font-bold text-indigo-300">Përditëso App</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Merr versionin e ri</span>
+                  </div>
+               </button>
+
+               <button
+                 onClick={async () => {
+                   try {
+                     const regs = await navigator.serviceWorker?.getRegistrations();
+                     if (regs) for (const r of regs) await r.unregister();
+                     const keys = await caches.keys();
+                     for (const k of keys) await caches.delete(k);
+                   } catch {}
+                   window.location.reload();
+                 }}
+                 className="flex flex-col items-center gap-3 p-6 bg-rose-900/30 rounded-2xl border border-rose-700/40 hover:bg-rose-900/50 transition-all group"
+               >
+                  <span className="text-rose-400 text-2xl group-hover:scale-110 transition-transform">🗑️</span>
+                  <div className="text-center">
+                    <span className="block font-bold text-rose-300">Pastro Cache</span>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Fshi SW + cache</span>
+                  </div>
+               </button>
 
                <input
                  type="file"

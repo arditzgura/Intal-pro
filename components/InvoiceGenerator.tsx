@@ -409,7 +409,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     const isEditing = !!initialData;
     const computedStatus = (finalBalanceDue <= 0 || isPaid) ? 'E paguar' as const : 'Pa paguar' as const;
     const finalStatus = (isEditing || keepStatus) && initialData?.status ? initialData.status : computedStatus;
-    const finalDate = isEditing ? initialData!.date : invoiceDate;
+    const finalDate = invoiceDate || (isEditing ? initialData!.date : new Date().toLocaleDateString('en-CA'));
 
     onSubmit({
       id: initialData?.id || Date.now().toString(),

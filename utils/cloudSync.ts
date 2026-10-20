@@ -1,63 +1,68 @@
-import { auth, db } from './firebase';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  type User,
-} from 'firebase/auth';
 import {
   doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot,
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { db } from './firebase';
 
-export const CLOUD_ENABLED = true;
+export const CLOUD_ENABLED = false;
 export const CLOUD_INIT_ERROR = '';
 
 export interface CloudRow { data: any[]; updatedAt: string; }
 export type CloudChannel = Unsubscribe | null;
 
-// username → firebase email (internal)
-const toEmail = (username: string) => `${username.toLowerCase().trim()}@intal-pro.app`;
+// ─── Auth lokal (pa Firebase) ─────────────────────────────────────────────────
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+const USERS_KEY = 'intal_local_users_v1';
+interface LocalUserRecord { id: string; username: string; password: string; }
+
+function getLocalUsers(): LocalUserRecord[] {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; }
+}
+function saveLocalUsers(users: LocalUserRecord[]) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
 
 export async function cloudRegister(username: string, password: string): Promise<{ uid: string; username: string }> {
-  const cred = await createUserWithEmailAndPassword(auth, toEmail(username), password);
-  // Ruaj profilin dhe username-in
-  await setDoc(doc(db, 'usernames', username.toLowerCase().trim()), {
-    uid: cred.user.uid,
-    username,
-    createdAt: new Date().toISOString(),
-  });
-  await setDoc(doc(db, 'users', cred.user.uid, 'profile', 'data'), {
-    username,
-    createdAt: new Date().toISOString(),
-  });
-  return { uid: cred.user.uid, username };
+  const users = getLocalUsers();
+  const uname = username.toLowerCase().trim();
+  if (users.find(u => u.username.toLowerCase() === uname)) {
+    throw { code: 'auth/email-already-in-use' };
+  }
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const trimmed = username.trim();
+  saveLocalUsers([...users, { id, username: trimmed, password }]);
+  return { uid: id, username: trimmed };
 }
 
 export async function cloudLogin(username: string, password: string): Promise<{ uid: string; username: string }> {
-  const cred = await signInWithEmailAndPassword(auth, toEmail(username), password);
-  return { uid: cred.user.uid, username };
+  const users = getLocalUsers();
+  const uname = username.toLowerCase().trim();
+  const user = users.find(u => u.username.toLowerCase() === uname);
+  if (!user) throw { code: 'auth/user-not-found' };
+  if (user.password !== password) throw { code: 'auth/wrong-password' };
+  return { uid: user.id, username: user.username };
 }
 
 export async function cloudLogout(): Promise<void> {
-  await signOut(auth);
+  // local-only: asgjë nuk duhet të bëjmë
 }
 
-export function cloudOnAuthChange(callback: (user: { uid: string; username: string } | null) => void): Unsubscribe {
-  return onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-    if (!firebaseUser) { callback(null); return; }
+export function cloudOnAuthChange(callback: (user: { uid: string; username: string } | null) => void): () => void {
+  // Kontrollojmë sesionin lokal menjëherë dhe e kthejmë
+  setTimeout(() => {
     try {
-      const snap = await getDoc(doc(db, 'users', firebaseUser.uid, 'profile', 'data'));
-      const username = snap.exists() ? snap.data().username : firebaseUser.email?.split('@')[0] || '';
-      callback({ uid: firebaseUser.uid, username });
+      const session = JSON.parse(localStorage.getItem('intal_session_v2') || 'null');
+      if (session?.id && session?.username) {
+        callback({ uid: session.id, username: session.username });
+      } else {
+        callback(null);
+      }
     } catch {
       callback(null);
     }
-  });
+  }, 0);
+  return () => {};
 }
 
 // ─── Data (chunks: max 400 rekorde / dokument për limitin 1MB) ───────────────

@@ -580,7 +580,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       )}
                    </div>
                 </div>
-                <div className="w-64 bg-white border-2 border-slate-900 rounded-[20px] overflow-hidden">
+                <div className="shrink-0 bg-white border-2 border-slate-900 rounded-[20px] overflow-hidden" style={{minWidth:'220px'}}>
                    <div className="p-3 space-y-1.5">
                       <div className="flex justify-between items-center text-slate-400 text-[11px] font-black uppercase tracking-widest"><span>{lNen}:</span><span className="text-slate-900 text-[13px]">{inv.subtotal.toLocaleString()} {getCurrency('short')}</span></div>
                       {(inv.previousBalance !== 0 || editMode) && (
@@ -608,9 +608,9 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                         </div>
                       )}
                    </div>
-                   <div className={`p-3 flex justify-between items-center border-t border-slate-900 ${isSurplus ? 'bg-amber-50' : isPaidInFull ? 'bg-emerald-50' : 'bg-rose-50'}`}>
-                      <span className="text-[11px] font-black uppercase text-slate-500 tracking-widest">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
-                      <span className={`text-2xl font-black tracking-tighter ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
+                   <div className={`px-3 py-2 flex items-center justify-between gap-2 border-t border-slate-900 ${isSurplus ? 'bg-amber-50' : isPaidInFull ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest whitespace-nowrap shrink-0">{isSurplus ? `${lTep}:` : `${lDet}:`}</span>
+                      <span className={`text-[15px] font-black tracking-tighter leading-none whitespace-nowrap ${isSurplus ? 'text-amber-600' : isPaidInFull ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {Math.abs(balanceDue).toLocaleString()} {inv.currency === 'EUR' ? 'EURO' : 'LEKË'}
                       </span>
                    </div>

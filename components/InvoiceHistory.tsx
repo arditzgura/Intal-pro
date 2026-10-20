@@ -203,15 +203,34 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       }
 
       // Arkëtimet: sipas datës së PAGESËS (jo krijimit)
-      const paidInPeriod = (inv.amountPaid || 0) > 0 && (
-        filterMode === 'all'   ? true :
-        filterMode === 'month' ? payDateStr.slice(0, 7) === selectedMonth :
-        filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear :
-        payDateStr === activeDayStr
-      );
-
-      if (paidInPeriod) {
-        totalCollected += getConvVal(inv.amountPaid!, inv.currency);
+      const isDailyArketim = filterMode === 'day' || filterMode === 'today';
+      if (isDailyArketim) {
+        // Për filtrin ditor: mblidh vetëm pagesat e bëra atë ditë nga payments[]
+        (inv.payments || []).forEach(p => {
+          if (p.date === activeDayStr) {
+            totalCollected += getConvVal(p.amount, inv.currency);
+          }
+        });
+        // Fallback për faturat pa payments[]: nëse paguar sot
+        if (!(inv.payments || []).length && payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
+          if (invDate === activeDayStr) {
+            // Faturë e krijuar sot: e gjithë pagesa është e sotme
+            totalCollected += getConvVal(inv.amountPaid!, inv.currency);
+          } else {
+            // Faturë e vjetër paguar sot: delta ≈ subtotal (borxhi i ri, jo gjendja paraprake)
+            totalCollected += getConvVal(inv.subtotal, inv.currency);
+          }
+        }
+      } else {
+        const paidInPeriod = (inv.amountPaid || 0) > 0 && (
+          filterMode === 'all'   ? true :
+          filterMode === 'month' ? payDateStr.slice(0, 7) === selectedMonth :
+          filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear :
+          false
+        );
+        if (paidInPeriod) {
+          totalCollected += getConvVal(inv.amountPaid!, inv.currency);
+        }
       }
     });
 

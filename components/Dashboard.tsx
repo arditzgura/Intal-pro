@@ -162,6 +162,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
         const sameNameIds = new Set(items.filter(i => normalize(i.name.trim()) === nameLower).map(i => i.id));
 
         const totalIn = stockEntries.reduce((acc, entry) => {
+          if (entry.origin?.toUpperCase() !== 'MAGAZINA QENDRORE') return acc;
           if (upToDate && entry.date.slice(0, 10) > upToDate) return acc;
           const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
           return acc + (found ? Number(found.quantity) : 0);

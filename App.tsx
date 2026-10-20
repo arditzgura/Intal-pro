@@ -112,51 +112,18 @@ const App: React.FC = () => {
   // ─── Auth: ngarko sesionin ────────────────────────────────────────────────
   useEffect(() => {
     const cached = getLocalSession();
-    // Gjithmonë dëgjo Firebase Auth për të verifikuar UID-in aktual
-    const unsub = cloudOnAuthChange(async (firebaseUser) => {
-      if (!firebaseUser) {
-        // Jo i kyçur në Firebase
-        if (cached) {
-          // Sesion lokal por jo Firebase — pastro dhe shfaq login
-          clearLocalSession();
-        }
+    // Auth lokal — pa Firebase
+    const unsub = cloudOnAuthChange(async (localUser) => {
+      if (!localUser) {
+        if (cached) clearLocalSession();
         setSession(null);
         setDataReady(true);
         return;
       }
-
-      const firebaseUid = firebaseUser.uid;
-      const username    = firebaseUser.username;
-
-      if (cached && cached.id === firebaseUid) {
-        // UID-i cache-uar përputhet me Firebase — ngarko normalisht
-        setSession({ user: { id: firebaseUid, username: cached.username || username } });
-        loadAllData(firebaseUid);
-      } else {
-        // UID ndryshe (llogari e re ose projekt i vjetër) — migro
-        console.log('[auth] UID ndryshoi nga', cached?.id, 'në', firebaseUid, '— duke migruar...');
-        const newSession = { id: firebaseUid, username: cached?.username || username };
-        setLocalSession(newSession);
-
-        // Migro të dhënat lokale nga UID i vjetër (nëse ka)
-        if (cached?.id) {
-          const oldInvs  = local.getAll<any>(cached.id, 'invoices');
-          const oldCls   = local.getAll<any>(cached.id, 'clients');
-          const oldItms  = local.getAll<any>(cached.id, 'items');
-          const oldStock = local.getAll<any>(cached.id, 'stock_entries');
-          const oldCfg   = local.getConfig(cached.id);
-          if (oldInvs.length > 0 || oldCls.length > 0) {
-            setInvoices(oldInvs);       local.setAll(firebaseUid,'invoices',      oldInvs);
-            setClients(oldCls);         local.setAll(firebaseUid,'clients',       oldCls);
-            setItems(oldItms);          local.setAll(firebaseUid,'items',         oldItms);
-            setStockEntries(oldStock);  local.setAll(firebaseUid,'stock_entries', oldStock);
-            if (oldCfg) { setConfig(c => ({ ...c, ...oldCfg })); local.setConfig(firebaseUid, oldCfg); }
-          }
-        }
-
-        setSession({ user: { id: firebaseUid, username: newSession.username } });
-        setDataReady(true);
-      }
+      const uid      = localUser.uid;
+      const username = localUser.username;
+      setSession({ user: { id: uid, username: cached?.username || username } });
+      loadAllData(uid);
     });
     return unsub;
   }, [loadAllData]); // eslint-disable-line
@@ -335,6 +302,14 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Kontrollo për përditësime të SW çdo 10 minuta
+  useEffect(() => {
+    const checkUpdate = () => navigator.serviceWorker?.getRegistration().then(reg => reg?.update());
+    checkUpdate();
+    const id = setInterval(checkUpdate, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // ─── Backup lokal ─────────────────────────────────────────────────────────
   // _doBackupFn rikrijohet çdo render — ka gjithmonë gjendjen e fundit në closure
   const _doBackupFn = useRef<(isAuto?: boolean) => void>(null!);
@@ -372,6 +347,39 @@ const App: React.FC = () => {
   };
   // doBackup ka referencë stabile (nuk shkakton re-render të SettingsPanel)
   const doBackup = useCallback((isAuto = false) => _doBackupFn.current(isAuto), []);
+
+  const doDemoBackup = useCallback(() => {
+    if (!session) return;
+    const last20 = [...invoices].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+    const data = {
+      exportedAt: new Date().toISOString(),
+      version: 2,
+      user: session.user.username,
+      invoices: last20,
+      clients,
+      items,
+      stock_entries: stockEntries,
+      config,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toLocaleDateString('en-CA');
+    a.href = url;
+    a.download = `intal-demo-${date}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    alert(
+      `✅ Demo Backup u ruajt: intal-demo-${date}.json\n\n` +
+      `📄 Faturat:     ${last20.length} (nga ${invoices.length} totale)\n` +
+      `👥 Klientët:   ${clients.length}\n` +
+      `📦 Artikujt:   ${items.length}\n` +
+      `🏭 Fletëhyrjet: ${stockEntries.length}`
+    );
+  }, [invoices, clients, items, stockEntries, config, session]);
 
   // Auto-backup çdo 24 orë kur hapet app-i
   useEffect(() => {
@@ -558,8 +566,12 @@ const App: React.FC = () => {
     // Vendos pagesën e plotë nëse shënohet si E paguar
     const base = invoices.map(inv => {
       if (inv.id !== id) return inv;
-      if (status === 'E paguar')
-        return { ...inv, status: 'E paguar' as const, amountPaid: inv.subtotal + (inv.previousBalance || 0), paymentDate: today };
+      if (status === 'E paguar') {
+        const fullAmount = inv.subtotal + (inv.previousBalance || 0);
+        const delta = Math.max(0, fullAmount - (inv.amountPaid || 0));
+        const newPayment = delta > 0 ? [{ id: Date.now().toString(), date: today, amount: delta }] : [];
+        return { ...inv, status: 'E paguar' as const, amountPaid: fullAmount, paymentDate: today, payments: [...(inv.payments || []), ...newPayment] };
+      }
       if (status === 'Pa paguar')
         return { ...inv, status: 'Pa paguar' as const, paymentDate: undefined };
       return { ...inv, status };
@@ -630,6 +642,18 @@ const App: React.FC = () => {
 
     const today = new Date().toLocaleDateString('en-CA');
     if (final.status === 'E paguar' && !final.paymentDate) final.paymentDate = today;
+
+    // Regjistro deltën e pagesës së sotme në payments[]
+    const payDate = final.paymentDate || today;
+    if ((final.amountPaid || 0) > 0 && payDate === today) {
+      const originalInv = editInvoice ? invoices.find(inv => inv.id === final.id) : null;
+      const prevPaid = originalInv?.amountPaid || 0;
+      const delta = Math.max(0, (final.amountPaid || 0) - prevPaid);
+      if (delta > 0) {
+        const newPayment = { id: Date.now().toString(), date: today, amount: delta };
+        final.payments = [...(final.payments || []).filter(p => p.date !== today), newPayment];
+      }
+    }
 
     const base = editInvoice
       ? invoices.map(inv => inv.id === final.id ? final : inv)
@@ -839,6 +863,7 @@ const App: React.FC = () => {
               <SettingsPanel config={config} onUpdate={setConfig}
                 onQRSync={() => setShowQRSync(true)}
                 onExport={() => doBackup(false)}
+                onExportDemo={doDemoBackup}
                 onRestoreAutoBackup={() => {
                   try {
                     const raw = local.getAutoBackup();
