@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, FileSpreadsheet, BarChart2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, BarChart2, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface Props {
   items: Item[];
@@ -401,18 +401,16 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
             </div>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
-            <button onClick={exportExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">
-              <FileSpreadsheet size={15}/> Excel
+            <button onClick={() => setShowReport(r => !r)}
+              className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95 ${showReport ? 'bg-slate-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+              {showReport ? <><X size={15}/> Artikujt</> : <><BarChart2 size={15}/> Raport</>}
             </button>
-            <button onClick={() => setShowReport(true)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">
-              <BarChart2 size={15}/> Raport
-            </button>
-            <button onClick={() => setIsAdding(true)} className="flex-1 md:flex-none bg-[#D81B60] text-white px-8 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">Shto Artikull</button>
+            {!showReport && <button onClick={() => setIsAdding(true)} className="flex-1 md:flex-none bg-[#D81B60] text-white px-8 py-3.5 rounded-2xl font-black transition-all shadow-xl text-xs uppercase tracking-widest active:scale-95">Shto Artikull</button>}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+      {!showReport && <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
@@ -508,7 +506,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       {showReport && (() => {
         // Llogarit të dhënat e raportit të inventarit
@@ -569,88 +567,79 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
         const totalDalje = reportItems.reduce((s, r) => s + r.dalje, 0);
 
         return (
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden border border-white/20 animate-in zoom-in-95 h-[90vh] flex flex-col">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <div>
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600"/> Raport Inventari</h3>
-                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">{getPeriodLabel()}</p>
-                </div>
-                <button onClick={() => setShowReport(false)} className="text-slate-300 hover:text-slate-900 transition-all"><X size={32}/></button>
+          <>
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-1">Hyrje Totale</p>
+                <p className="text-2xl font-black text-emerald-700">{totalHyrje.toLocaleString()}</p>
+                <p className="text-[9px] font-black text-emerald-400 uppercase">njësi · {getPeriodLabel()}</p>
               </div>
-
-              {/* Summary stats */}
-              <div className="grid grid-cols-3 gap-4 p-6 pb-0 shrink-0">
-                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-1">Hyrje Totale</p>
-                  <p className="text-2xl font-black text-emerald-700">{totalHyrje.toLocaleString()}</p>
-                  <p className="text-[9px] font-black text-emerald-400 uppercase">njësi</p>
-                </div>
-                <div className="bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-rose-500 mb-1">Dalje Totale</p>
-                  <p className="text-2xl font-black text-rose-700">{totalDalje.toLocaleString()}</p>
-                  <p className="text-[9px] font-black text-rose-400 uppercase">njësi</p>
-                </div>
-                <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 text-center">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">Vlera Gjendjes</p>
-                  <p className="text-2xl font-black text-indigo-700">{Math.round(totalVlera).toLocaleString()}</p>
-                  <p className="text-[9px] font-black text-indigo-400 uppercase">lekë</p>
-                </div>
+              <div className="bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-rose-500 mb-1">Dalje Totale</p>
+                <p className="text-2xl font-black text-rose-700">{totalDalje.toLocaleString()}</p>
+                <p className="text-[9px] font-black text-rose-400 uppercase">njësi · {getPeriodLabel()}</p>
               </div>
-
-              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] uppercase font-black tracking-widest">
-                      <tr>
-                        <th className="px-4 py-3">Artikulli</th>
-                        <th className="px-4 py-3 text-center text-emerald-500">Hyrje</th>
-                        <th className="px-4 py-3 text-center text-rose-500">Dalje</th>
-                        <th className="px-4 py-3 text-center text-indigo-500">Ndryshimi</th>
-                        <th className="px-4 py-3 text-center">Gjendja</th>
-                        <th className="px-4 py-3 text-right">Vlera Gjendjes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {reportItems.length === 0 ? (
-                        <tr><td colSpan={6} className="py-16 text-center text-[11px] font-black text-slate-300 uppercase tracking-widest">Nuk ka të dhëna për këtë periudhë</td></tr>
-                      ) : reportItems.map(({ item, hyrje, dalje, gjendja, vlera }) => {
-                        const ndryshimi = hyrje - dalje;
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="px-4 py-3">
-                              <p className="font-black text-slate-900 uppercase tracking-tighter text-sm leading-none">{item.name}</p>
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{item.unit}</p>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {hyrje > 0 ? <span className="inline-flex items-center gap-1 text-emerald-600 font-black text-sm"><ArrowUp size={12}/>{hyrje.toLocaleString()}</span> : <span className="text-slate-200 font-black text-sm">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {dalje > 0 ? <span className="inline-flex items-center gap-1 text-rose-500 font-black text-sm"><ArrowDown size={12}/>{dalje.toLocaleString()}</span> : <span className="text-slate-200 font-black text-sm">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`font-black text-sm ${ndryshimi > 0 ? 'text-emerald-600' : ndryshimi < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                                {ndryshimi > 0 ? '+' : ''}{ndryshimi !== 0 ? ndryshimi.toLocaleString() : '—'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-sm font-black ${gjendja <= 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                {gjendja <= 0 && <AlertTriangle size={11}/>}
-                                {gjendja.toLocaleString()} {item.unit}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right font-black text-slate-700 text-sm">
-                              {gjendja > 0 ? `${Math.round(vlera).toLocaleString()} L` : <span className="text-slate-200">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 text-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">Vlera Gjendjes</p>
+                <p className="text-2xl font-black text-indigo-700">{Math.round(totalVlera).toLocaleString()}</p>
+                <p className="text-[9px] font-black text-indigo-400 uppercase">lekë · aktuale</p>
               </div>
             </div>
-          </div>
+
+            {/* Tabela inline */}
+            <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] uppercase font-black tracking-widest">
+                    <tr>
+                      <th className="px-6 py-4">Artikulli</th>
+                      <th className="px-4 py-4 text-center text-emerald-500">Hyrje</th>
+                      <th className="px-4 py-4 text-center text-rose-500">Dalje</th>
+                      <th className="px-4 py-4 text-center text-indigo-500">Ndryshimi</th>
+                      <th className="px-4 py-4 text-center">Gjendja</th>
+                      <th className="px-4 py-4 text-right">Vlera Gjendjes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reportItems.length === 0 ? (
+                      <tr><td colSpan={6} className="py-24 text-center text-[11px] font-black text-slate-300 uppercase italic tracking-[0.2em]">Nuk ka të dhëna për këtë periudhë</td></tr>
+                    ) : reportItems.map(({ item, hyrje, dalje, gjendja, vlera }) => {
+                      const ndryshimi = hyrje - dalje;
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-6 py-3">
+                            <p className="font-black text-slate-900 uppercase tracking-tighter text-sm leading-none">{item.name}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{item.unit}</p>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {hyrje > 0 ? <span className="inline-flex items-center gap-1 text-emerald-600 font-black text-sm"><ArrowUp size={12}/>{hyrje.toLocaleString()}</span> : <span className="text-slate-200 font-black text-sm">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {dalje > 0 ? <span className="inline-flex items-center gap-1 text-rose-500 font-black text-sm"><ArrowDown size={12}/>{dalje.toLocaleString()}</span> : <span className="text-slate-200 font-black text-sm">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-black text-sm ${ndryshimi > 0 ? 'text-emerald-600' : ndryshimi < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                              {ndryshimi > 0 ? '+' : ''}{ndryshimi !== 0 ? ndryshimi.toLocaleString() : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-xl text-sm font-black ${gjendja <= 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                              {gjendja <= 0 && <AlertTriangle size={11}/>}
+                              {gjendja.toLocaleString()} {item.unit}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-black text-slate-700 text-sm">
+                            {gjendja > 0 ? `${Math.round(vlera).toLocaleString()} L` : <span className="text-slate-200">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         );
       })()}
 
