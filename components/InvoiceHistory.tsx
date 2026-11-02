@@ -160,9 +160,8 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     }).sort((a, b) => b.date.localeCompare(a.date));
   }, [invoices, clientMap, clientDebtMap, search, statusFilter, cityFilter, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
-  // Totals: nga filteredInvoices (respekton statusFilter, cityFilter, search, periudhën)
-  // Shitjet/Fitimi: vetëm faturat e krijuara në periudhë (inv.date)
-  // Arkëtimet: sipas datës kur u KRY pagesa (paymentDate ose inv.date nëse s'ka paymentDate)
+  // Totals: Shitjet/Fitimi/Detyrimet nga filteredInvoices (respekton filtrat)
+  //         Arkëtimet nga TË GJITHA faturat — pagesat mund të bëhen edhe për fatura të vjetra
   const totals = useMemo(() => {
     const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
     let totalSales = 0;
@@ -170,11 +169,10 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     let totalProfit = 0;
     let totalUnpaid = 0;
 
+    // Shitjet, Fitimi, Detyrimet: nga filteredInvoices (sipas datës krijimit)
     filteredInvoices.forEach(inv => {
       const invDate = inv.date.slice(0, 10);
-      const payDateStr = (inv.paymentDate || inv.date).slice(0, 10);
 
-      // Shitjet & Fitimi: vetëm nëse fatura u KRIjUA në periudhë
       const createdInPeriod =
         filterMode === 'all'   ? true :
         filterMode === 'month' ? invDate.slice(0, 7) === selectedMonth :
@@ -189,11 +187,8 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           const sellLek  = getConvVal(Number(it.price), inv.currency);
           totalProfit += (sellLek - purchLek) * Number(it.quantity);
         });
-        // Detyrimet: vetëm fatura e fundit 'Pa paguar' e çdo klienti (jo e absorbuar, jo 'Pasuar')
         const absorbedSt = getAbsorbedStatus(inv);
         if (absorbedSt === 'none' && inv.status === 'Pa paguar') {
-          // Ditor: vetëm borxhi i ri i shtuar atë ditë (pa previousBalance)
-          // Mujor/vjetor/të gjitha: borxhi total (duke përfshirë previousBalance)
           const isDailyFilter = filterMode === 'day' || filterMode === 'today';
           const debt = isDailyFilter
             ? Math.max(0, getConvVal(inv.subtotal, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency))
@@ -201,41 +196,47 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           totalUnpaid += debt;
         }
       }
+    });
 
-      // Arkëtimet: sipas datës së PAGESËS (jo krijimit)
-      const isDailyArketim = filterMode === 'day' || filterMode === 'today';
+    // Arkëtimet: nga TË GJITHA faturat sipas datës së PAGESËS (jo datës krijimit)
+    const isDailyArketim = filterMode === 'day' || filterMode === 'today';
+    invoices.filter(inv => inv.status !== 'Anuluar').forEach(inv => {
+      const invDate = inv.date.slice(0, 10);
+      const payDateStr = (inv.paymentDate || inv.date).slice(0, 10);
+
       if (isDailyArketim) {
-        // Për filtrin ditor: mblidh vetëm pagesat e bëra atë ditë nga payments[]
         (inv.payments || []).forEach(p => {
-          if (p.date === activeDayStr) {
-            totalCollected += getConvVal(p.amount, inv.currency);
-          }
+          if (p.date === activeDayStr) totalCollected += getConvVal(p.amount, inv.currency);
         });
-        // Fallback për faturat pa payments[]: nëse paguar sot
         if (!(inv.payments || []).length && payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
           if (invDate === activeDayStr) {
-            // Faturë e krijuar sot: e gjithë pagesa është e sotme
             totalCollected += getConvVal(inv.amountPaid!, inv.currency);
           } else {
-            // Faturë e vjetër paguar sot: delta ≈ subtotal (borxhi i ri, jo gjendja paraprake)
             totalCollected += getConvVal(inv.subtotal, inv.currency);
           }
         }
       } else {
-        const paidInPeriod = (inv.amountPaid || 0) > 0 && (
-          filterMode === 'all'   ? true :
-          filterMode === 'month' ? payDateStr.slice(0, 7) === selectedMonth :
-          filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear :
-          false
-        );
-        if (paidInPeriod) {
-          totalCollected += getConvVal(inv.amountPaid!, inv.currency);
+        if ((inv.payments || []).length > 0) {
+          (inv.payments || []).forEach(p => {
+            const pDay = p.date.slice(0, 10);
+            const inPeriod = filterMode === 'all' ? true :
+              filterMode === 'month' ? pDay.slice(0, 7) === selectedMonth :
+              filterMode === 'year'  ? pDay.slice(0, 4) === selectedYear : false;
+            if (inPeriod && p.amount > 0) totalCollected += getConvVal(p.amount, inv.currency);
+          });
+        } else {
+          const paidInPeriod = (inv.amountPaid || 0) > 0 && (
+            filterMode === 'all'   ? true :
+            filterMode === 'month' ? payDateStr.slice(0, 7) === selectedMonth :
+            filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear : false
+          );
+          if (paidInPeriod) totalCollected += getConvVal(inv.amountPaid!, inv.currency);
         }
       }
     });
 
     return { sales: totalSales, collected: totalCollected, profit: totalProfit, unpaid: totalUnpaid };
-  }, [filteredInvoices, items, filterMode, activeDayStr, selectedMonth, selectedYear]);
+  }, [filteredInvoices, invoices, items, filterMode, activeDayStr, selectedMonth, selectedYear]);
 
   // ─── Filtrat e pavarur të raportit ───────────────────────────────────────────
   const [reportMode, setReportMode] = useState<'month' | 'year'>('month');
