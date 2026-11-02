@@ -269,13 +269,25 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         });
       }
 
-      // Arketime — sipas datës së PAGESËS
-      if ((inv.amountPaid || 0) > 0) {
+      // Arketime — sipas payments[] (delta per ditë), fallback tek amountPaid për faturat e vjetra
+      if ((inv.payments || []).length > 0) {
+        (inv.payments || []).forEach(p => {
+          const pDay = p.date.slice(0, 10);
+          const inPeriod = reportMode === 'month'
+            ? pDay.slice(0, 7) === reportMonth
+            : pDay.slice(0, 4) === reportYear;
+          if (inPeriod && p.amount > 0) {
+            const key = reportMode === 'month' ? pDay : pDay.slice(0, 7);
+            ensure(key);
+            map[key].arketime += getConv(p.amount, inv.currency);
+          }
+        });
+      } else if ((inv.amountPaid || 0) > 0) {
+        // Fallback për faturat e vjetra pa payments[]
         const arketimeKey = reportMode === 'month' ? payDay : payDay.slice(0, 7);
         const inArketimePeriod = reportMode === 'month'
           ? payDay.slice(0, 7) === reportMonth
           : payDay.slice(0, 4) === reportYear;
-
         if (inArketimePeriod) {
           ensure(arketimeKey);
           map[arketimeKey].arketime += getConv(inv.amountPaid!, inv.currency);
