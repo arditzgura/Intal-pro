@@ -170,11 +170,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
 
         const totalIn = stockEntries.reduce((acc, entry) => {
           const origin = entry.origin?.toUpperCase() || '';
-          if (supplierFilter === 'all') {
-            if (origin !== 'MAGAZINA QENDRORE') return acc;
-          } else {
-            if (origin !== supplierFilter) return acc;
-          }
+          if (supplierFilter !== 'all' && origin !== supplierFilter) return acc;
           if (upToDate && entry.date.slice(0, 10) > upToDate) return acc;
           const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
           return acc + (found ? Number(found.quantity) : 0);
