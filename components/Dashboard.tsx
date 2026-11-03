@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Invoice, Client, Item, StockEntry } from '../types';
 import { normalize } from '../utils/storage';
-import { TrendingUp, Users, Package, FileText, CheckCircle, AlertCircle, Calculator, DollarSign, ArrowDownCircle, Filter, Calendar, Clock, ChevronDown, Wallet, CalendarDays, History, Landmark, PieChart } from 'lucide-react';
+import { TrendingUp, Users, Package, FileText, CheckCircle, AlertCircle, Calculator, DollarSign, ArrowDownCircle, Filter, Calendar, Clock, ChevronDown, Wallet, CalendarDays, History, Landmark, PieChart, Truck } from 'lucide-react';
 
 interface Props {
   invoices: Invoice[];
@@ -17,6 +17,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-CA'));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA').slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [supplierFilter, setSupplierFilter] = useState<string>('all');
 
   const todayStr = new Date().toLocaleDateString('en-CA');
 
@@ -28,6 +29,12 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     });
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [invoices]);
+
+  const availableSuppliers = useMemo(() => {
+    const set = new Set<string>();
+    stockEntries.forEach(e => { if (e.origin) set.add(e.origin.toUpperCase()); });
+    return Array.from(set).sort();
+  }, [stockEntries]);
 
   const getConvVal = (val: number, curr?: string) => curr === 'EUR' ? val * 100 : val;
 
@@ -162,7 +169,12 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
         const sameNameIds = new Set(items.filter(i => normalize(i.name.trim()) === nameLower).map(i => i.id));
 
         const totalIn = stockEntries.reduce((acc, entry) => {
-          if (entry.origin?.toUpperCase() !== 'MAGAZINA QENDRORE') return acc;
+          const origin = entry.origin?.toUpperCase() || '';
+          if (supplierFilter === 'all') {
+            if (origin !== 'MAGAZINA QENDRORE') return acc;
+          } else {
+            if (origin !== supplierFilter) return acc;
+          }
           if (upToDate && entry.date.slice(0, 10) > upToDate) return acc;
           const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
           return acc + (found ? Number(found.quantity) : 0);
@@ -222,7 +234,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     const diff         = currentValue - prevValue;
 
     return { currentValue, prevValue, diff };
-  }, [items, stockEntries, invoices, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
+  }, [items, stockEntries, invoices, filterMode, selectedDay, selectedMonth, selectedYear, todayStr, supplierFilter]);
 
   const getPeriodLabel = () => {
     if (filterMode === 'all') return 'Gjithë Kohës';
@@ -300,12 +312,25 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
             </div>
           </div>
 
-          <div className="flex items-center gap-4 w-full lg:w-auto">
+          <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap justify-end">
             {filterMode !== 'all' && filterMode !== 'today' && (
-              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 w-full lg:w-auto justify-center">
+              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
                 {filterMode === 'day' && <input type="date" className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)}/>}
                 {filterMode === 'month' && <input type="month" className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}/>}
                 {filterMode === 'year' && <select className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>}
+              </div>
+            )}
+            {availableSuppliers.length > 0 && (
+              <div className="relative">
+                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                <select
+                  value={supplierFilter}
+                  onChange={e => setSupplierFilter(e.target.value)}
+                  className="pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[10px] font-black uppercase appearance-none cursor-pointer"
+                >
+                  <option value="all">Të Gjithë Furnitorët</option>
+                  {availableSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             )}
             <div className="hidden sm:block text-right shrink-0">
