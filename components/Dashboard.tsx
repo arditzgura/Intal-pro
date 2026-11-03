@@ -130,46 +130,37 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       return true;
     };
 
-    // Helper: a ka fatura të paktën një artikull nga furnitori i zgjedhur?
-    const invHasSupplierItem = (inv: Invoice) => {
+    // Filtro faturat sipas furnitorit (nëse është zgjedhur një specifik)
+    const invMatchesSupplier = (inv: Invoice) => {
       if (!supplierItemKeys) return true;
       return inv.items.some(it =>
         supplierItemKeys.has(it.itemId) || supplierItemKeys.has(normalize(it.name.trim()))
       );
     };
 
-    // Xhiro: Vetëm faturat e KRIJUARA në këtë periudhë
-    let totalSales = 0;
-    let totalCOGS = 0;
-    invoices.forEach(inv => {
-      if (inv.status === 'Anuluar') return;
-      if (!matches(inv.date.slice(0, 10))) return;
-      if (!invHasSupplierItem(inv)) return;
-      if (supplierItemKeys) {
-        // Llogarit vetëm artikujt e furnitorit
-        inv.items.forEach(it => {
-          if (!supplierItemKeys.has(it.itemId) && !supplierItemKeys.has(normalize(it.name.trim()))) return;
-          const price = it.price ?? 0;
-          const qty = Number(it.quantity);
-          const disc = it.discount ?? 0;
-          totalSales += getConvVal(price * qty * (1 - disc / 100), inv.currency);
-          const globalItem = items.find(i => i.id === it.itemId || normalize(i.name.trim()) === normalize(it.name.trim()));
-          totalCOGS += getConvVal((globalItem?.purchasePrice || 0) * qty, inv.currency);
-        });
-      } else {
-        totalSales += getConvVal(inv.subtotal, inv.currency);
-        const invoiceCost = inv.items.reduce((itemAcc, invItem) => {
-          const globalItem = items.find(i => i.id === invItem.itemId || i.name === invItem.name);
-          return itemAcc + ((globalItem?.purchasePrice || 0) * invItem.quantity);
-        }, 0);
-        totalCOGS += invoiceCost;
-      }
-    });
+    // Xhiro: faturat e KRIJUARA në periudhë (shuma e plotë e faturës)
+    const totalSales = invoices.reduce((sum, inv) => {
+      if (inv.status === 'Anuluar') return sum;
+      if (!matches(inv.date.slice(0, 10))) return sum;
+      if (!invMatchesSupplier(inv)) return sum;
+      return sum + getConvVal(inv.subtotal, inv.currency);
+    }, 0);
 
-    // Arketimet: Të gjitha pagesat e BËRA në këtë periudhë
+    // COGS: faturat e KRIJUARA në periudhë
+    const totalCOGS = invoices.reduce((acc, inv) => {
+      if (inv.status === 'Anuluar' || !matches(inv.date.slice(0, 10))) return acc;
+      if (!invMatchesSupplier(inv)) return acc;
+      const invoiceCost = inv.items.reduce((itemAcc, invItem) => {
+        const globalItem = items.find(i => i.id === invItem.itemId || i.name === invItem.name);
+        return itemAcc + ((globalItem?.purchasePrice || 0) * invItem.quantity);
+      }, 0);
+      return acc + invoiceCost;
+    }, 0);
+
+    // Arketimet: pagesat e BËRA në periudhë (sipas paymentDate)
     const totalCollected = invoices.reduce((sum, inv) => {
       if (inv.status === 'Anuluar' || !inv.amountPaid) return sum;
-      if (!invHasSupplierItem(inv)) return sum;
+      if (!invMatchesSupplier(inv)) return sum;
       const pDate = (inv.paymentDate || inv.date).slice(0, 10);
       if (matches(pDate)) {
         return sum + getConvVal(inv.amountPaid, inv.currency);
