@@ -84,6 +84,21 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
     };
   }, [invoices, items, clients]);
 
+  // Set i artikujve që kanë stock nga furnitori i zgjedhur
+  const supplierItemKeys = useMemo(() => {
+    if (supplierFilter === 'all') return null; // null = të gjithë
+    const keys = new Set<string>();
+    stockEntries.forEach(entry => {
+      const origin = entry.origin?.toUpperCase() || '';
+      if (origin !== supplierFilter) return;
+      entry.items.forEach(it => {
+        keys.add(it.itemId);
+        keys.add(normalize(it.name.trim()));
+      });
+    });
+    return keys;
+  }, [stockEntries, supplierFilter]);
+
   // 2. Llogaritja e Statistikave të Periudhës (Filtruar)
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
@@ -115,33 +130,51 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       return true;
     };
 
-    // Xhiro: Vetëm faturat e KRIJUARA në këtë periudhë
-    const totalSales = invoices.reduce((sum, inv) => {
-      if (inv.status === 'Anuluar') return sum;
-      if (matches(inv.date.slice(0, 10))) {
-        return sum + getConvVal(inv.subtotal, inv.currency);
-      }
-      return sum;
-    }, 0);
+    // Helper: a ka fatura të paktën një artikull nga furnitori i zgjedhur?
+    const invHasSupplierItem = (inv: Invoice) => {
+      if (!supplierItemKeys) return true;
+      return inv.items.some(it =>
+        supplierItemKeys.has(it.itemId) || supplierItemKeys.has(normalize(it.name.trim()))
+      );
+    };
 
-    // Arketimet: Të gjitha pagesat e BËRA në këtë periudhë (paymentDate), duke përfshirë edhe pagesat e pjesshme
+    // Xhiro: Vetëm faturat e KRIJUARA në këtë periudhë
+    let totalSales = 0;
+    let totalCOGS = 0;
+    invoices.forEach(inv => {
+      if (inv.status === 'Anuluar') return;
+      if (!matches(inv.date.slice(0, 10))) return;
+      if (!invHasSupplierItem(inv)) return;
+      if (supplierItemKeys) {
+        // Llogarit vetëm artikujt e furnitorit
+        inv.items.forEach(it => {
+          if (!supplierItemKeys.has(it.itemId) && !supplierItemKeys.has(normalize(it.name.trim()))) return;
+          const price = it.price ?? 0;
+          const qty = Number(it.quantity);
+          const disc = it.discount ?? 0;
+          totalSales += getConvVal(price * qty * (1 - disc / 100), inv.currency);
+          const globalItem = items.find(i => i.id === it.itemId || normalize(i.name.trim()) === normalize(it.name.trim()));
+          totalCOGS += getConvVal((globalItem?.purchasePrice || 0) * qty, inv.currency);
+        });
+      } else {
+        totalSales += getConvVal(inv.subtotal, inv.currency);
+        const invoiceCost = inv.items.reduce((itemAcc, invItem) => {
+          const globalItem = items.find(i => i.id === invItem.itemId || i.name === invItem.name);
+          return itemAcc + ((globalItem?.purchasePrice || 0) * invItem.quantity);
+        }, 0);
+        totalCOGS += invoiceCost;
+      }
+    });
+
+    // Arketimet: Të gjitha pagesat e BËRA në këtë periudhë
     const totalCollected = invoices.reduce((sum, inv) => {
       if (inv.status === 'Anuluar' || !inv.amountPaid) return sum;
+      if (!invHasSupplierItem(inv)) return sum;
       const pDate = (inv.paymentDate || inv.date).slice(0, 10);
       if (matches(pDate)) {
         return sum + getConvVal(inv.amountPaid, inv.currency);
       }
       return sum;
-    }, 0);
-
-    // COGS: Vetëm për faturat e KRIJUARA në këtë periudhë
-    const totalCOGS = invoices.reduce((acc, inv) => {
-      if (inv.status === 'Anuluar' || !matches(inv.date.slice(0, 10))) return acc;
-      const invoiceCost = inv.items.reduce((itemAcc, invItem) => {
-        const globalItem = items.find(i => i.id === invItem.itemId || i.name === invItem.name);
-        return itemAcc + ((globalItem?.purchasePrice || 0) * invItem.quantity);
-      }, 0);
-      return acc + invoiceCost;
     }, 0);
 
     return {
@@ -150,7 +183,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
       collected: totalCollected,
       margin: totalSales > 0 ? ((totalSales - totalCOGS) / totalSales) * 100 : 0
     };
-  }, [invoices, items, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
+  }, [invoices, items, filterMode, selectedDay, selectedMonth, selectedYear, todayStr, supplierItemKeys]);
 
   // 3. Gjendja e Inventarit: vlera totale e artikujve (sasi × çmim blerje)
   // Llogarit gjendjen deri në një datë të caktuar (inkluze)
