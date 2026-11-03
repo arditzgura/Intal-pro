@@ -165,6 +165,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
     const salesStats: Record<string, number> = {};
     const stockBalances: Record<string, number> = {};
     const profitStats: Record<string, number> = {};
+    const revenueStats: Record<string, number> = {};
     let globalTotalUnitsSold = 0;
 
     const filteredInvoices = invoices.filter(inv => {
@@ -211,22 +212,26 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
       salesStats[item.id] = qtySold;
       globalTotalUnitsSold += qtySold;
 
-      // Fitimi: (çmim shitje - kosto blerje) × sasi, vetëm për periudhën e filtruar
-      const profit = filteredInvoices.reduce((acc, inv) => {
+      // Fitimi dhe Revenue: vetëm për periudhën e filtruar
+      let profit = 0;
+      let revenue = 0;
+      filteredInvoices.forEach(inv => {
         const getConv = (v: number) => inv.currency === 'EUR' ? v * 100 : v;
         inv.items.forEach(it => {
           if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower) {
             const sell = getConv(Number(it.price));
+            const qty = Number(it.quantity);
             const cost = Number(item.purchasePrice || 0);
-            acc += (sell - cost) * Number(it.quantity);
+            revenue += sell * qty;
+            profit += (sell - cost) * qty;
           }
         });
-        return acc;
-      }, 0);
+      });
       profitStats[item.id] = profit;
+      revenueStats[item.id] = revenue;
     });
 
-    return { salesStats, stockBalances, profitStats, globalTotalUnitsSold };
+    return { salesStats, stockBalances, profitStats, revenueStats, globalTotalUnitsSold };
   }, [mergedItems, items, invoices, stockEntries, filterMode, selectedDay, selectedMonth, selectedYear, todayStr]);
 
   const matchesFuzzy = (name: string, query: string) => {
@@ -266,6 +271,10 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
 
   const totalProfit = useMemo(() =>
     sortedAndFilteredItems.reduce((s, i) => s + (itemStats.profitStats[i.id] || 0), 0),
+  [sortedAndFilteredItems, itemStats]);
+
+  const totalRevenue = useMemo(() =>
+    sortedAndFilteredItems.reduce((s, i) => s + (itemStats.revenueStats[i.id] || 0), 0),
   [sortedAndFilteredItems, itemStats]);
 
   const exportExcel = () => {
@@ -431,6 +440,14 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                     <span className="text-[11px]">{sortBy === 'sales_desc' ? '↓' : sortBy === 'sales_asc' ? '↑' : '↕'}</span>
                   </span>
                 </th>
+                <th className="px-4 py-4 text-center">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>Totali Shitjeve</span>
+                    <span className="text-[13px] font-black text-indigo-500 normal-case tracking-normal">
+                      {Math.round(totalRevenue).toLocaleString()} L
+                    </span>
+                  </div>
+                </th>
                 <th className="px-4 py-4 text-center cursor-pointer select-none hover:text-indigo-600 transition-colors"
                   onClick={() => setSortBy(sortBy === 'profit_desc' ? 'profit_asc' : 'profit_desc')}>
                   <div className="flex flex-col items-center gap-0.5">
@@ -451,6 +468,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                 const totalSold = itemStats.salesStats[item.id];
                 const currentStock = itemStats.stockBalances[item.id];
                 const profit = itemStats.profitStats[item.id] || 0;
+                const revenue = itemStats.revenueStats[item.id] || 0;
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition-colors group">
                     <td className="px-6 py-3">
@@ -480,6 +498,11 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                     <td className="px-4 py-3 text-center">
                        <span className={`text-xl font-black tracking-tighter ${totalSold > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
                           {totalSold.toLocaleString()}
+                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                       <span className={`text-base font-black tracking-tighter ${revenue > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                          {Math.round(revenue).toLocaleString()} L
                        </span>
                     </td>
                     <td className="px-4 py-3 text-center">
