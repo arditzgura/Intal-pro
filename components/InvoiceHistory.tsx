@@ -95,7 +95,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
     Object.entries(byClient).forEach(([key, invs]) => {
       const latest = invs.reduce((a, b) => a.date > b.date ? a : b);
       map[key] = {
-        balance: (latest.subtotal + (latest.previousBalance || 0)) - (latest.amountPaid || 0),
+        balance: (latest.subtotal + (latest.previousBalance || 0)) - (latest.amountPaid || 0) - (latest.pointsValue || 0),
         currency: latest.currency,
         latestId: latest.id,
         latestPaid: latest.status === 'E paguar',
@@ -191,8 +191,8 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         if (absorbedSt === 'none' && inv.status === 'Pa paguar') {
           const isDailyFilter = filterMode === 'day' || filterMode === 'today';
           const debt = isDailyFilter
-            ? Math.max(0, getConvVal(inv.subtotal, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency))
-            : Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency));
+            ? Math.max(0, getConvVal(inv.subtotal, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency) - getConvVal(inv.pointsValue || 0, inv.currency))
+            : Math.max(0, getConvVal(inv.subtotal, inv.currency) + getConvVal(inv.previousBalance || 0, inv.currency) - getConvVal(inv.amountPaid || 0, inv.currency) - getConvVal(inv.pointsValue || 0, inv.currency));
           totalUnpaid += debt;
         }
       }
@@ -211,6 +211,9 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         if (!(inv.payments || []).length && payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
           totalCollected += getConvVal(inv.amountPaid!, inv.currency);
         }
+        if ((inv.pointsValue || 0) > 0 && inv.date.slice(0, 10) === activeDayStr) {
+          totalCollected += getConvVal(inv.pointsValue!, inv.currency);
+        }
       } else {
         if ((inv.payments || []).length > 0) {
           (inv.payments || []).forEach(p => {
@@ -227,6 +230,13 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             filterMode === 'year'  ? payDateStr.slice(0, 4) === selectedYear : false
           );
           if (paidInPeriod) totalCollected += getConvVal(inv.amountPaid!, inv.currency);
+        }
+        if ((inv.pointsValue || 0) > 0) {
+          const invDay = inv.date.slice(0, 10);
+          const inPeriod = filterMode === 'all' ? true :
+            filterMode === 'month' ? invDay.slice(0, 7) === selectedMonth :
+            filterMode === 'year'  ? invDay.slice(0, 4) === selectedYear : false;
+          if (inPeriod) totalCollected += getConvVal(inv.pointsValue!, inv.currency);
         }
       }
     });
@@ -288,6 +298,16 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
         if (inArketimePeriod) {
           ensure(arketimeKey);
           map[arketimeKey].arketime += getConv(inv.amountPaid!, inv.currency);
+        }
+      }
+      // Pikat e zbritura trajtohen si arketim në datën e krijimit të faturës
+      if ((inv.pointsValue || 0) > 0) {
+        const pDay = inv.date.slice(0, 10);
+        const inPeriod = reportMode === 'month' ? pDay.slice(0, 7) === reportMonth : pDay.slice(0, 4) === reportYear;
+        if (inPeriod) {
+          const key = reportMode === 'month' ? pDay : pDay.slice(0, 7);
+          ensure(key);
+          map[key].arketime += getConv(inv.pointsValue!, inv.currency);
         }
       }
     });
@@ -542,8 +562,8 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
 
                 // Vlerat e kolonave
                 const vleraFature = inv.subtotal;
-                const arkëtuar = inv.amountPaid || 0;
-                const detyrimiPerInvoice = (inv.status === 'E paguar' || inv.status === 'Anuluar') ? 0 : Math.max(0, (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0));
+                const arkëtuar = (inv.amountPaid || 0) + (inv.pointsValue || 0);
+                const detyrimiPerInvoice = (inv.status === 'E paguar' || inv.status === 'Anuluar') ? 0 : Math.max(0, (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0) - (inv.pointsValue || 0));
                 const globalBalance = cd?.balance ?? 0;
 
                 // Ngjyra rreshti

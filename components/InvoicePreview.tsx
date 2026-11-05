@@ -702,6 +702,12 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
                    </div>
                 )}
+                {inv.pointsValue && inv.pointsValue > 0 ? (
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
+                      <span>PIKË ({inv.pointsUsed}):</span>
+                      <span>- {inv.pointsValue.toLocaleString()} {getCurrency('short')}</span>
+                   </div>
+                ) : null}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '15pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
                   <span style={{ fontSize: '11pt' }}>{isSurplus ? 'TEPRICA:' : 'TOTALI:'}</span>
                   <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
