@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Client, Invoice, Item, PreferentialPrice } from '../types';
-import { X, FileText, Package, TrendingUp, Download, Calendar, CalendarDays, DollarSign, Tag, ArrowRight, Info, Star, MapPin, Clock, BarChart3, Calculator, Wallet, CheckCircle2, ChevronRight, Landmark, History, PieChart, TrendingUp as ProfitIcon, Phone, Mail, Home, Search, Box, Plus, Trash2, ArrowDownWideNarrow, PlusCircle, Filter, ArrowLeft, UserCircle2 } from 'lucide-react';
+import { Client, Invoice, Item, PreferentialPrice, PointTransaction } from '../types';
+import { X, FileText, Package, TrendingUp, Download, Calendar, CalendarDays, DollarSign, Tag, ArrowRight, Info, Star, MapPin, Clock, BarChart3, Calculator, Wallet, CheckCircle2, ChevronRight, Landmark, History, PieChart, TrendingUp as ProfitIcon, Phone, Mail, Home, Search, Box, Plus, Trash2, ArrowDownWideNarrow, PlusCircle, Filter, ArrowLeft, UserCircle2, Gift, Minus } from 'lucide-react';
 import { exportClientAnalysisToExcel } from '../utils/exportUtils';
 
 interface Props {
@@ -31,7 +31,43 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
     reader.onload = () => onUpdateClient({ ...client, photo: reader.result as string });
     reader.readAsDataURL(file);
   };
-  const [activeTab, setActiveTab] = useState<'overview' | 'prices' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'prices' | 'profile' | 'points'>('overview');
+
+  // --- Menaxhimi i Pikëve ---
+  const [pointsAction, setPointsAction] = useState<'add' | 'redeem'>('add');
+  const [pointsInput, setPointsInput] = useState<number | ''>('');
+  const [pointsLekRate, setPointsLekRate] = useState<number | ''>(1); // 1 pikë = ? LEK
+  const [pointsDesc, setPointsDesc] = useState('');
+  const [pointsSaved, setPointsSaved] = useState(false);
+
+  const currentPoints = client.points || 0;
+  const pointTransactions: PointTransaction[] = client.pointTransactions || [];
+
+  const handlePointsSubmit = () => {
+    const pts = Number(pointsInput);
+    const rate = Number(pointsLekRate) || 1;
+    if (!pts || pts <= 0) return;
+    if (pointsAction === 'redeem' && pts > currentPoints) return;
+
+    const newBalance = pointsAction === 'add' ? currentPoints + pts : currentPoints - pts;
+    const tx: PointTransaction = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      date: new Date().toLocaleDateString('en-CA'),
+      description: pointsDesc.trim() || (pointsAction === 'add' ? 'Shtim manual' : 'Shlyerje manuale'),
+      points: pointsAction === 'add' ? pts : -pts,
+      valueInLek: pointsAction === 'redeem' ? pts * rate : undefined,
+      balance: newBalance,
+    };
+    onUpdateClient({
+      ...client,
+      points: newBalance,
+      pointTransactions: [tx, ...pointTransactions],
+    });
+    setPointsInput('');
+    setPointsDesc('');
+    setPointsSaved(true);
+    setTimeout(() => setPointsSaved(false), 1500);
+  };
   const [profileForm, setProfileForm] = useState({ code: client.code || '', name: client.name, city: client.city || '', phone: client.phone || '', email: client.email || '', address: client.address || '' });
   const [profileSaved, setProfileSaved] = useState(false);
   const [filterMode, setFilterMode] = useState<'all' | 'today' | 'day' | 'month' | 'year'>('year');
@@ -246,6 +282,9 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
           <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
              <button onClick={() => setActiveTab('overview')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'overview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Analitika</button>
              <button onClick={() => setActiveTab('prices')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'prices' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Çmimet</button>
+             <button onClick={() => setActiveTab('points')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-1.5 ${activeTab === 'points' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500'}`}>
+               <Star size={11} fill={activeTab === 'points' ? 'currentColor' : 'none'}/> Pikat {currentPoints > 0 && <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${activeTab === 'points' ? 'bg-white/20' : 'bg-amber-100 text-amber-600'}`}>{currentPoints}</span>}
+             </button>
              <button onClick={() => setActiveTab('profile')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'profile' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Profili</button>
           </div>
 
@@ -493,6 +532,126 @@ const ClientProfile: React.FC<Props> = ({ client, invoices, items, onUpdateItems
                      </tbody>
                   </table>
                </div>
+            </div>
+          ) : activeTab === 'points' ? (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 max-w-2xl mx-auto">
+
+              {/* Bilanci */}
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-[32px] p-8 text-white shadow-xl shadow-amber-500/30">
+                <div className="flex items-center gap-3 mb-2">
+                  <Star size={20} fill="currentColor"/>
+                  <span className="text-[11px] font-black uppercase tracking-widest opacity-80">Gjendja e Pikëve</span>
+                </div>
+                <p className="text-6xl font-black tracking-tighter">{currentPoints.toLocaleString()}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mt-1">Pikë të disponueshme</p>
+              </div>
+
+              {/* Forma e veprimit */}
+              <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                  <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button onClick={() => setPointsAction('add')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-all ${pointsAction === 'add' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500'}`}>
+                      <Plus size={12}/> Shto Pikë
+                    </button>
+                    <button onClick={() => setPointsAction('redeem')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1.5 transition-all ${pointsAction === 'redeem' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500'}`}>
+                      <Minus size={12}/> Shlyej Pikë
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Numri i Pikëve</label>
+                      <input
+                        type="number" min={1} max={pointsAction === 'redeem' ? currentPoints : undefined}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-black focus:border-amber-400 transition-all"
+                        placeholder="0"
+                        value={pointsInput}
+                        onChange={e => setPointsInput(e.target.value === '' ? '' : Number(e.target.value))}
+                      />
+                      {pointsAction === 'redeem' && Number(pointsInput) > currentPoints && (
+                        <p className="text-[10px] text-rose-500 font-black">Pikë të pamjaftueshme!</p>
+                      )}
+                    </div>
+                    {pointsAction === 'redeem' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1 Pikë = ? LEK</label>
+                        <input
+                          type="number" min={1}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-black focus:border-amber-400 transition-all"
+                          placeholder="1"
+                          value={pointsLekRate}
+                          onChange={e => setPointsLekRate(e.target.value === '' ? '' : Number(e.target.value))}
+                        />
+                        {Number(pointsInput) > 0 && Number(pointsLekRate) > 0 && (
+                          <p className="text-[10px] text-emerald-600 font-black">= {(Number(pointsInput) * Number(pointsLekRate)).toLocaleString()} LEK zbritje</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Përshkrimi (opsional)</label>
+                    <input
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-black focus:border-amber-400 transition-all"
+                      placeholder={pointsAction === 'add' ? 'p.sh. Blerje e madhe' : 'p.sh. Zbritje - Fatura #5507'}
+                      value={pointsDesc}
+                      onChange={e => setPointsDesc(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={handlePointsSubmit}
+                    disabled={!pointsInput || Number(pointsInput) <= 0 || (pointsAction === 'redeem' && Number(pointsInput) > currentPoints)}
+                    className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${pointsSaved ? 'bg-emerald-500 text-white' : pointsAction === 'add' ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/20'}`}
+                  >
+                    {pointsSaved ? <><CheckCircle2 size={16}/> U Ruajt!</> : pointsAction === 'add' ? <><Plus size={14}/> Shto Pikët</> : <><Minus size={14}/> Shlyej Pikët</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Historiku */}
+              {pointTransactions.length > 0 && (
+                <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                    <History size={18} className="text-amber-500"/>
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Historiku i Pikëve</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <tr>
+                          <th className="px-5 py-3">Data</th>
+                          <th className="px-5 py-3">Përshkrimi</th>
+                          <th className="px-5 py-3 text-right">Pikë</th>
+                          <th className="px-5 py-3 text-right">Vlera LEK</th>
+                          <th className="px-5 py-3 text-right">Mbetja</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {pointTransactions.map(tx => (
+                          <tr key={tx.id} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-3 text-[11px] font-black text-slate-500">{formatDateDisplay(tx.date)}</td>
+                            <td className="px-5 py-3 text-xs font-bold text-slate-700">{tx.description}</td>
+                            <td className={`px-5 py-3 text-right text-sm font-black ${tx.points > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                              {tx.points > 0 ? '+' : ''}{tx.points}
+                            </td>
+                            <td className="px-5 py-3 text-right text-[11px] font-black text-slate-500">
+                              {tx.valueInLek ? `${tx.valueInLek.toLocaleString()} L` : '—'}
+                            </td>
+                            <td className="px-5 py-3 text-right text-sm font-black text-amber-600">{tx.balance.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {pointTransactions.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                  <Star size={32} className="mx-auto mb-3 opacity-30"/>
+                  <p className="text-xs font-black uppercase tracking-widest">Asnjë transaksion pikësh</p>
+                </div>
+              )}
             </div>
           ) : activeTab === 'profile' ? (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 max-w-2xl mx-auto">

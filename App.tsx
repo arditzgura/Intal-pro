@@ -637,6 +637,26 @@ const App: React.FC = () => {
       return { ...invItem, itemId: ex.id };
     });
 
+    // Zbritja e pikëve nga klienti nëse janë përdorur
+    if (invoice.pointsUsed && invoice.pointsUsed > 0 && !editInvoice) {
+      const cIdx = updClients.findIndex(c => c.id === final.clientId);
+      if (cIdx >= 0) {
+        const cl = updClients[cIdx];
+        const newBalance = Math.max(0, (cl.points || 0) - invoice.pointsUsed);
+        const tx = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+          date: new Date().toLocaleDateString('en-CA'),
+          description: `Shlyerje - Fatura #${invoice.invoiceNumber}`,
+          points: -invoice.pointsUsed,
+          valueInLek: invoice.pointsValue,
+          balance: newBalance,
+          invoiceId: final.id,
+        };
+        updClients[cIdx] = { ...cl, points: newBalance, pointTransactions: [tx, ...(cl.pointTransactions || [])] };
+        cChanged = true;
+      }
+    }
+
     if (cChanged) { setClients(updClients); local.setAll(uid, 'clients', updClients); }
     if (iChanged) { setItems(updItems); local.setAll(uid, 'items', updItems); }
 

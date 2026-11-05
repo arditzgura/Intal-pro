@@ -1,4 +1,14 @@
 
+export interface PointTransaction {
+  id: string;
+  date: string;        // YYYY-MM-DD
+  description: string; // p.sh. "Shtim manual", "Shlyerje - Fatura #5507"
+  points: number;      // pozitiv = fituar, negativ = shlyerë
+  valueInLek?: number; // vlera LEK për shlyerjet
+  balance: number;     // bilanci pas kësaj transaksioni
+  invoiceId?: string;
+}
+
 export interface Client {
   id: string;
   code?: string;   // Kodi unik i klientit p.sh. KL001
@@ -8,6 +18,7 @@ export interface Client {
   phone: string;
   email: string;
   points?: number;
+  pointTransactions?: PointTransaction[];
   photo?: string;
 }
 
@@ -65,6 +76,8 @@ export interface Invoice {
   paymentDate?: string; // Data kur faturë është paguar
   payments?: Payment[]; // Arketimet e pjesshme me datë
   showOriginalPrice?: boolean; // Shfaq çmimin origjinal të barritur me vijë
+  pointsUsed?: number;    // Numri i pikëve të përdorura
+  pointsValue?: number;   // Vlera LEK e pikëve të shlyera
 }
 
 export interface StockEntryItem {

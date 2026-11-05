@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Client, Item, Invoice, InvoiceItem, BusinessConfig } from '../types';
-import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock, Pencil } from 'lucide-react';
+import { Plus, Hash, Trash2, CheckCircle2, Calculator, RotateCcw, CheckCheck, MessageSquareText, MapPin, Coins, Wallet, X, Users, Search, ChevronDown, Box, Package, Tag, ArrowRight, PackageSearch, Save, Clock, Pencil, Star } from 'lucide-react';
 import { loadData, saveData, STORAGE_KEYS, clearData, normalize } from '../utils/storage';
 
 interface Props {
@@ -38,7 +38,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [amountPaid, setAmountPaid] = useState<number | string>(0);
   const originalAmountPaid = React.useRef<number>(0);
   const [notes, setNotes] = useState('');
-  
+  const [usePoints, setUsePoints] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState<number | ''>('');
+  const [pointsRate, setPointsRate] = useState<number>(1); // 1 pikë = ? LEK
+
   const [prevBalanceLabel, setPrevBalanceLabel] = useState('Gjendja (+)');
   const [amountPaidLabel, setAmountPaidLabel] = useState('Paguar (-)');
   const [paymentDate, setPaymentDate] = useState<string>('');
@@ -205,6 +208,9 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       } else {
         setPreviousBalance(0);
       }
+      // Reset pikat kur ndryshon klienti
+      setUsePoints(false);
+      setPointsToUse('');
     }
   }, [selectedClientId, invoices, initialData]);
 
@@ -212,7 +218,12 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const prevBalNum = typeof previousBalance === 'string' ? (parseFloat(previousBalance) || 0) : previousBalance;
   const paidNum = typeof amountPaid === 'string' ? (parseFloat(amountPaid) || 0) : amountPaid;
   const grandTotal = subtotal + prevBalNum;
-  const balanceDue = grandTotal - paidNum;
+
+  // Klienti i zgjedhur dhe pikat e tij
+  const selectedClient = useMemo(() => clients.find(c => c.id === selectedClientId) || null, [clients, selectedClientId]);
+  const clientAvailablePoints = selectedClient?.points || 0;
+  const pointsValue = usePoints ? Math.min(Number(pointsToUse) || 0, clientAvailablePoints) * pointsRate : 0;
+  const balanceDue = grandTotal - paidNum - pointsValue;
   const isSurplus = balanceDue < 0;
 
   const matchesFuzzy = (target: string, query: string) => {
@@ -411,6 +422,9 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
     const finalStatus = (isEditing || keepStatus) && initialData?.status ? initialData.status : computedStatus;
     const finalDate = invoiceDate || (isEditing ? initialData!.date : new Date().toLocaleDateString('en-CA'));
 
+    const finalPointsUsed = usePoints ? Math.min(Number(pointsToUse) || 0, clientAvailablePoints) : 0;
+    const finalPointsValue = finalPointsUsed * pointsRate;
+
     onSubmit({
       id: initialData?.id || Date.now().toString(),
       invoiceNumber,
@@ -431,9 +445,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       total: finalSubtotal,
       status: finalStatus,
       notes: notes.trim() || undefined,
+      pointsUsed: finalPointsUsed > 0 ? finalPointsUsed : undefined,
+      pointsValue: finalPointsValue > 0 ? finalPointsValue : undefined,
       paymentDate: (() => {
         const today = new Date().toLocaleDateString('en-CA');
-        // Nëse pagesa u rrit sot (edit i faturës ekzistuese) → regjistro sot
         if (initialData && finalPaid > originalAmountPaid.current) return today;
         return paymentDate || finalDate.slice(0, 10);
       })()
@@ -870,7 +885,52 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                 </div>
                 <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
               </div>
-              
+
+              {/* Pikat e Besnikërisë */}
+              {clientAvailablePoints > 0 && (
+                <div className={`rounded-3xl border transition-all ${usePoints ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setUsePoints(u => !u)}>
+                    <div className="flex items-center gap-2">
+                      <Star size={16} className={usePoints ? 'text-amber-500' : 'text-slate-400'} fill={usePoints ? 'currentColor' : 'none'}/>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Pikë Besnikërie</span>
+                      <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg text-[9px] font-black">{clientAvailablePoints} pikë</span>
+                    </div>
+                    <div className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${usePoints ? 'bg-amber-500' : 'bg-slate-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${usePoints ? 'translate-x-5' : 'translate-x-0'}`}/>
+                    </div>
+                  </div>
+                  {usePoints && (
+                    <div className="px-4 pb-4 space-y-2">
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Pikë për shlyerje</label>
+                          <input type="number" min={1} max={clientAvailablePoints}
+                            className="w-full bg-white px-3 py-2 rounded-xl font-black text-amber-700 outline-none text-sm border border-amber-200 focus:border-amber-400 mt-1"
+                            placeholder="0"
+                            value={pointsToUse}
+                            onChange={e => setPointsToUse(e.target.value === '' ? '' : Math.min(Number(e.target.value), clientAvailablePoints))}
+                          />
+                        </div>
+                        <div className="w-24">
+                          <label className="text-[9px] font-black text-amber-600 uppercase tracking-widest">1 Pikë = L</label>
+                          <input type="number" min={1}
+                            className="w-full bg-white px-3 py-2 rounded-xl font-black text-amber-700 outline-none text-sm border border-amber-200 focus:border-amber-400 mt-1"
+                            value={pointsRate}
+                            onChange={e => setPointsRate(Number(e.target.value) || 1)}
+                          />
+                        </div>
+                      </div>
+                      {pointsValue > 0 && (
+                        <div className="flex justify-between items-center bg-amber-100 rounded-xl px-3 py-2">
+                          <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Zbritje nga pikat:</span>
+                          <span className="text-sm font-black text-amber-700">-{pointsValue.toLocaleString()} L</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className={`p-10 rounded-[40px] text-white shadow-2xl relative overflow-hidden transition-all duration-500 transform hover:scale-[1.02] ${isSurplus ? 'bg-amber-500 border-b-8 border-amber-700' : 'bg-slate-900 border-b-8 border-rose-600'}`}>
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                    {isSurplus ? <Coins size={80} /> : <Calculator size={80} />}

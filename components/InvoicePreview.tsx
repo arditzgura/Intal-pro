@@ -247,7 +247,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
     }
   };
 
-  const balanceDue = (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0);
+  const balanceDue = (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0) - (inv.pointsValue || 0);
   const isSurplus = balanceDue < 0;
   const isPaidInFull = balanceDue <= 0;
 
@@ -601,6 +601,12 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                           }
                         </div>
                       )}
+                      {inv.pointsValue && inv.pointsValue > 0 ? (
+                        <div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest">
+                          <span>Paguar me pikë ({inv.pointsUsed} pikë):</span>
+                          <span className="text-[13px]">- {inv.pointsValue.toLocaleString()} L</span>
+                        </div>
+                      ) : null}
                       {editMode && (
                         <div className="flex justify-between items-center text-emerald-600 text-[11px] font-black uppercase tracking-widest">
                           <span>DATA PAGESËS:</span>
