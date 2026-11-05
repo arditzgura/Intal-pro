@@ -209,11 +209,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
           if (p.date === activeDayStr) totalCollected += getConvVal(p.amount, inv.currency);
         });
         if (!(inv.payments || []).length && payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
-          if (invDate === activeDayStr) {
-            totalCollected += getConvVal(inv.amountPaid!, inv.currency);
-          } else {
-            totalCollected += getConvVal(inv.subtotal, inv.currency);
-          }
+          totalCollected += getConvVal(inv.amountPaid!, inv.currency);
         }
       } else {
         if ((inv.payments || []).length > 0) {
