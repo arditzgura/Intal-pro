@@ -204,7 +204,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       
       if (clientInvoices.length > 0) {
         const last = clientInvoices[0];
-        setPreviousBalance((last.subtotal + (last.previousBalance || 0)) - (last.amountPaid || 0));
+        setPreviousBalance((last.subtotal + (last.previousBalance || 0)) - (last.amountPaid || 0) - (last.pointsValue || 0));
       } else {
         setPreviousBalance(0);
       }
@@ -887,15 +887,19 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
               </div>
 
               {/* Pikat e Besnikërisë */}
-              {clientAvailablePoints > 0 && (
-                <div className={`rounded-3xl border transition-all ${usePoints ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+              {clientAvailablePoints > 0 && (() => {
+                const pointsNum = Number(pointsToUse) || 0;
+                const pointsExceed = usePoints && pointsNum > clientAvailablePoints;
+                const remainingPoints = clientAvailablePoints - Math.min(pointsNum, clientAvailablePoints);
+                return (
+                <div className={`rounded-3xl border transition-all ${pointsExceed ? 'bg-rose-50 border-rose-300' : usePoints ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
                   <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setUsePoints(u => !u)}>
                     <div className="flex items-center gap-2">
-                      <Star size={16} className={usePoints ? 'text-amber-500' : 'text-slate-400'} fill={usePoints ? 'currentColor' : 'none'}/>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Pikë Besnikërie</span>
-                      <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg text-[9px] font-black">{clientAvailablePoints} pikë</span>
+                      <Star size={16} className={usePoints ? (pointsExceed ? 'text-rose-500' : 'text-amber-500') : 'text-slate-400'} fill={usePoints ? 'currentColor' : 'none'}/>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${pointsExceed ? 'text-rose-700' : 'text-amber-700'}`}>Pikë Besnikërie</span>
+                      <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black ${pointsExceed ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>{clientAvailablePoints} pikë</span>
                     </div>
-                    <div className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${usePoints ? 'bg-amber-500' : 'bg-slate-300'}`}>
+                    <div className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${usePoints ? (pointsExceed ? 'bg-rose-500' : 'bg-amber-500') : 'bg-slate-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${usePoints ? 'translate-x-5' : 'translate-x-0'}`}/>
                     </div>
                   </div>
@@ -903,12 +907,12 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                     <div className="px-4 pb-4 space-y-2">
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Pikë për shlyerje</label>
-                          <input type="number" min={1} max={clientAvailablePoints}
-                            className="w-full bg-white px-3 py-2 rounded-xl font-black text-amber-700 outline-none text-sm border border-amber-200 focus:border-amber-400 mt-1"
+                          <label className={`text-[9px] font-black uppercase tracking-widest ${pointsExceed ? 'text-rose-600' : 'text-amber-600'}`}>Pikë për shlyerje</label>
+                          <input type="number" min={1}
+                            className={`w-full bg-white px-3 py-2 rounded-xl font-black outline-none text-sm mt-1 transition-all ${pointsExceed ? 'border-2 border-rose-400 text-rose-700 focus:border-rose-500' : 'border border-amber-200 text-amber-700 focus:border-amber-400'}`}
                             placeholder="0"
                             value={pointsToUse}
-                            onChange={e => setPointsToUse(e.target.value === '' ? '' : Math.min(Number(e.target.value), clientAvailablePoints))}
+                            onChange={e => setPointsToUse(e.target.value === '' ? '' : Number(e.target.value))}
                           />
                         </div>
                         <div className="w-24">
@@ -920,16 +924,29 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                           />
                         </div>
                       </div>
-                      {pointsValue > 0 && (
+                      {pointsExceed && (
+                        <div className="flex items-center gap-2 bg-rose-100 border border-rose-300 rounded-xl px-3 py-2">
+                          <span className="text-rose-600 font-black text-lg leading-none">⚠</span>
+                          <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest">Tejkalon gjendjen! Maks: {clientAvailablePoints} pikë</span>
+                        </div>
+                      )}
+                      {!pointsExceed && pointsValue > 0 && (
                         <div className="flex justify-between items-center bg-amber-100 rounded-xl px-3 py-2">
                           <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Zbritje nga pikat:</span>
                           <span className="text-sm font-black text-amber-700">-{pointsValue.toLocaleString()} L</span>
                         </div>
                       )}
+                      {usePoints && pointsNum > 0 && !pointsExceed && (
+                        <div className="flex justify-between items-center bg-white border border-amber-100 rounded-xl px-3 py-2">
+                          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pikë mbetëse:</span>
+                          <span className="text-sm font-black text-slate-700">{remainingPoints} pikë</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               <div className={`p-10 rounded-[40px] text-white shadow-2xl relative overflow-hidden transition-all duration-500 transform hover:scale-[1.02] ${isSurplus ? 'bg-amber-500 border-b-8 border-amber-700' : 'bg-slate-900 border-b-8 border-rose-600'}`}>
                 <div className="absolute top-0 right-0 p-8 opacity-10">
@@ -944,20 +961,27 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4 pt-4">
-                <button 
-                  onClick={() => handleSaveInvoice(false)} 
-                  className="w-full bg-[#D81B60] hover:bg-[#AD1457] text-white py-8 rounded-[40px] font-black uppercase tracking-[0.15em] shadow-xl shadow-[#D81B60]/20 flex items-center justify-center gap-4 transition-all active:scale-95 group"
-                >
-                  <CheckCircle2 size={24} className="group-hover:scale-110 transition-transform" /> Ruaj Faturën
-                </button>
-                <button 
-                  onClick={() => handleSaveInvoice(true)} 
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-8 rounded-[40px] font-black uppercase tracking-[0.15em] shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-4 transition-all active:scale-95 group"
-                >
-                  <CheckCheck size={24} className="group-hover:scale-110 transition-transform" /> Ruaj si të Paguar
-                </button>
-              </div>
+              {(() => {
+                const pointsExceedSave = usePoints && (Number(pointsToUse) || 0) > clientAvailablePoints;
+                return (
+                <div className="flex flex-col gap-4 pt-4">
+                  <button
+                    onClick={() => !pointsExceedSave && handleSaveInvoice(false)}
+                    disabled={pointsExceedSave}
+                    className={`w-full text-white py-8 rounded-[40px] font-black uppercase tracking-[0.15em] shadow-xl flex items-center justify-center gap-4 transition-all active:scale-95 group ${pointsExceedSave ? 'bg-slate-300 cursor-not-allowed shadow-none' : 'bg-[#D81B60] hover:bg-[#AD1457] shadow-[#D81B60]/20'}`}
+                  >
+                    <CheckCircle2 size={24} className="group-hover:scale-110 transition-transform" /> Ruaj Faturën
+                  </button>
+                  <button
+                    onClick={() => !pointsExceedSave && handleSaveInvoice(true)}
+                    disabled={pointsExceedSave}
+                    className={`w-full text-white py-8 rounded-[40px] font-black uppercase tracking-[0.15em] shadow-xl flex items-center justify-center gap-4 transition-all active:scale-95 group ${pointsExceedSave ? 'bg-slate-300 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'}`}
+                  >
+                    <CheckCheck size={24} className="group-hover:scale-110 transition-transform" /> Ruaj si të Paguar
+                  </button>
+                </div>
+                );
+              })()}
            </div>
         </div>
       </div>
