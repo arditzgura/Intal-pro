@@ -690,33 +690,34 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
 
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
 
-             <div style={{ lineHeight: '1.3' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
-                   <span>NËNTOTALI:</span>
-                   <span>{invoice.subtotal.toLocaleString()} {getCurrency('short')}</span>
-                </div>
-                {invoice.previousBalance !== 0 && (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
-                      <span>{invoice.previousBalanceLabel?.replace(/\(\+\)/g, '').trim() || 'GJENDJA'}:</span>
-                      <span>{invoice.previousBalance.toLocaleString()} {getCurrency('short')}</span>
-                   </div>
-                )}
-                {invoice.amountPaid !== 0 && (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
-                      <span>{invoice.amountPaidLabel?.replace(/\(\-\)/g, '').trim() || 'PAGUAR'}:</span>
-                      <span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
-                   </div>
-                )}
-                {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
-                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
-                      <span>PIKË ({inv.pointsUsed}):</span>
-                      <span>- {inv.pointsValue.toLocaleString()} {getCurrency('short')}</span>
-                   </div>
-                ) : null}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '15pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
-                  <span style={{ fontSize: '11pt' }}>{isSurplus ? 'TEPRICA:' : 'TOTALI:'}</span>
-                  <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
-                </div>
+             <div style={{ lineHeight: '1.4' }}>
+                {(() => {
+                  const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: '900', fontSize: '13pt', borderBottom: '0.5px solid #ccc', paddingBottom: '3px', marginBottom: '3px' };
+                  const labelStyle: React.CSSProperties = { fontSize: '10pt', fontWeight: '900' };
+                  const grandTotalRoll = invoice.subtotal + (invoice.previousBalance || 0);
+                  return (<>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>SHUMA:</span>
+                      <span>{grandTotalRoll.toLocaleString()} {getCurrency('short')}</span>
+                    </div>
+                    {(invoice.amountPaid || 0) > 0 && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>PAGUAR:</span>
+                        <span>{invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
+                      </div>
+                    )}
+                    {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>PIKË ({inv.pointsUsed}):</span>
+                        <span>{inv.pointsValue.toLocaleString()} {getCurrency('short')}</span>
+                      </div>
+                    ) : null}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: '900', fontSize: '16pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
+                      <span style={{ fontSize: '11pt', fontWeight: '900' }}>{isSurplus ? 'TEPRICË:' : 'MBETJA:'}</span>
+                      <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
+                    </div>
+                  </>);
+                })()}
              </div>
 
              {/* Statusi — gjithmonë shfaqet në fund */}
