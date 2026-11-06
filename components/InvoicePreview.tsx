@@ -700,30 +700,32 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <span style={labelStyle}>SHUMA:</span>
                       <span>{grandTotalRoll.toLocaleString()} {getCurrency('short')}</span>
                     </div>
-                    {(invoice.amountPaid || 0) > 0 && (
+                    {!isPaidInFull && (invoice.amountPaid || 0) > 0 && (
                       <div style={rowStyle}>
                         <span style={labelStyle}>PAGUAR:</span>
                         <span>{invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
                       </div>
                     )}
-                    {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
+                    {!isPaidInFull && inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
                       <div style={rowStyle}>
                         <span style={labelStyle}>PIKË ({inv.pointsUsed}):</span>
                         <span>{inv.pointsValue.toLocaleString()} {getCurrency('short')}</span>
                       </div>
                     ) : null}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: '900', fontSize: '16pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
-                      <span style={{ fontSize: '11pt', fontWeight: '900' }}>{isSurplus ? 'TEPRICË:' : 'MBETJA:'}</span>
-                      <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
-                    </div>
+                    {!isPaidInFull && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: '900', fontSize: '16pt', marginTop: '4px', borderTop: '2px solid #000', paddingTop: '4px' }}>
+                        <span style={{ fontSize: '11pt', fontWeight: '900' }}>{isSurplus ? 'TEPRICË:' : 'MBETJA:'}</span>
+                        <span>{Math.abs(balanceDue).toLocaleString()} {getCurrency('short')}</span>
+                      </div>
+                    )}
                   </>);
                 })()}
              </div>
 
              {/* Statusi — gjithmonë shfaqet në fund */}
-             <div style={{ marginTop: '8px', textAlign: 'center', border: '2px solid #000', padding: '4px' }}>
-                <span style={{ fontSize: '12pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                   STATUSI: {invoice.status === 'E paguar' ? '✓ PAGUAR' : '✗ PA PAGUAR'}
+             <div style={{ marginTop: '8px', textAlign: 'center', border: '2px solid #000', padding: '4px', background: isPaidInFull ? '#f0fdf4' : '#fff1f2' }}>
+                <span style={{ fontSize: '14pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: isPaidInFull ? '#15803d' : '#be123c' }}>
+                   {isPaidInFull ? '✓ PAGUAR' : '✗ PA PAGUAR'}
                 </span>
              </div>
 
