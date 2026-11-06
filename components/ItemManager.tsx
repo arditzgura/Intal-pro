@@ -566,13 +566,17 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
             return acc;
           }, 0);
 
-          // Gjendja totale (e gjithë historikut, jo vetëm periudha)
+          // Gjendja kumulative deri në fund të periudhës
           const totalIn = stockEntries.reduce((acc, entry) => {
+            const d = entry.date.slice(0, 10);
+            if (range && d > range.end) return acc;
             const found = entry.items.find(it => sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower);
             return acc + (found ? Number(found.quantity) : 0);
           }, 0);
           const totalOut = invoices.reduce((acc, inv) => {
             if (inv.status === 'Anuluar') return acc;
+            const d = inv.date.slice(0, 10);
+            if (range && d > range.end) return acc;
             inv.items.forEach(it => {
               if (sameNameIds.has(it.itemId) || normalize(it.name.trim()) === nameLower)
                 acc += Number(it.quantity);
@@ -606,7 +610,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
               <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 text-center">
                 <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">Vlera Gjendjes</p>
                 <p className="text-2xl font-black text-indigo-700">{Math.round(totalVlera).toLocaleString()}</p>
-                <p className="text-[9px] font-black text-indigo-400 uppercase">lekë · aktuale</p>
+                <p className="text-[9px] font-black text-indigo-400 uppercase">lekë · {range ? `deri ${range.end}` : 'aktuale'}</p>
               </div>
             </div>
 
