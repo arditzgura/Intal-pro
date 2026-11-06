@@ -205,10 +205,8 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
       const payDateStr = (inv.paymentDate || inv.date).slice(0, 10);
 
       if (isDailyArketim) {
-        (inv.payments || []).forEach(p => {
-          if (p.date === activeDayStr) totalCollected += getConvVal(p.amount, inv.currency);
-        });
-        if (!(inv.payments || []).length && payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
+        // E njëjta logjikë si Dashboard: amountPaid sipas paymentDate
+        if (payDateStr === activeDayStr && (inv.amountPaid || 0) > 0) {
           totalCollected += getConvVal(inv.amountPaid!, inv.currency);
         }
         if ((inv.pointsValue || 0) > 0 && inv.date.slice(0, 10) === activeDayStr) {
