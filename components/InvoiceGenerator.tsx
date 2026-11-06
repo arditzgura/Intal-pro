@@ -41,6 +41,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [usePoints, setUsePoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState<number | ''>('');
   const [pointsRate, setPointsRate] = useState<number>(1); // 1 pikë = ? LEK
+  const [lastInvoicePointsUsed, setLastInvoicePointsUsed] = useState<number>(0);
 
   const [prevBalanceLabel, setPrevBalanceLabel] = useState('Gjendja (+)');
   const [amountPaidLabel, setAmountPaidLabel] = useState('Paguar (-)');
@@ -205,8 +206,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       if (clientInvoices.length > 0) {
         const last = clientInvoices[0];
         setPreviousBalance((last.subtotal + (last.previousBalance || 0)) - (last.amountPaid || 0) - (last.pointsValue || 0));
+        setLastInvoicePointsUsed(last.pointsUsed || 0);
       } else {
         setPreviousBalance(0);
+        setLastInvoicePointsUsed(0);
       }
       // Reset pikat kur ndryshon klienti
       setUsePoints(false);
@@ -885,6 +888,17 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                 </div>
                 <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
               </div>
+
+              {/* Banner: gjendja e pikeve kur fatura e fundit ka pasur zbritje */}
+              {lastInvoicePointsUsed > 0 && clientAvailablePoints >= 0 && !usePoints && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                  <Star size={16} className="text-amber-500 shrink-0" fill="currentColor" />
+                  <div>
+                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Pikë të zbritura në faturën e fundit: <span className="text-amber-800">{lastInvoicePointsUsed}</span></p>
+                    <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-0.5">Gjendja e pikeve: <span className="text-slate-900">{clientAvailablePoints} pikë</span></p>
+                  </div>
+                </div>
+              )}
 
               {/* Pikat e Besnikërisë */}
               {clientAvailablePoints > 0 && (() => {
