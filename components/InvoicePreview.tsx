@@ -723,8 +723,8 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
              </div>
 
              {/* Statusi — gjithmonë shfaqet në fund */}
-             <div style={{ marginTop: '8px', textAlign: 'center', border: '2px solid #000', padding: '4px', background: isPaidInFull ? '#f0fdf4' : '#fff1f2' }}>
-                <span style={{ fontSize: '14pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: isPaidInFull ? '#15803d' : '#be123c' }}>
+             <div style={{ marginTop: '8px', textAlign: 'center', border: '2px solid #000', padding: '4px' }}>
+                <span style={{ fontSize: isPaidInFull ? '16pt' : '14pt', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#000' }}>
                    {isPaidInFull ? '✓ PAGUAR' : '✗ PA PAGUAR'}
                 </span>
              </div>
