@@ -225,6 +225,10 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   // Klienti i zgjedhur dhe pikat e tij
   const selectedClient = useMemo(() => clients.find(c => c.id === selectedClientId) || null, [clients, selectedClientId]);
   const clientAvailablePoints = selectedClient?.points || 0;
+  // Klientët rastësorë/pakicë nuk marrin pikë besnikërie
+  const isRetailClient = !selectedClientId || selectedClientId === 'manual'
+    || normalize(clientName).includes('rastesor')
+    || normalize(clientName).includes('pakice');
   const pointsValue = usePoints ? Math.min(Number(pointsToUse) || 0, clientAvailablePoints) * pointsRate : 0;
   const balanceDue = grandTotal - paidNum - pointsValue;
   const isSurplus = balanceDue < 0;
@@ -890,7 +894,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
               </div>
 
               {/* Banner: gjendja e pikeve kur fatura e fundit ka pasur zbritje */}
-              {lastInvoicePointsUsed > 0 && clientAvailablePoints >= 0 && !usePoints && (
+              {!isRetailClient && lastInvoicePointsUsed > 0 && clientAvailablePoints >= 0 && !usePoints && (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <Star size={16} className="text-amber-500 shrink-0" fill="currentColor" />
                   <div>
@@ -901,7 +905,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
               )}
 
               {/* Pikat e Besnikërisë */}
-              {clientAvailablePoints > 0 && (() => {
+              {!isRetailClient && clientAvailablePoints > 0 && (() => {
                 const pointsNum = Number(pointsToUse) || 0;
                 const pointsExceed = usePoints && pointsNum > clientAvailablePoints;
                 const remainingPoints = clientAvailablePoints - Math.min(pointsNum, clientAvailablePoints);

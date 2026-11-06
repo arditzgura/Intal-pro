@@ -441,7 +441,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                     {Math.abs(balanceDue).toLocaleString()} {inv.currency === 'EUR' ? 'EURO' : 'LEKË'}
                   </p>
                 </div>
-                {inv.pointsUsed && inv.pointsUsed > 0 && (
+                {inv.pointsUsed && inv.pointsUsed > 0 && inv.clientId !== 'manual' && (
                   <div className="bg-amber-50 border border-amber-200 p-1.5 rounded-xl w-40 text-center space-y-0.5">
                     <div className="flex items-center justify-center gap-1">
                       <Star size={9} className="text-amber-500" fill="currentColor" />
@@ -606,7 +606,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                           }
                         </div>
                       )}
-                      {inv.pointsValue && inv.pointsValue > 0 ? (
+                      {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
                         <div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest">
                           <span>Paguar me pikë ({inv.pointsUsed} pikë):</span>
                           <span className="text-[13px]">- {inv.pointsValue.toLocaleString()} L</span>
@@ -707,7 +707,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                       <span>- {invoice.amountPaid.toLocaleString()} {getCurrency('short')}</span>
                    </div>
                 )}
-                {inv.pointsValue && inv.pointsValue > 0 ? (
+                {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt' }}>
                       <span>PIKË ({inv.pointsUsed}):</span>
                       <span>- {inv.pointsValue.toLocaleString()} {getCurrency('short')}</span>
