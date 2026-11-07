@@ -589,7 +589,27 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
           return { item, hyrje, dalje, gjendja, vlera };
         }).filter(r => r.hyrje > 0 || r.dalje > 0 || r.gjendja !== 0);
 
-        const totalVlera = reportItems.reduce((s, r) => s + Math.max(0, r.vlera), 0);
+        // Vlera totale e gjendjes = të gjithë artikujt, deri në fund të periudhës
+        const totalVlera = mergedItems.reduce((sum, item) => {
+          const nl = normalize(item.name.trim());
+          const ids = new Set(items.filter(i => normalize(i.name.trim()) === nl).map(i => i.id));
+          const tIn = stockEntries.reduce((acc, entry) => {
+            const d = entry.date.slice(0, 10);
+            if (range && d > range.end) return acc;
+            const found = entry.items.find(it => ids.has(it.itemId) || normalize(it.name.trim()) === nl);
+            return acc + (found ? Number(found.quantity) : 0);
+          }, 0);
+          const tOut = invoices.reduce((acc, inv) => {
+            if (inv.status === 'Anuluar') return acc;
+            const d = inv.date.slice(0, 10);
+            if (range && d > range.end) return acc;
+            inv.items.forEach(it => {
+              if (ids.has(it.itemId) || normalize(it.name.trim()) === nl) acc += Number(it.quantity);
+            });
+            return acc;
+          }, 0);
+          return sum + Math.max(0, (tIn - tOut) * (item.purchasePrice || item.price));
+        }, 0);
         const totalHyrje = reportItems.reduce((s, r) => s + r.hyrje, 0);
         const totalDalje = reportItems.reduce((s, r) => s + r.dalje, 0);
 
