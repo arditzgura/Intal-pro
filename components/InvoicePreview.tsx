@@ -250,6 +250,10 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
   const balanceDue = (inv.subtotal + (inv.previousBalance || 0)) - (inv.amountPaid || 0) - (inv.pointsValue || 0);
   const isSurplus = balanceDue < 0;
   const isPaidInFull = balanceDue <= 0;
+  const normalize80 = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const isRetailClient = !inv.clientId || inv.clientId === 'manual'
+    || normalize80(inv.clientName || '').includes('rastesor')
+    || normalize80(inv.clientName || '').includes('pakice');
 
   const getCurrency = (type: 'short' | 'full' = 'full') => {
     if (inv.currency === 'EUR') return type === 'short' ? '€' : 'EURO';
@@ -655,6 +659,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                 <span>{formatDate(invoice.date)}</span>
              </div>
 
+             {!isRetailClient && (
              <div style={{ display: 'flex', border: '2px solid #000', marginBottom: '4px', overflow: 'hidden' }}>
                 <div style={{ flex: '2.5', padding: '5px', display: 'flex', flexDirection: 'column', borderRight: '2px solid #000' }}>
                     <span style={{ fontSize: '7pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>KLIENTI</span>
@@ -663,13 +668,14 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                        <span style={{ fontSize: '11pt', fontWeight: 'normal', textTransform: 'uppercase', opacity: 0.85 }}>({displayCity})</span>
                     </div>
                 </div>
-                {client && invoice.clientId !== 'manual' && (
+                {client && (
                 <div style={{ flex: '1', padding: '5px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', background: '#f8f8f8' }}>
                     <span style={{ fontSize: '7pt', fontWeight: '900', textTransform: 'uppercase', opacity: 0.8, marginBottom: '2px' }}>PIKËT</span>
                     <span style={{ fontSize: '15pt', fontWeight: '900', lineHeight: '1' }}>{client.points || 0}</span>
                 </div>
                 )}
              </div>
+             )}
 
              <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }}></div>
 
