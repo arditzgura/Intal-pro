@@ -911,7 +911,7 @@ const App: React.FC = () => {
             {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries} onNavigateUnpaid={() => { setInvoicesInitialFilter('Pa paguar'); setCurrentView('invoices'); }}/>}
             {currentView==='new-invoice' && (<>
               {/* Tab bar */}
-              <div className="-mt-4 md:-mt-8 mb-4 flex items-end gap-0.5 border-b-2 border-slate-200 overflow-x-auto pb-0 scrollbar-none">
+              <div className="-mt-4 md:-mt-8 mb-4 flex items-end gap-0.5 border-b-2 border-slate-200 overflow-x-auto pb-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
                 {invoiceTabs.map((tab, i) => (
                   <div key={tab.id}
                     onClick={() => setActiveTabId(tab.id)}
