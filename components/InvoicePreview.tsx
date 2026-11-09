@@ -445,13 +445,16 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                     {Math.abs(balanceDue).toLocaleString()} {inv.currency === 'EUR' ? 'EURO' : 'LEKË'}
                   </p>
                 </div>
-                {inv.pointsUsed && inv.pointsUsed > 0 && inv.clientId !== 'manual' && (
+                {!isRetailClient && client && (
                   <div className="bg-amber-50 border border-amber-200 p-1.5 rounded-xl w-40 text-center space-y-0.5">
                     <div className="flex items-center justify-center gap-1">
                       <Star size={9} className="text-amber-500" fill="currentColor" />
-                      <p className="text-[7px] font-black text-amber-600 uppercase tracking-widest">Pikë të zbritura: <span className="text-amber-800">{inv.pointsUsed}</span></p>
+                      <p className="text-[7px] font-black text-amber-600 uppercase tracking-widest">Pikë Besnikërie</p>
                     </div>
-                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Mbetja: <span className="text-slate-800 font-black">{client?.points ?? 0} pikë</span></p>
+                    {inv.pointsUsed && inv.pointsUsed > 0 ? (
+                      <p className="text-[7px] font-black text-amber-700 uppercase tracking-widest">Zbritur: <span className="text-amber-900">{inv.pointsUsed} pikë</span></p>
+                    ) : null}
+                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Gjendja: <span className="text-slate-800 font-black">{client.points ?? 0} pikë</span></p>
                   </div>
                 )}
               </div>
@@ -610,7 +613,7 @@ const InvoicePreview: React.FC<Props> = ({ invoice, business, client, onClose, o
                           }
                         </div>
                       )}
-                      {inv.pointsValue && inv.pointsValue > 0 && inv.clientId !== 'manual' ? (
+                      {inv.pointsValue && inv.pointsValue > 0 && !isRetailClient ? (
                         <div className="flex justify-between items-center text-amber-600 text-[11px] font-black uppercase tracking-widest">
                           <span>Paguar me pikë ({inv.pointsUsed} pikë):</span>
                           <span className="text-[13px]">- {inv.pointsValue.toLocaleString()} L</span>
