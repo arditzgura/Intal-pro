@@ -72,6 +72,8 @@ const App: React.FC = () => {
   const [previewStockEntry,     setPreviewStockEntry]     = useState<StockEntry | null>(null);
   const [editInvoice,           setEditInvoice]           = useState<Invoice | null>(null);
   const [invoicesInitialFilter, setInvoicesInitialFilter] = useState<string | undefined>(undefined);
+  const [invoiceTabs, setInvoiceTabs] = useState<{id: string; invoiceNumber: string; editInv: Invoice|null}[]>([]);
+  const [activeTabId,  setActiveTabId]  = useState<string>('');
   const [showQRSync, setShowQRSync] = useState(false);
   const [editStockEntry,        setEditStockEntry]        = useState<StockEntry | null>(null);
   const [selectedProfileClient, setSelectedProfileClient] = useState<Client | null>(null);
@@ -404,8 +406,46 @@ const App: React.FC = () => {
     setTimeout(() => { if (mainRef.current) mainRef.current.scrollTop = target; }, 0);
   }, [currentView]);
 
+  // ─── Tab helpers ───────────────────────────────────────────────────────────
+  const openInvoiceTab = (editInv: Invoice | null = null, num?: string) => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    setInvoiceTabs(prev => {
+      const usedNums = prev.map(t => parseInt(t.invoiceNumber)).filter(n => !isNaN(n));
+      const baseNum = parseInt(num || nextInvoiceNumber);
+      let tabNum = baseNum;
+      while (usedNums.includes(tabNum)) tabNum++;
+      const newTab = { id, invoiceNumber: tabNum.toString(), editInv };
+      return [...prev, newTab];
+    });
+    setActiveTabId(id);
+    if (currentView !== 'new-invoice') {
+      setViewHistory(p => [...p, 'new-invoice']);
+      setCurrentView('new-invoice');
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const closeInvoiceTab = (id: string) => {
+    setInvoiceTabs(prev => {
+      const idx = prev.findIndex(t => t.id === id);
+      const remaining = prev.filter(t => t.id !== id);
+      if (remaining.length === 0) {
+        setCurrentView('dashboard');
+        setViewHistory(['dashboard']);
+        setActiveTabId('');
+      } else if (id === activeTabId) {
+        setActiveTabId(remaining[Math.max(0, idx - 1)].id);
+      }
+      return remaining;
+    });
+  };
+
   // ─── Helpers navigimi ──────────────────────────────────────────────────────
   const handleNavigate = (view: View) => {
+    if (view === 'new-invoice') {
+      openInvoiceTab();
+      return;
+    }
     if (view !== currentView) { setViewHistory(p => [...p, view]); setCurrentView(view); }
     setEditInvoice(null); setEditStockEntry(null);
     setSelectedProfileClient(null); setSelectedProfileItem(null);
@@ -685,7 +725,19 @@ const App: React.FC = () => {
 
     setEditInvoice(null);
     clearData(STORAGE_KEYS.DRAFT);
-    handleNavigate('invoices');
+    // Mbyll tab-in aktiv pas ruajtjes
+    const savedTabId = activeTabId;
+    setInvoiceTabs(prev => {
+      const idx = prev.findIndex(t => t.id === savedTabId);
+      const remaining = prev.filter(t => t.id !== savedTabId);
+      if (remaining.length > 0) {
+        setActiveTabId(remaining[Math.max(0, idx - 1)].id);
+      } else {
+        setActiveTabId('');
+      }
+      return remaining;
+    });
+    setViewHistory(p => [...p, 'invoices']); setCurrentView('invoices');
     setPreviewInvoice(final);
   };
 
@@ -693,8 +745,8 @@ const App: React.FC = () => {
     const latest = invoices.filter(inv => inv.clientId === client.id && inv.status !== 'Anuluar').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const debt = latest ? (latest.subtotal + (latest.previousBalance||0)) - (latest.amountPaid||0) : 0;
     const tpl: any = { id:'', invoiceNumber: nextInvoiceNumber, date: new Date().toLocaleDateString('en-CA')+'T'+new Date().toTimeString().split(' ')[0], clientId: client.id, clientName: client.name, clientPhone: client.phone||client.address||'', clientCity: client.city||'', items:[], currency:'Lek', subtotal:0, tax:0, previousBalance: debt, amountPaid:0, total:0, status:'Pa paguar' };
-    setViewHistory(p => [...p,'new-invoice']); setCurrentView('new-invoice');
-    setEditInvoice(tpl); setSelectedProfileClient(null); setIsMobileMenuOpen(false);
+    setSelectedProfileClient(null);
+    openInvoiceTab(tpl);
   };
 
   // ─── Rendering ─────────────────────────────────────────────────────────────
@@ -857,7 +909,46 @@ const App: React.FC = () => {
             </div>
 
             {currentView==='dashboard'     && <Dashboard invoices={invoices} clients={clients} items={items} stockEntries={stockEntries} onNavigateUnpaid={() => { setInvoicesInitialFilter('Pa paguar'); setCurrentView('invoices'); }}/>}
-            {currentView==='new-invoice'   && <InvoiceGenerator key={nextInvoiceNumber} clients={clients} items={items} invoices={invoices} initialData={editInvoice} defaultInvoiceNumber={nextInvoiceNumber} onSubmit={addOrUpdateInvoice} onCancel={handleGoBack} onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}} business={config} onUpdateBusiness={upd=>{const nc={...config,...upd};setConfig(nc);local.setConfig(uid,nc);}}/>}
+            {currentView==='new-invoice' && (<>
+              {/* Tab bar */}
+              <div className="-mt-4 md:-mt-8 mb-4 flex items-end gap-0.5 border-b-2 border-slate-200 overflow-x-auto pb-0 scrollbar-none">
+                {invoiceTabs.map((tab, i) => (
+                  <div key={tab.id}
+                    onClick={() => setActiveTabId(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer rounded-t-xl shrink-0 select-none transition-all border-t-2 border-x-2 ${tab.id === activeTabId ? 'bg-white border-slate-200 text-slate-900 -mb-0.5 pb-3 font-black shadow-sm' : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold'}`}>
+                    <span className="text-[11px] uppercase tracking-widest whitespace-nowrap">
+                      {tab.editInv?.clientName ? tab.editInv.clientName.split(' ')[0] : `Faturë #${tab.invoiceNumber}`}
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); closeInvoiceTab(tab.id); }}
+                      className={`w-4 h-4 flex items-center justify-center rounded-full text-xs transition-all ${tab.id === activeTabId ? 'hover:bg-rose-100 hover:text-rose-600 text-slate-400' : 'hover:bg-slate-300 text-slate-400'}`}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => openInvoiceTab()}
+                  title="Faturë e Re"
+                  className="flex items-center justify-center w-8 h-8 mb-0.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-all shrink-0 font-black text-lg">
+                  +
+                </button>
+              </div>
+              {/* Render all tabs, show only active */}
+              {invoiceTabs.map(tab => (
+                <div key={tab.id} style={{ display: tab.id === activeTabId ? undefined : 'none' }}>
+                  <InvoiceGenerator
+                    clients={clients} items={items} invoices={invoices}
+                    initialData={tab.editInv}
+                    defaultInvoiceNumber={tab.invoiceNumber}
+                    onSubmit={addOrUpdateInvoice}
+                    onCancel={() => closeInvoiceTab(tab.id)}
+                    onAddItem={i=>{const upd=[...items,i];setItems(upd);local.setAll(uid, 'items', upd);}}
+                    business={config}
+                    onUpdateBusiness={upd=>{const nc={...config,...upd};setConfig(nc);local.setConfig(uid,nc);}}
+                  />
+                </div>
+              ))}
+            </>)}
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid, 'stock_entries', upd);}} onPreview={setPreviewStockEntry} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} stockEntries={stockEntries} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
             {currentView==='invoices'      && <InvoiceHistory key={invoicesInitialFilter || 'default'} initialStatusFilter={invoicesInitialFilter} invoices={invoices} clients={clients} items={items} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
