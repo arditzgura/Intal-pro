@@ -951,7 +951,7 @@ const App: React.FC = () => {
             </>)}
             {currentView==='stock-entries' && <StockEntryManager entries={stockEntries} items={items} onAddNew={() => {setEditStockEntry(null);setCurrentView('new-stock-entry');}} onEdit={e=>{setEditStockEntry(e);setCurrentView('new-stock-entry');}} onDelete={id=>{const upd=stockEntries.filter(e=>e.id!==id);setStockEntries(upd);local.setAll(uid, 'stock_entries', upd);}} onPreview={setPreviewStockEntry} onOpenProfile={setSelectedProfileItem}/>}
             {currentView==='new-stock-entry' && <StockEntryGenerator items={items} invoices={invoices} stockEntries={stockEntries} nextNumber={nextStockNumber} initialData={editStockEntry} onSave={handleAddStockEntry} onCancel={handleGoBack}/>}
-            {currentView==='invoices'      && <InvoiceHistory key={invoicesInitialFilter || 'default'} initialStatusFilter={invoicesInitialFilter} invoices={invoices} clients={clients} items={items} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);setEditInvoice(inv);setCurrentView('new-invoice');}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
+            {currentView==='invoices'      && <InvoiceHistory key={invoicesInitialFilter || 'default'} initialStatusFilter={invoicesInitialFilter} invoices={invoices} clients={clients} items={items} onDelete={id=>{const del=invoices.find(i=>i.id===id);const base=invoices.filter(i=>i.id!==id);const upd=del?recalcClientStatuses(getInvClientKey(del),base):base;setInvoices(upd);local.setAll(uid, 'invoices', upd);}} onPreview={setPreviewInvoice} onEdit={inv=>{setPreviewInvoice(null);openInvoiceTab(inv, inv.invoiceNumber);}} onUpdateStatus={handleUpdateInvoiceStatus} onSelectClient={inv=>{
   // 1. Gjej sipas ID direkt
   let c = clients.find(cl => cl.id === inv.clientId);
   // 2. Nëse ka dy klientë me të njëjtin emër, dalloji sipas qytetit
@@ -1093,7 +1093,7 @@ const App: React.FC = () => {
           business={config}
           client={clients.find(c=>c.id===previewInvoice.clientId)}
           onClose={()=>{ setPreviewInvoice(null); setPreviewInvoiceList([]); }}
-          onEdit={inv=>{setPreviewInvoice(null);setPreviewInvoiceList([]);setSelectedProfileClient(null);setEditInvoice(inv);setCurrentView('new-invoice');}}
+          onEdit={inv=>{setPreviewInvoice(null);setPreviewInvoiceList([]);setSelectedProfileClient(null);openInvoiceTab(inv, inv.invoiceNumber);}}
           onSave={inv=>{const base=invoices.map(i=>i.id===inv.id?inv:i);const upd=recalcClientStatuses(getInvClientKey(inv),base);setInvoices(upd);local.setAll(uid,'invoices',upd);setPreviewInvoice(inv);}}
           onPrev={hasPrev ? ()=>setPreviewInvoice(navList[navIdx-1]) : undefined}
           onNext={hasNext ? ()=>setPreviewInvoice(navList[navIdx+1]) : undefined}
