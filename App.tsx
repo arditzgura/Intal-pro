@@ -677,8 +677,10 @@ const App: React.FC = () => {
       return { ...invItem, itemId: ex.id };
     });
 
+    const isExistingInvoice = !!invoice.id && invoices.some(inv => inv.id === invoice.id);
+
     // Zbritja e pikëve nga klienti nëse janë përdorur
-    if (invoice.pointsUsed && invoice.pointsUsed > 0 && !editInvoice) {
+    if (invoice.pointsUsed && invoice.pointsUsed > 0 && !isExistingInvoice) {
       const cIdx = updClients.findIndex(c => c.id === final.clientId);
       if (cIdx >= 0) {
         const cl = updClients[cIdx];
@@ -706,7 +708,7 @@ const App: React.FC = () => {
     // Regjistro deltën e pagesës së sotme në payments[]
     const payDate = final.paymentDate || today;
     if ((final.amountPaid || 0) > 0 && payDate === today) {
-      const originalInv = editInvoice ? invoices.find(inv => inv.id === final.id) : null;
+      const originalInv = isExistingInvoice ? invoices.find(inv => inv.id === final.id) : null;
       const prevPaid = originalInv?.amountPaid || 0;
       const delta = Math.max(0, (final.amountPaid || 0) - prevPaid);
       if (delta > 0) {
@@ -715,7 +717,7 @@ const App: React.FC = () => {
       }
     }
 
-    const base = editInvoice
+    const base = isExistingInvoice
       ? invoices.map(inv => inv.id === final.id ? final : inv)
       : [final, ...invoices];
     const newInvoices = recalcClientStatuses(getInvClientKey(final), base);
