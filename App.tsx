@@ -733,14 +733,16 @@ const App: React.FC = () => {
       const idx = prev.findIndex(t => t.id === savedTabId);
       const remaining = prev.filter(t => t.id !== savedTabId);
       if (remaining.length > 0) {
+        // Ka tab të tjerë — qëndro tek Faturë e Re, kalo tek tab tjetër
         setActiveTabId(remaining[Math.max(0, idx - 1)].id);
       } else {
+        // Nuk ka tab të tjerë — shko tek Historia me preview
         setActiveTabId('');
+        setViewHistory(p => [...p, 'invoices']); setCurrentView('invoices');
+        setPreviewInvoice(final);
       }
       return remaining;
     });
-    setViewHistory(p => [...p, 'invoices']); setCurrentView('invoices');
-    setPreviewInvoice(final);
   };
 
   const handleNewInvoiceForClient = (client: Client) => {
