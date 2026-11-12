@@ -729,20 +729,19 @@ const App: React.FC = () => {
     clearData(STORAGE_KEYS.DRAFT);
     // Mbyll tab-in aktiv pas ruajtjes
     const savedTabId = activeTabId;
-    setInvoiceTabs(prev => {
-      const idx = prev.findIndex(t => t.id === savedTabId);
-      const remaining = prev.filter(t => t.id !== savedTabId);
-      if (remaining.length > 0) {
-        // Ka tab të tjerë — qëndro tek Faturë e Re, kalo tek tab tjetër
-        setActiveTabId(remaining[Math.max(0, idx - 1)].id);
-      } else {
-        // Nuk ka tab të tjerë — shko tek Historia me preview
-        setActiveTabId('');
-        setViewHistory(p => [...p, 'invoices']); setCurrentView('invoices');
-        setPreviewInvoice(final);
-      }
-      return remaining;
-    });
+    const remaining = invoiceTabs.filter(t => t.id !== savedTabId);
+    const idx = invoiceTabs.findIndex(t => t.id === savedTabId);
+    setInvoiceTabs(remaining);
+    if (remaining.length > 0) {
+      // Ka tab të tjerë — qëndro tek Faturë e Re, kalo tek tab tjetër
+      setActiveTabId(remaining[Math.max(0, idx - 1)].id);
+    } else {
+      // Nuk ka tab të tjerë — shko tek Historia
+      setActiveTabId('');
+      setViewHistory(p => [...p, 'invoices']); setCurrentView('invoices');
+    }
+    // Shfaq gjithmonë preview-n e faturës së ruajtur
+    setPreviewInvoice(final);
   };
 
   const handleNewInvoiceForClient = (client: Client) => {
