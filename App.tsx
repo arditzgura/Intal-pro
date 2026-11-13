@@ -745,8 +745,26 @@ const App: React.FC = () => {
   };
 
   const handleNewInvoiceForClient = (client: Client) => {
-    const latest = invoices.filter(inv => inv.clientId === client.id && inv.status !== 'Anuluar').sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    const debt = latest ? (latest.subtotal + (latest.previousBalance||0)) - (latest.amountPaid||0) : 0;
+    const cNameN = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const clientNameN = cNameN(client.name.trim());
+    const clientCityN = cNameN(client.city?.trim() || '');
+    const hasDupName = clients.some(c => c.id !== client.id && cNameN(c.name.trim()) === clientNameN);
+    const clientInvoices = invoices.filter(inv => {
+      if (inv.status === 'Anuluar') return false;
+      if (hasDupName) {
+        if (cNameN(inv.clientName.trim()) !== clientNameN) return false;
+        if (inv.clientCity && clientCityN) return cNameN(inv.clientCity.trim()) === clientCityN;
+        if (client.code && inv.clientCode) return inv.clientCode === client.code;
+        return inv.clientId === client.id;
+      }
+      if (inv.clientId === client.id) return true;
+      if (client.code && inv.clientCode) return inv.clientCode === client.code;
+      if (inv.clientCode) return false;
+      if (inv.clientId !== 'manual') return false;
+      return cNameN(inv.clientName.trim()) === clientNameN;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const latest = clientInvoices[0];
+    const debt = latest ? (latest.subtotal + (latest.previousBalance||0)) - (latest.amountPaid||0) - (latest.pointsValue||0) : 0;
     const tpl: any = { id:'', invoiceNumber: nextInvoiceNumber, date: new Date().toLocaleDateString('en-CA')+'T'+new Date().toTimeString().split(' ')[0], clientId: client.id, clientName: client.name, clientPhone: client.phone||client.address||'', clientCity: client.city||'', items:[], currency:'Lek', subtotal:0, tax:0, previousBalance: debt, amountPaid:0, total:0, status:'Pa paguar' };
     setSelectedProfileClient(null);
     openInvoiceTab(tpl);

@@ -195,11 +195,21 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       const selClient = clients.find(c => c.id === selectedClientId);
       const hasDupName = selClient ? clients.some(c => c.id !== selectedClientId && normalize(c.name.trim()) === normalize(selClient.name.trim())) : false;
       const selCity = normalize(selClient?.city?.trim() || '');
+      const selCode = selClient?.code;
       const clientInvoices = invoices
         .filter(inv => {
-          if (inv.clientId !== selectedClientId || inv.status === 'Anuluar') return false;
-          if (hasDupName && inv.clientCity && selCity) return normalize(inv.clientCity.trim()) === selCity;
-          return true;
+          if (inv.status === 'Anuluar') return false;
+          if (hasDupName) {
+            if (normalize(inv.clientName.trim()) !== normalize(selClient?.name.trim() || '')) return false;
+            if (inv.clientCity && selCity) return normalize(inv.clientCity.trim()) === selCity;
+            if (selCode && inv.clientCode) return inv.clientCode === selCode;
+            return inv.clientId === selectedClientId;
+          }
+          if (inv.clientId === selectedClientId) return true;
+          if (selCode && inv.clientCode) return inv.clientCode === selCode;
+          if (inv.clientCode) return false;
+          if (inv.clientId !== 'manual') return false;
+          return normalize(inv.clientName.trim()) === normalize(selClient?.name.trim() || '');
         })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
