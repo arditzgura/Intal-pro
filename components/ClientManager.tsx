@@ -178,8 +178,9 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
 
   const sortedAndFilteredClients = useMemo(() => {
     let result = clients.filter(c => {
-      const q = normalize(search.trim());
-      const matchesSearch = normalize(c.name).includes(q) || (c.city && normalize(c.city).includes(q));
+      const words = normalize(search.trim()).split(/\s+/).filter(Boolean);
+      const haystack = normalize(c.name) + ' ' + normalize(c.city || '');
+      const matchesSearch = words.length === 0 || words.every(w => haystack.includes(w));
       const matchesCity = cityFilter === 'all' || c.city === cityFilter;
       const debt = clientFinancials[c.id]?.debt ?? 0;
       const matchesDebt = debtFilter === 'all' || (debtFilter === 'with_debt' ? debt > 0 : debt <= 0);

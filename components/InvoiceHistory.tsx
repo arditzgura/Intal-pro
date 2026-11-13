@@ -133,16 +133,17 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
   const filteredInvoices = useMemo(() => {
     const searchNorm = normalize(search);
     const searchNumNorm = normalize(search.replace(/^#/, ''));
+    const searchWords = searchNorm.split(/\s+/).filter(Boolean);
     return invoices.filter(inv => {
       const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
       const client = clientMap[inv.clientId];
       // Prioritet: qyteti i ruajtur në faturë, pastaj qyteti aktual i klientit
       const invCity = inv.clientCity || client?.city || '';
       const matchesCity = cityFilter === 'all' || invCity.trim() === cityFilter;
+      const clientHaystack = normalize(inv.clientName) + ' ' + normalize(invCity);
       const matchesSearch = !searchNorm ||
         normalize(inv.invoiceNumber).includes(searchNumNorm) ||
-        normalize(inv.clientName).includes(searchNorm) ||
-        normalize(invCity).includes(searchNorm) ||
+        searchWords.every(w => clientHaystack.includes(w)) ||
         inv.items.some(item => normalize(item.name).includes(searchNorm));
 
       let matchesTime = true;
