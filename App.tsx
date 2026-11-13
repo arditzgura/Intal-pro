@@ -507,16 +507,9 @@ const App: React.FC = () => {
     if (clientInvs.length === 0) return allInvoices;
 
     const n = clientInvs.length;
-    const latest = clientInvs[n - 1];
     const map = new Map<string, Invoice['status']>();
 
-    // Rregulli kryesor: nëse fatura e fundit është paguar (borxh=0) → TË GJITHA bëhen E paguar
-    if (getDebt(latest) <= 0) {
-      clientInvs.forEach(inv => map.set(inv.id, 'E paguar'));
-      return allInvoices.map(inv => map.has(inv.id) ? { ...inv, status: map.get(inv.id)! } : inv);
-    }
-
-    // Përndryshe: zinxhir — shiko nëse borxhi i faturës u mbulua nga fatura pasardhëse
+    // Zinxhir — shiko nëse borxhi i faturës u mbulua nga fatura pasardhëse
     const isPaid = new Array(n).fill(false);
     for (let i = n - 1; i >= 0; i--) {
       const inv = clientInvs[i];
