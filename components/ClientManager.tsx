@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Item, PreferentialPrice, Invoice } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3, Merge } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3, Merge, FileText, Download } from 'lucide-react';
 
 interface Props {
   clients: Client[];
@@ -35,6 +35,10 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const [debtFilter, setDebtFilter] = useState<'all' | 'with_debt' | 'no_debt'>('all');
   const [debtDropdownOpen, setDebtDropdownOpen] = useState(false);
   const debtDropdownRef = useRef<HTMLDivElement>(null);
+  const [showReportPanel, setShowReportPanel] = useState(false);
+  const [reportCols, setReportCols] = useState<Record<string,boolean>>({
+    klienti: true, qyteti: true, fitimi: true, totali: true, detyrimi: true
+  });
   
   const [formData, setFormData] = useState<Omit<Client, 'id'>>({
     name: '',
@@ -199,6 +203,83 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
     return result;
   }, [clients, search, sortBy, sortDir, cityFilter, debtFilter, clientFinancials]);
 
+  const anyColChecked = Object.values(reportCols).some(Boolean);
+
+  const generatePDF = () => {
+    const cols = [
+      { key: 'klienti',  label: 'Klienti' },
+      { key: 'qyteti',   label: 'Qyteti' },
+      { key: 'fitimi',   label: 'Fitimi' },
+      { key: 'totali',   label: 'Totali Blerjeve' },
+      { key: 'detyrimi', label: 'Detyrimi' },
+    ].filter(c => reportCols[c.key]);
+
+    const totFitimi = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.profit || 0), 0);
+    const totSpent  = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.spent  || 0), 0);
+    const totDebt   = sortedAndFilteredClients.reduce((s, c) => s + (clientFinancials[c.id]?.debt   || 0), 0);
+
+    const filterDesc = [
+      cityFilter !== 'all' ? `Qyteti: ${cityFilter}` : '',
+      debtFilter === 'with_debt' ? 'Me detyrim' : debtFilter === 'no_debt' ? 'Pa detyrim' : '',
+      search.trim() ? `Kërkim: "${search.trim()}"` : '',
+    ].filter(Boolean).join(' · ');
+
+    const rows = sortedAndFilteredClients.map(c => {
+      const fin = clientFinancials[c.id];
+      return cols.map(col => {
+        if (col.key === 'klienti') return `<td>${c.name}</td>`;
+        if (col.key === 'qyteti') return `<td>${c.city || '—'}</td>`;
+        if (col.key === 'fitimi') return `<td class="num green">+${Math.round(fin.profit).toLocaleString()} L</td>`;
+        if (col.key === 'totali') return `<td class="num">${Math.round(fin.spent).toLocaleString()} L</td>`;
+        if (col.key === 'detyrimi') return `<td class="num ${fin.debt > 0 ? 'red' : ''}">${Math.round(fin.debt).toLocaleString()} L</td>`;
+        return '<td>—</td>';
+      }).join('');
+    });
+
+    const totalRow = cols.map(col => {
+      if (col.key === 'klienti') return `<td><strong>TOTALI · ${sortedAndFilteredClients.length} klientë</strong></td>`;
+      if (col.key === 'qyteti') return '<td>—</td>';
+      if (col.key === 'fitimi') return `<td class="num green"><strong>+${Math.round(totFitimi).toLocaleString()} L</strong></td>`;
+      if (col.key === 'totali') return `<td class="num"><strong>${Math.round(totSpent).toLocaleString()} L</strong></td>`;
+      if (col.key === 'detyrimi') return `<td class="num red"><strong>${Math.round(totDebt).toLocaleString()} L</strong></td>`;
+      return '<td>—</td>';
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Raport Klientësh</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;padding:24px}
+  h1{font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+  .sub{font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.15em;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th{background:#1e293b;color:#fff;padding:8px 12px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.12em;font-weight:900}
+  td{padding:7px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr.total-row td{background:#f8fafc;border-top:2px solid #e2e8f0;font-size:10px}
+  .num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  th.num{text-align:right}
+  .green{color:#16a34a}
+  .red{color:#dc2626}
+  .footer{margin-top:16px;font-size:8px;color:#94a3b8;text-align:right}
+  @media print{body{padding:12px}@page{margin:1cm;size:A4}}
+</style></head><body>
+<h1>Raport Klientësh</h1>
+<div class="sub">${new Date().toLocaleDateString('sq-AL', {day:'2-digit',month:'long',year:'numeric'})}${filterDesc ? ' · ' + filterDesc : ''}</div>
+<table>
+  <thead><tr>${cols.map(c => `<th class="${['fitimi','totali','detyrimi'].includes(c.key)?'num':''}">${c.label}</th>`).join('')}</tr></thead>
+  <tbody>
+    ${rows.map(r => `<tr>${r}</tr>`).join('')}
+    <tr class="total-row">${totalRow}</tr>
+  </tbody>
+</table>
+<div class="footer">INTAL · Gjeneruar automatikisht</div>
+<script>window.onload=()=>{window.print();}</script>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
   return (
     <div className="space-y-6">
       {/* Paneli i Totaleve */}
@@ -262,7 +343,38 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${mergeMode ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400 hover:text-amber-500'}`}>
             <Merge size={16}/> Bashko
           </button>
+          <button
+            onClick={() => anyColChecked ? generatePDF() : setShowReportPanel(p => !p)}
+            className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${showReportPanel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:text-indigo-500'}`}>
+            {anyColChecked ? <><Download size={16}/> Gjenero</> : <><FileText size={16}/> Raport</>}
+          </button>
         </div>
+
+        {showReportPanel && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Zgjidh kolonat për raportin</p>
+              <button onClick={() => { setShowReportPanel(false); setReportCols({klienti:true,qyteti:true,fitimi:true,totali:true,detyrimi:true}); }} className="text-indigo-400 hover:text-indigo-700"><X size={14}/></button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([['klienti','Klienti'],['qyteti','Qyteti'],['fitimi','Fitimi'],['totali','Totali Blerjeve'],['detyrimi','Detyrimi']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setReportCols(p => ({...p, [key]: !p[key]}))}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all ${reportCols[key] ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
+                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${reportCols[key] ? 'bg-white border-white' : 'border-slate-300'}`}>
+                    {reportCols[key] && <Check size={9} className="text-indigo-600" strokeWidth={3}/>}
+                  </div>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {anyColChecked && (
+              <button onClick={generatePDF}
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all active:scale-95">
+                <Download size={14}/> Gjenero Raport PDF · {sortedAndFilteredClients.length} klientë
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Merge mode UI */}
         {mergeMode && (
