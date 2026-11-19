@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Item, PreferentialPrice, Invoice } from '../types';
 import ConfirmDialog from './ConfirmDialog';
 import { normalize } from '../utils/storage';
-import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, SortAsc, Filter, PackageSearch, Check, Wallet, AlertCircle, Landmark, BarChart3, Merge, FileText, Download } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, Save, Box, Tag, PackagePlus, UserCircle2, Star, MapPin, Filter, PackageSearch, Check, Wallet, AlertCircle, BarChart3, FileText, Download } from 'lucide-react';
 
 interface Props {
   clients: Client[];
@@ -368,25 +368,6 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
           </div>
         )}
 
-        {/* Merge mode UI - removed */}
-        {mergeMode && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-            {mergeConfirm && (
-              <div className="flex gap-2">
-                <button onClick={() => {
-                  onMerge(mergeSelected[0], mergeSelected[1]);
-                  setMergeMode(false); setMergeSelected([]); setMergeConfirm(false);
-                }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">
-                  ⚡ Bashko Definitivisht
-                </button>
-                <button onClick={() => { setMergeSelected([]); setMergeConfirm(false); }}
-                  className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase text-slate-500 bg-white border border-slate-200">
-                  Anullo
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
@@ -433,27 +414,10 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
               })()}
               {sortedAndFilteredClients.map(client => {
                 const fin = clientFinancials[client.id];
-                const isMergeSelected = mergeSelected.includes(client.id);
-                const mergeOrder = mergeSelected.indexOf(client.id);
                 return (
-                  <tr key={client.id}
-                    className={`transition-colors group cursor-pointer ${mergeMode ? (isMergeSelected ? 'bg-amber-50 border-l-4 border-amber-400' : 'hover:bg-amber-50/40') : 'hover:bg-slate-50/70'}`}
-                    onClick={mergeMode ? () => {
-                      if (isMergeSelected) {
-                        setMergeSelected(mergeSelected.filter(id => id !== client.id));
-                        setMergeConfirm(false);
-                      } else if (mergeSelected.length < 2) {
-                        setMergeSelected([...mergeSelected, client.id]);
-                      }
-                    } : undefined}
-                  >
+                  <tr key={client.id} className="transition-colors group cursor-pointer hover:bg-slate-50/70">
                     <td className="px-8 py-5">
-                      <button onClick={mergeMode ? undefined : () => onOpenProfile(client)} className="flex items-center gap-4 text-left hover:opacity-80 transition-opacity">
-                        {mergeMode && isMergeSelected && (
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 ${mergeOrder === 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                            {mergeOrder === 0 ? '✓' : '×'}
-                          </div>
-                        )}
+                      <button onClick={() => onOpenProfile(client)} className="flex items-center gap-4 text-left hover:opacity-80 transition-opacity">
                         <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all flex items-center justify-center shrink-0">
                           {client.photo
                             ? <img src={client.photo} alt={client.name} className="w-full h-full object-cover" />
