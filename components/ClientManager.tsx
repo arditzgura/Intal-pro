@@ -24,10 +24,6 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  // Merge state
-  const [mergeMode, setMergeMode] = useState(false);
-  const [mergeSelected, setMergeSelected] = useState<string[]>([]);
-  const [mergeConfirm, setMergeConfirm] = useState(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('alphabetical');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
@@ -339,10 +335,6 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
           <button onClick={() => setIsAdding(true)} className="flex-1 bg-[#D81B60] text-white py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-[#AD1457] transition-all shadow-lg shadow-[#D81B60]/20 active:scale-95">
             <Plus size={18} strokeWidth={3}/> Shto Klient të Ri
           </button>
-          <button onClick={() => { setMergeMode(!mergeMode); setMergeSelected([]); setMergeConfirm(false); }}
-            className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${mergeMode ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-400 hover:text-amber-500'}`}>
-            <Merge size={16}/> Bashko
-          </button>
           <button
             onClick={() => anyColChecked ? generatePDF() : setShowReportPanel(p => !p)}
             className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${showReportPanel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:text-indigo-500'}`}>
@@ -376,32 +368,9 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
           </div>
         )}
 
-        {/* Merge mode UI */}
+        {/* Merge mode UI - removed */}
         {mergeMode && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
-              {mergeSelected.length === 0 ? 'Zgjidh klientin e PARË (ai që do të RUHET)' :
-               mergeSelected.length === 1 ? `✓ Zgjedhur: ${clients.find(c=>c.id===mergeSelected[0])?.name} — tani zgjidh klientin e DYTË (ai që do të FSHIHET)` :
-               'Konfirmo bashkimin'}
-            </p>
-            {mergeSelected.length === 2 && !mergeConfirm && (
-              <div className="space-y-2">
-                <p className="text-xs text-amber-600">
-                  <strong>{clients.find(c=>c.id===mergeSelected[0])?.name}</strong> do të ruajë të gjitha të dhënat e <strong>{clients.find(c=>c.id===mergeSelected[1])?.name}</strong>.
-                  Klienti i dytë do të fshihet.
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={() => setMergeConfirm(true)}
-                    className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all">
-                    ✓ Konfirmo Bashkimin
-                  </button>
-                  <button onClick={() => { setMergeSelected([]); setMergeConfirm(false); }}
-                    className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">
-                    Anullo
-                  </button>
-                </div>
-              </div>
-            )}
             {mergeConfirm && (
               <div className="flex gap-2">
                 <button onClick={() => {
