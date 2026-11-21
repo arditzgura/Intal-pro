@@ -33,7 +33,7 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
   const debtDropdownRef = useRef<HTMLDivElement>(null);
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reportCols, setReportCols] = useState<Record<string,boolean>>({
-    klienti: true, qyteti: true, fitimi: true, totali: true, detyrimi: true
+    klienti: false, qyteti: false, fitimi: false, totali: false, detyrimi: false
   });
   
   const [formData, setFormData] = useState<Omit<Client, 'id'>>({
@@ -336,37 +336,12 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
             <Plus size={18} strokeWidth={3}/> Shto Klient të Ri
           </button>
           <button
-            onClick={() => anyColChecked ? generatePDF() : setShowReportPanel(p => !p)}
-            className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${showReportPanel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:text-indigo-500'}`}>
+            onClick={() => { if (anyColChecked) { generatePDF(); } else { setShowReportPanel(p => !p); } }}
+            className={`px-4 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all border ${showReportPanel ? (anyColChecked ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-indigo-50 text-indigo-600 border-indigo-300') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:text-indigo-500'}`}>
             {anyColChecked ? <><Download size={16}/> Gjenero</> : <><FileText size={16}/> Raport</>}
           </button>
         </div>
 
-        {showReportPanel && (
-          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Zgjidh kolonat për raportin</p>
-              <button onClick={() => { setShowReportPanel(false); setReportCols({klienti:true,qyteti:true,fitimi:true,totali:true,detyrimi:true}); }} className="text-indigo-400 hover:text-indigo-700"><X size={14}/></button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {([['klienti','Klienti'],['qyteti','Qyteti'],['fitimi','Fitimi'],['totali','Totali Blerjeve'],['detyrimi','Detyrimi']] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setReportCols(p => ({...p, [key]: !p[key]}))}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all ${reportCols[key] ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
-                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${reportCols[key] ? 'bg-white border-white' : 'border-slate-300'}`}>
-                    {reportCols[key] && <Check size={9} className="text-indigo-600" strokeWidth={3}/>}
-                  </div>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {anyColChecked && (
-              <button onClick={generatePDF}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all active:scale-95">
-                <Download size={14}/> Gjenero Raport PDF · {sortedAndFilteredClients.length} klientë
-              </button>
-            )}
-          </div>
-        )}
 
       </div>
 
@@ -374,6 +349,56 @@ const ClientManager: React.FC<Props> = ({ clients, items, invoices, onAdd, onUpd
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[800px]">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
+              {showReportPanel && (
+                <tr className="bg-indigo-50 border-b border-indigo-100">
+                  <th className="px-8 py-3">
+                    <button onClick={() => setReportCols(p => ({...p, klienti: !p.klienti}))}
+                      className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${reportCols.klienti ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-400'}`}>
+                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${reportCols.klienti ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                        {reportCols.klienti && <Check size={9} className="text-white" strokeWidth={3}/>}
+                      </div>
+                      Klienti
+                    </button>
+                  </th>
+                  <th className="px-6 py-3" colSpan={2}>
+                    <div className="flex gap-4">
+                      {([['qyteti','Qyteti'],['fitimi','Fitimi']] as const).map(([key, lbl]) => (
+                        <button key={key} onClick={() => setReportCols(p => ({...p, [key]: !p[key]}))}
+                          className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${reportCols[key] ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-400'}`}>
+                          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${reportCols[key] ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                            {reportCols[key] && <Check size={9} className="text-white" strokeWidth={3}/>}
+                          </div>
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </th>
+                  <th className="px-6 py-3">
+                    <button onClick={() => setReportCols(p => ({...p, totali: !p.totali}))}
+                      className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${reportCols.totali ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-400'}`}>
+                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${reportCols.totali ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                        {reportCols.totali && <Check size={9} className="text-white" strokeWidth={3}/>}
+                      </div>
+                      Totali
+                    </button>
+                  </th>
+                  <th className="px-6 py-3">
+                    <button onClick={() => setReportCols(p => ({...p, detyrimi: !p.detyrimi}))}
+                      className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${reportCols.detyrimi ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-400'}`}>
+                      <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${reportCols.detyrimi ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                        {reportCols.detyrimi && <Check size={9} className="text-white" strokeWidth={3}/>}
+                      </div>
+                      Detyrimi
+                    </button>
+                  </th>
+                  <th className="px-8 py-3 text-right">
+                    <button onClick={() => { setShowReportPanel(false); setReportCols({klienti:false,qyteti:false,fitimi:false,totali:false,detyrimi:false}); }}
+                      className="text-indigo-400 hover:text-indigo-700 transition-colors">
+                      <X size={14}/>
+                    </button>
+                  </th>
+                </tr>
+              )}
               <tr>
                 <th className="px-8 py-5 cursor-pointer select-none hover:text-indigo-500 transition-colors"
                   onClick={() => { if (sortBy === 'alphabetical') setSortDir(d => d==='desc'?'asc':'desc'); else { setSortBy('alphabetical'); setSortDir('desc'); } }}>
