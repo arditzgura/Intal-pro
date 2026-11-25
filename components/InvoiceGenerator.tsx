@@ -37,6 +37,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
   const [previousBalance, setPreviousBalance] = useState<number | string>(0);
   const [amountPaid, setAmountPaid] = useState<number | string>(0);
   const originalAmountPaid = React.useRef<number>(0);
+  const [additionalPayment, setAdditionalPayment] = useState<number | string>(0);
   const [notes, setNotes] = useState('');
   const [usePoints, setUsePoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState<number | ''>('');
@@ -135,6 +136,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
       setPreviousBalance(initialData.previousBalance || 0);
       setAmountPaid(initialData.amountPaid || 0);
       originalAmountPaid.current = initialData.amountPaid || 0;
+      setAdditionalPayment(0);
       setShipTo(initialData.clientPhone || '');
       setCurrency(initialData.currency || 'Lek');
       setPrevBalanceLabel(initialData.previousBalanceLabel || 'Gjendja (+)');
@@ -229,7 +231,11 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
   const subtotal = useMemo(() => invoiceItems.reduce((sum, item) => sum + item.total, 0), [invoiceItems]);
   const prevBalNum = typeof previousBalance === 'string' ? (parseFloat(previousBalance) || 0) : previousBalance;
-  const paidNum = typeof amountPaid === 'string' ? (parseFloat(amountPaid) || 0) : amountPaid;
+  const addPayNum = typeof additionalPayment === 'string' ? (parseFloat(additionalPayment) || 0) : additionalPayment;
+  const isEditWithPaid = !!initialData && originalAmountPaid.current > 0;
+  const paidNum = isEditWithPaid
+    ? originalAmountPaid.current + addPayNum
+    : (typeof amountPaid === 'string' ? (parseFloat(amountPaid) || 0) : amountPaid);
   const grandTotal = subtotal + prevBalNum;
 
   // Klienti i zgjedhur dhe pikat e tij
@@ -428,7 +434,7 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
 
     const finalSubtotal = Number(subtotal) || 0;
     const finalPrevBal = Number(prevBalNum) || 0;
-    const finalPaid = isPaid ? (finalSubtotal + finalPrevBal) : (Number(paidNum) || 0);
+    const finalPaid = isPaid ? (finalSubtotal + finalPrevBal) : paidNum;
     const finalBalanceDue = finalSubtotal + finalPrevBal - finalPaid;
 
     clearData(STORAGE_KEYS.DRAFT);
@@ -900,7 +906,23 @@ const InvoiceGenerator: React.FC<Props> = ({ clients, items, invoices, onSubmit,
                   <Wallet size={16} className="text-emerald-600" />
                   <input className="bg-transparent border-none text-[10px] font-black text-emerald-600 uppercase outline-none w-full" value={amountPaidLabel} onChange={e => setAmountPaidLabel(e.target.value)} />
                 </div>
-                <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
+                {isEditWithPaid ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-emerald-100">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paguar më parë</span>
+                      <span className="font-black text-slate-500 text-base">{originalAmountPaid.current.toLocaleString()} L</span>
+                    </div>
+                    <input type="number" placeholder="Pagesë shtesë..." className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={additionalPayment === 0 ? '' : additionalPayment} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAdditionalPayment(e.target.value)} />
+                    {addPayNum > 0 && (
+                      <div className="flex items-center justify-between px-2">
+                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Totali i paguar</span>
+                        <span className="font-black text-emerald-700 text-sm">{(originalAmountPaid.current + addPayNum).toLocaleString()} L</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <input type="number" className="w-full bg-white px-5 py-4 rounded-2xl font-black text-emerald-700 outline-none text-lg shadow-inner border border-emerald-100 focus:border-emerald-400 transition-all" value={amountPaid} onFocus={(e) => (e.target as HTMLInputElement).select()} onChange={e => setAmountPaid(e.target.value)} />
+                )}
               </div>
 
               {/* Banner: gjendja e pikeve kur fatura e fundit ka pasur zbritje */}
