@@ -30,7 +30,8 @@ export default function MonthPicker({ value, onChange, className = '' }: Props) 
   }, []);
 
   const setMonth = (mv: string) => { onChange(`${year}-${mv}`); setOpen(false); };
-  const setYear = (y: string) => { if (/^\d{0,4}$/.test(y)) onChange(`${y.padStart(4,'0')}-${month}`); };
+  const currentYear = new Date().getFullYear().toString();
+  const setYear = (y: string) => { if (/^\d{0,4}$/.test(y)) onChange(`${y || currentYear}-${month}`); };
 
   return (
     <div ref={ref} className={`relative inline-block ${className}`}>
@@ -45,7 +46,7 @@ export default function MonthPicker({ value, onChange, className = '' }: Props) 
           value={year}
           onChange={e => setYear(e.target.value)}
           onClick={e => e.stopPropagation()}
-          className="bg-transparent border-none outline-none w-10 font-black text-[10px] uppercase cursor-text"
+          className="bg-transparent border-none outline-none w-[3.2rem] font-black text-[10px] uppercase cursor-text"
           min="2000" max="2099"
         />
         <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
