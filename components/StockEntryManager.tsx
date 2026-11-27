@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { StockEntry, Item } from '../types';
 import ConfirmDialog from './ConfirmDialog';
+import MonthPicker from './MonthPicker';
 import { Search, Calendar, Package, Plus, History, Trash2, Edit3, Eye, FileSpreadsheet, Filter, X, BarChart3, Warehouse, Calculator, List, PieChart, ChevronRight, TrendingUp, ArrowUpRight, ArrowDownWideNarrow, Landmark, Clock, Download } from 'lucide-react';
 import { exportStockEntryToExcel, exportAllStockEntriesToExcel } from '../utils/exportUtils';
 
@@ -226,12 +227,7 @@ const StockEntryManager: React.FC<Props> = ({ entries, items, onAddNew, onEdit, 
           <div className="flex items-center gap-2 px-3 border-l border-slate-100">
              <Clock size={16} className="text-indigo-600 shrink-0" />
              {filterMode === 'month' ? (
-               <input 
-                 type="month"
-                 className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer"
-                 value={selectedMonth}
-                 onChange={(e) => setSelectedMonth(e.target.value)}
-               />
+               <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
              ) : (
                <select 
                  className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer min-w-[80px]"

@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Invoice, Client, Item } from '../types';
 import { Search, Trash2, Eye, Edit3, FileSpreadsheet, Filter, MapPin, CheckCircle2, Calculator, Wallet, Coins, TrendingDown } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import MonthPicker from './MonthPicker';
 import { BarChart2, ArrowLeft as BackIcon } from 'lucide-react';
 import { normalize } from '../utils/storage';
 
@@ -369,7 +370,7 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             {filterMode !== 'all' && filterMode !== 'today' && (
               <div className="flex items-center gap-3 bg-slate-100/50 px-4 py-2 rounded-xl border border-slate-100 w-full xl:w-auto justify-center">
                 {filterMode === 'day' && <input type="date" className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer" value={selectedDay} onChange={e => setSelectedDay(e.target.value)} />}
-                {filterMode === 'month' && <input type="month" className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />}
+                {filterMode === 'month' && <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />}
                 {filterMode === 'year' && <select className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer min-w-[60px]" value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>}
               </div>
             )}
@@ -457,8 +458,9 @@ const InvoiceHistory: React.FC<Props> = ({ invoices, clients, items, onDelete, o
             ))}
           </div>
           {reportMode === 'month' && (
-            <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)}
-              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none cursor-pointer" />
+            <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+              <MonthPicker value={reportMonth} onChange={setReportMonth} />
+            </div>
           )}
           {reportMode === 'year' && (
             <select value={reportYear} onChange={e => setReportYear(e.target.value)}

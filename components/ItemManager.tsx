@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Item, Client, Invoice, StockEntry } from '../types';
 import ConfirmDialog from './ConfirmDialog';
+import MonthPicker from './MonthPicker';
 import { normalize } from '../utils/storage';
 import { Plus, Search, Trash2, Edit2, X, Box, PackageSearch, ShoppingCart, Layers, UserCircle2, Filter, Calendar, Clock, ChevronDown, Calculator, ArrowDownWideNarrow, ArrowUpWideNarrow, TrendingUp, AlertTriangle, Truck, BarChart2, ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -356,7 +357,7 @@ const ItemManager: React.FC<Props> = ({ items, clients, invoices, stockEntries, 
                     <input type="date" className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer" value={selectedDay} onChange={e => setSelectedDay(e.target.value)} />
                   )}
                   {filterMode === 'month' && (
-                    <input type="month" className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+                    <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
                   )}
                   {filterMode === 'year' && (
                     <select className="bg-transparent outline-none font-black text-[10px] uppercase cursor-pointer min-w-[60px]" value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>

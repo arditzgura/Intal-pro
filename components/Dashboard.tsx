@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Invoice, Client, Item, StockEntry } from '../types';
 import { normalize } from '../utils/storage';
 import { TrendingUp, Users, Package, FileText, CheckCircle, AlertCircle, Calculator, DollarSign, ArrowDownCircle, Filter, Calendar, Clock, ChevronDown, Wallet, CalendarDays, History, Landmark, PieChart, Truck } from 'lucide-react';
+import MonthPicker from './MonthPicker';
 
 interface Props {
   invoices: Invoice[];
@@ -336,7 +337,7 @@ const Dashboard: React.FC<Props> = ({ invoices, clients, items, stockEntries, on
             {filterMode !== 'all' && filterMode !== 'today' && (
               <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
                 {filterMode === 'day' && <input type="date" className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)}/>}
-                {filterMode === 'month' && <input type="month" className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}/>}
+                {filterMode === 'month' && <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />}
                 {filterMode === 'year' && <select className="bg-transparent outline-none font-black text-xs uppercase cursor-pointer" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>}
               </div>
             )}

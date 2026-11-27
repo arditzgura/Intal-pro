@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Item, StockEntry, Invoice, Client } from '../types';
 import { X, Package, ArrowUpCircle, ArrowDownCircle, TrendingUp, DollarSign, Clock, Filter, Landmark, BarChart3, PieChart, Calculator, ArrowUpRight, Search, Trash2, Tag, CheckCircle2, History, Box, Plus, LayoutGrid, ArrowDownWideNarrow, MapPin, Calendar, ArrowLeft, ShoppingCart, FileText, Pencil, Check } from 'lucide-react';
+import MonthPicker from './MonthPicker';
 
 interface Props {
   item: Item;
@@ -257,7 +258,7 @@ const ItemProfile: React.FC<Props> = ({ item, stockEntries, invoices, clients, o
                 <div className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl flex items-center gap-2">
                   <Calendar size={14} className="text-indigo-600" />
                   {filterMode === 'day' && <input type="date" className="bg-transparent outline-none font-black text-xs uppercase" value={selectedDay} onChange={e => setSelectedDay(e.target.value)} />}
-                  {filterMode === 'month' && <input type="month" className="bg-transparent outline-none font-black text-xs uppercase" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />}
+                  {filterMode === 'month' && <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />}
                   {filterMode === 'year' && (
                     <select className="bg-transparent outline-none font-black text-xs uppercase" value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
                       {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
